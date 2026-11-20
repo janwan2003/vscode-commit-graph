@@ -489,4 +489,6 @@ on the graph). The graph itself stays free.
   targets with one autosquash rebase), conflicted files named in the in-progress bar (click → merge editor), append-only Load more (git.git to 5,000
   commits: 11.85 → 2.03 MB posted) and a stale-cache fix it exposed. Two guides by a subagent (fixup/autosquash, resolve merge conflicts; git 2.53
   checked), screenshot updated. Verified: 29/29 unit (also CI conditions), 37/37 e2e ×2 on the packaged build, a real click opening the merge editor,
-  a mutation run proving the cache check, Chromium renders, vsix install. Post-push CI/Pages results: see the next line.
+  a mutation run proving the cache check, Chromium renders, vsix install. After push: CI for main (run 44757653429) and tag v0.10.0 (run 44757673441)
+  green, unit 29/29 + e2e 37/37 each; Pages deployed; live index (v0.10, `mergeline-0.10.0.vsix`), both guides, screenshot and sitemap (27 URLs)
+  return 200; release asset byte-identical (sha256 1111c60a…); sitemap resubmitted (HTTP 204). Inbox: 0.10.0 line appended.
