@@ -197,6 +197,7 @@ button:disabled { opacity: .5; cursor: default; }
 #blist .bp-item:hover, #alist .bp-item:hover { background: var(--vscode-list-hoverBackground); }
 #blist .bp-item span, #alist .bp-item span { overflow: hidden; text-overflow: ellipsis; }
 #blist .bp-item.cur span { font-weight: 600; }
+#blist .bp-sec { margin: 6px 4px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--vscode-descriptionForeground); }
 .bp-hint { font-size: 11px; }
 
 /* Commits that are not in HEAD's history (setting mergeline.dimOtherCommits) */
@@ -222,6 +223,11 @@ button:disabled { opacity: .5; cursor: default; }
 .av-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--vscode-editor-background); }
 .d-meta .av { width: 20px; height: 20px; font-size: 9px; vertical-align: -5px; }
 /* Tags on the commit in the details pane: name, tagger and the annotated tag's message. */
+.d-contains { display: flex; flex-wrap: wrap; gap: 3px 18px; font-size: 12px; margin: 0 0 6px; color: var(--vscode-descriptionForeground); }
+.d-contains .dc-row { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+.d-contains .dc-h { margin-right: 3px; }
+.d-contains .badge.link { cursor: pointer; }
+.d-contains .badge.tag.link { color: var(--vscode-foreground); }
 .d-tags { margin: 0 0 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .d-tag { border-left: 3px solid var(--lane-3); padding: 2px 8px; background: color-mix(in srgb, var(--lane-3) 8%, transparent); }
 .d-tag .badge { margin-right: 6px; }
@@ -270,9 +276,17 @@ button:disabled { opacity: .5; cursor: default; }
 /* Sidebar view (Source Control): a narrow toolbar. Filters that need room stay in the editor tab ("Open in editor"). */
 body.side #toolbar { gap: 6px; padding: 4px 6px; }
 body.side #toolbar .tbl, body.side #toolbar .full, body.side #orderhint, body.side #toolbar .grow { display: none !important; }
+/* "⋯" holds what a narrow toolbar hides; an editor tab gets .narrow when its toolbar would wrap (fitToolbar). */
+#morebtn { display: none; padding: 2px 8px; }
+body.side #morebtn, body.narrow #morebtn, body.narrow1 #morebtn { display: inline-block; }
+body.narrow1 #toolbar .lo { display: none !important; }
+body.narrow #toolbar .full, body.narrow #orderhint { display: none !important; }
+body.narrow #toolbar { gap: 8px; }
 body.side #toolbar select { max-width: 140px; }
-body.side .find { order: 10; flex: 1 1 100%; min-width: 0; }
+body.side .find { order: 10; flex: 1 1 calc(100% - 44px); min-width: 0; }
+body.side #morebtn { order: 11; }
 body.side .find input { flex: 1; width: auto; min-width: 0; }
 body.side #details { padding: 8px; }
 body.side #branchbtn::before { content: 'Branches: '; opacity: .75; }
 body.side #authbtn::before { content: 'Authors: '; opacity: .75; }
+body.narrow .find input { width: 130px; }

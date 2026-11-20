@@ -455,6 +455,47 @@ export function parseTags(out: string): TagInfo[] {
   return tags;
 }
 
+/** Branches, remote branches and tags whose history includes a commit. Tags oldest first, so tags[0] is the first release with it. */
+export interface Containing {
+  heads: { name: string; sha: string }[];
+  remotes: { name: string; sha: string }[];
+  tags: { name: string; sha: string; date: number }[];
+}
+
+/**
+ * Branches via `for-each-ref --contains`, tags via `git tag --contains`: on 5,000 tags and 60,000 commits `for-each-ref --contains` over
+ * refs/tags took 3.1-3.4 s and `git tag --contains` 0.2 s (git 2.53; tag uses a reachability walk shared across tags). Timeout kept anyway.
+ */
+export async function readContaining(cwd: string, sha: string, timeout = 8000): Promise<Containing> {
+  const t0 = Date.now();
+  const fmt = `--format=%(refname)${US}%(objectname)${US}%(*objectname)${US}%(creatordate:unix)`;
+  try {
+    const [branches, tags] = await Promise.all([
+      git(cwd, ['for-each-ref', `--contains=${sha}`, fmt, 'refs/heads', 'refs/remotes'], { timeout }),
+      git(cwd, ['tag', '--contains', sha, fmt], { timeout }),
+    ]);
+    return parseContaining(branches + (branches && !branches.endsWith('\n') ? '\n' : '') + tags);
+  } catch (e) {
+    // execFile kills the process at the timeout; its error does not say so.
+    throw timeout && Date.now() - t0 >= timeout - 50 ? new Error('timeout') : e;
+  }
+}
+
+export function parseContaining(out: string): Containing {
+  const res: Containing = { heads: [], remotes: [], tags: [] };
+  for (const line of out.split('\n')) {
+    if (!line) continue;
+    const [full, obj, peeled, date] = line.split(US);
+    const sha = peeled || obj;
+    if (full.startsWith('refs/heads/')) res.heads.push({ name: full.slice(11), sha });
+    else if (full.startsWith('refs/remotes/')) { if (!full.endsWith('/HEAD')) res.remotes.push({ name: full.slice(13), sha }); }
+    else if (full.startsWith('refs/tags/')) res.tags.push({ name: full.slice(10), sha, date: Number(date) || 0 });
+  }
+  // Oldest first (creator date: the tagger date, or the commit date of a lightweight tag), then by name.
+  res.tags.sort((a, b) => a.date - b.date || a.name.localeCompare(b.name));
+  return res;
+}
+
 export function parseRefs(out: string): Ref[] {
   const refs: Ref[] = [];
   for (const line of out.split('\n')) {

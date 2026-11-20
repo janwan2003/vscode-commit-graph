@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.0 (2026-11-20)
+
+- **Which branches and tags contain a commit.** The details pane now has a **Contained in** line: the local branches (the current one first), the remote branches and the tags whose history includes the selected commit. **First tag** names the oldest of those tags, so you can see at a glance which release first shipped a fix, followed by every other tag that has it. Long lists show six names and "+N more"; click a name to jump to its tip. Mergeline asks git (`git for-each-ref --contains`) after the details are shown, so a slow answer on a repository with thousands of tags never holds up the pane, and it gives up after 8 seconds. A commit no branch or tag reaches says so.
+- **Tags in the Branches filter.** The **Branches** checklist in the toolbar now lists your tags too, under their own heading (highest version first; type to find older ones). Tick a tag to see only the history of that release, alone or together with branches.
+- **A toolbar that stays on one line.** When the editor tab is too narrow for every control, the toolbar no longer wraps onto a second line: first **Patch**, **Remotes…** and **Refresh** move into a new **⋯** menu, then **Remote branches**, **First parent** and the commit order. The sidebar view's toolbar has the same **⋯** menu, so those settings can now be changed there too.
+
 ## 0.19.0 (2026-11-20)
 
 - **The graph in the sidebar.** A **Mergeline Graph** view now sits in the Source Control sidebar (collapsed until you expand it, or run **Mergeline: Show Commit Graph in Sidebar**). It is the full graph, with right-click actions, the details pane, find, the Branches and Authors filters, Compact and Fetch, and a toolbar narrowed to fit. The Date, Author and Commit columns start hidden there (right-click the column header to show them); the sidebar keeps its own column layout, separate from the editor tab's. Its title bar has **Refresh** and **Open in editor**. Drag the view to the bottom panel or the secondary sidebar if you prefer it there. The sidebar and an editor tab can be open together, and both catch up after an action.

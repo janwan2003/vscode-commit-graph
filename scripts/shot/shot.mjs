@@ -57,6 +57,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
         // REVIEW=1: the details pane in review mode, with all but the last two files reviewed.
         if (${process.env.REVIEW === '1'}) { P.details = P.review; P.details.reviewKey = P.details.from + '..' + P.details.sha; P.details.reviewed = P.details.files.slice(0, Math.max(1, P.details.files.length - 2)).map((f) => f.path); }
         setTimeout(() => window.postMessage(P.details, '*'), 30);
+        if (P.contains && P.contains[P.details.sha]) setTimeout(() => window.postMessage({ type: 'contains', sha: P.details.sha, ...P.contains[P.details.sha] }, '*'), 45);
       }
       if (!${process.env.NOFIND === '1'}) setTimeout(() => { document.querySelector('#find').value = 'search'; document.querySelector('#find').dispatchEvent(new Event('input')); }, 60);
       if (${MENU}) setTimeout(() => { const b = document.querySelector('.badge.branch:not(.current)'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 12 })); }, 120);

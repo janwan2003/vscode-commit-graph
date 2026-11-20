@@ -107,6 +107,7 @@ A       src/export.ts</span></pre>
 <span class="k">git rev-list --left-right --count main...feature</span>
 <span class="o">1       2</span></pre>
     <p>The last command is the &ldquo;ahead and behind&rdquo; count: <code>main</code> has 1 commit that <code>feature</code> lacks, and <code>feature</code> has 2. Add <code>--cherry-pick</code> to the <code>--left-right</code> log to hide commits that were cherry-picked across and exist on both sides. After a <code>git fetch</code>, <code>git log --oneline HEAD..@{upstream}</code> lists what a pull would bring down.</p>
+    <p>The same ranges work between release tags; <a href="git-commits-between-two-tags.html">list the commits between two tags</a> covers that, with changelog formats. To go the other way, from one commit to every branch and release that has it, see <a href="find-which-tag-contains-commit.html">which branches and tags contain a commit</a>.</p>
 
     <h2 id="one-file">One file across branches</h2>
 <pre><span class="k">git diff main feature --</span> src/app.ts        <span class="c"># the file as it is on each branch</span>
@@ -175,6 +176,8 @@ A       src/export.ts</span></pre>
       <a href="git-file-history-vscode.html">File history</a>
       <a href="find-commit-that-changed-file.html">Find commits by path</a>
       <a href="compare-branches-commits-vscode.html" aria-current="page">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html">Commits between two tags</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>

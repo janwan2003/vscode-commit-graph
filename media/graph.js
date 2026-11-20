@@ -48,7 +48,7 @@
   document.getElementById('app').innerHTML = `
   <div id="toolbar">
     <label class="tb"><span class="tbl">Repo</span> <select id="repo" title="Repository"></select></label>
-    <span class="tb"><span class="tbl">Branches</span> <button id="branchbtn" class="secondary drop" title="Show only some branches" aria-haspopup="true" aria-expanded="false">All</button></span>
+    <span class="tb"><span class="tbl">Branches</span> <button id="branchbtn" class="secondary drop" title="Show only some branches or tags" aria-haspopup="true" aria-expanded="false">All</button></span>
     <span class="tb"><span class="tbl">Authors</span> <button id="authbtn" class="secondary drop" title="Show only commits by some authors" aria-haspopup="true" aria-expanded="false">All</button></span>
     <label class="tb chk full" title="Show remote-tracking branches"><input type="checkbox" id="remotes"> Remote branches</label>
     <label class="tb chk full" title="Follow only the first parent of merges (git log --first-parent): each branch's own line, merged commits hidden behind their merge"><input type="checkbox" id="firstparent"> First parent</label>
@@ -58,10 +58,11 @@
     <span class="grow"></span>
     <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref, path:…)" title="Find in loaded commits. Type path:src/auth or path:*.md and press Enter to find commits that changed matching files anywhere in history." spellcheck="false" aria-label="Find">
       <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span><button id="findall" title="Search the whole history (message, author, hash, ref, or path:… for changed files), not just the loaded commits" hidden>All history</button></span>
-    <button id="patchbtn" class="secondary drop full" title="Apply a patch from a file or the clipboard, or save uncommitted changes as a patch" aria-haspopup="true">Patch</button>
-    <button id="remotesbtn" class="secondary full" title="Manage remotes: add, fetch, prune, change URL, rename, remove">Remotes…</button>
+    <button id="patchbtn" class="secondary drop full lo" title="Apply a patch from a file or the clipboard, or save uncommitted changes as a patch" aria-haspopup="true">Patch</button>
+    <button id="remotesbtn" class="secondary full lo" title="Manage remotes: add, fetch, prune, change URL, rename, remove">Remotes…</button>
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
-    <button id="refresh" class="full" title="Refresh">Refresh</button>
+    <button id="refresh" class="full lo" title="Refresh">Refresh</button>
+    <button id="morebtn" class="secondary drop" title="More: remote branches, first parent, commit order, patches, remotes, refresh" aria-haspopup="true" aria-label="More options">⋯</button>
   </div>
   <div id="opbar" hidden role="status"></div>
   <div id="bisectbar" hidden role="status"></div>
@@ -74,9 +75,9 @@
   <div id="split" hidden title="Drag to resize the details pane (double-click: reset)"></div>
   <div id="details" hidden></div>
   <div id="menu" hidden role="menu"></div>
-  <div id="bpop" hidden role="dialog" aria-label="Branches to show"><input id="bfind" type="search" placeholder="Filter branches" spellcheck="false" aria-label="Filter branches">
+  <div id="bpop" hidden role="dialog" aria-label="Branches to show"><input id="bfind" type="search" placeholder="Filter branches and tags" spellcheck="false" aria-label="Filter branches">
     <div class="bp-quick"><button type="button" data-q="all" class="secondary">All branches</button><button type="button" data-q="cur" class="secondary">Current branch</button></div>
-    <div id="blist"></div><div id="bhidden" class="hint bp-hint" hidden></div><div class="hint bp-hint">Tick branches to show only their history.</div></div>
+    <div id="blist"></div><div id="bhidden" class="hint bp-hint" hidden></div><div class="hint bp-hint">Tick branches or tags to show only their history.</div></div>
   <div id="apop" hidden role="dialog" aria-label="Authors to show"><input id="afind" type="search" placeholder="Filter authors" spellcheck="false" aria-label="Filter authors">
     <div class="bp-quick"><button type="button" data-q="all" class="secondary">All authors</button></div>
     <div id="alist"></div><div class="hint bp-hint">Tick authors to show only their commits. Each one links to its nearest shown ancestor.</div></div>
@@ -119,9 +120,8 @@
   $('#refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
   $('#fetch').addEventListener('click', () => vscode.postMessage({ type: 'action', action: 'fetch' }));
   $('#remotesbtn').addEventListener('click', () => action({ action: 'manageRemotes' }));
-  $('#patchbtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
+  $('#patchbtn').addEventListener('click', (e) => { e.stopPropagation(); patchMenu(e.currentTarget.getBoundingClientRect()); });
+  function patchMenu(r) {
     const dirty = data && data.commits.length && data.commits[0].kind === 'uncommitted' ? '' : 'disabled';
     showMenu([
       ['Apply patch from a file…', { action: 'applyPatch', from: 'file' }],
@@ -130,7 +130,48 @@
       ['Save uncommitted changes as a patch…', { action: 'savePatch', patch: 'working' }, dirty],
       ['Copy uncommitted changes as a patch', { action: 'savePatch', patch: 'working', copy: true }, dirty],
     ], r.left, r.bottom + 2);
+  }
+  // "⋯": the controls a narrow toolbar hides (the sidebar view, or an editor tab too narrow for one line).
+  function moreItems() {
+    const tick = (on, label) => (on ? '✓ ' : '\u2003') + label;
+    const toggle = (id) => () => { const el = $('#' + id); el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
+    const order = $('#order');
+    const setOrder = (v) => () => { order.value = v; order.dispatchEvent(new Event('change')); };
+    const r = $('#morebtn').getBoundingClientRect();
+    return [
+      [tick($('#remotes').checked, 'Remote branches'), toggle('remotes')],
+      [tick($('#firstparent').checked, 'First parent'), toggle('firstparent')],
+      null,
+      ...[...order.options].map((o) => [tick(order.value === o.value, 'Order: ' + o.textContent), setOrder(o.value)]),
+      null,
+      ['Patch…', () => patchMenu(r)],
+      ['Manage remotes…', { action: 'manageRemotes' }],
+      ['Refresh', () => vscode.postMessage({ type: 'refresh' })],
+    ];
+  }
+  $('#morebtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    showMenu(moreItems(), r.right - 220, r.bottom + 2);
   });
+  // Narrow: hide the wide controls (they move into "⋯") as soon as the toolbar would need a second line.
+  const toolbar = $('#toolbar');
+  function fitToolbar() {
+    if (document.body.classList.contains('side')) return;
+    const cl = document.body.classList;
+    const wraps = () => {
+      const mids = [...toolbar.children].filter((c) => c.offsetParent && c.offsetHeight).map((c) => c.offsetTop + c.offsetHeight / 2);
+      return mids.length > 0 && Math.max(...mids) > Math.min(...mids) + 10;
+    };
+    // Tier 1 hides the buttons on the right (Patch, Remotes…, Refresh); tier 2 also the filters.
+    cl.remove('narrow', 'narrow1');
+    if (!wraps()) return;
+    cl.add('narrow1');
+    if (wraps()) cl.replace('narrow1', 'narrow');
+  }
+  const fitObs = new ResizeObserver(() => fitToolbar());
+  fitObs.observe(document.body);
+  fitObs.observe(toolbar);
   $('#find').addEventListener('input', () => runFind(true));
   $('#find').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -161,20 +202,34 @@
   const bpop = $('#bpop');
   function branchLabel() {
     const b = $('#branchbtn');
-    b.textContent = !selBranches.length ? 'All' : selBranches.length === 1 ? selBranches[0] : `${selBranches.length} branches`;
-    b.title = selBranches.length ? 'Showing only: ' + selBranches.join(', ') : 'Show only some branches';
+    const n = selBranches.length, nTags = selBranches.filter((x) => x.startsWith(TAGP)).length;
+    b.textContent = !n ? 'All' : n === 1 ? refLabel(selBranches[0]) : `${n} ${nTags === n ? 'tags' : nTags ? 'refs' : 'branches'}`;
+    b.title = selBranches.length ? 'Showing only: ' + selBranches.map(refLabel).join(', ') : 'Show only some branches or tags';
     b.classList.toggle('on', selBranches.length > 0);
   }
+  // Tags are listed under the branches and sent as refs/tags/<name>, so a tag never gets mistaken for a branch of the same name.
+  const TAGP = 'refs/tags/';
+  const refLabel = (v) => (v.startsWith(TAGP) ? '◆ ' + v.slice(TAGP.length) : v);
+  const MAX_TAGS = 50;
   function fillBranchList() {
     if (!data) return;
     const q = $('#bfind').value.trim().toLowerCase();
     const sel = new Set(selBranches);
-    // Ticked branches that no longer exist stay listed so they can be unticked.
-    const all = [...new Set([...data.branches, ...selBranches])];
-    const shown = all.filter((b) => !q || b.toLowerCase().includes(q));
-    $('#blist').innerHTML = shown.length
-      ? shown.map((b) => `<label class="bp-item${b === data.branch ? ' cur' : ''}" title="${esc(b)}"><input type="checkbox" value="${esc(b)}"${sel.has(b) ? ' checked' : ''}> <span>${esc(b)}</span></label>`).join('')
-      : '<div class="hint">No branch matches.</div>';
+    const hit = (name) => !q || name.toLowerCase().includes(q);
+    const item = (v, label, cur) => `<label class="bp-item${cur ? ' cur' : ''}" title="${esc(label)}"><input type="checkbox" value="${esc(v)}"${sel.has(v) ? ' checked' : ''}> <span>${esc(label)}</span></label>`;
+    // Ticked branches or tags that no longer exist stay listed so they can be unticked.
+    const all = [...new Set([...data.branches, ...selBranches.filter((b) => !b.startsWith(TAGP))])];
+    const shown = all.filter(hit);
+    // Tags: highest version first (v10 above v9), ticked ones always shown, the rest capped unless filtered.
+    const tagNames = [...new Set([...data.refs.filter((r) => r.type === 'tag').map((r) => r.name), ...selBranches.filter((b) => b.startsWith(TAGP)).map((b) => b.slice(TAGP.length))])]
+      .filter(hit).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    const tagShown = tagNames.filter((t, k) => k < MAX_TAGS || sel.has(TAGP + t));
+    let html = shown.map((b) => item(b, b, b === data.branch)).join('');
+    if (tagNames.length) {
+      html += `<div class="bp-sec">Tags</div>` + tagShown.map((t) => item(TAGP + t, '◆ ' + t, false)).join('');
+      if (tagNames.length > tagShown.length) html += `<div class="hint bp-hint">${tagNames.length - tagShown.length} more tags: type to find them.</div>`;
+    }
+    $('#blist').innerHTML = html || '<div class="hint">No branch or tag matches.</div>';
     bpop.querySelector('[data-q="cur"]').disabled = !data.branch;
     const hid = data.hidden || [];
     const bh = $('#bhidden');
@@ -277,11 +332,12 @@
   window.addEventListener('message', (ev) => {
     const m = ev.data;
     switch (m.type) {
-      case 'settings': settings = m.settings; document.body.classList.toggle('side', settings.host === 'view'); $('#order').value = settings.commitOrder || 'date'; applyLayout(settings.layout); render(); break;
+      case 'settings': settings = m.settings; document.body.classList.toggle('side', settings.host === 'view'); $('#order').value = settings.commitOrder || 'date'; applyLayout(settings.layout); render(); fitToolbar(); break;
       case 'repos': repos = m.repos; currentRepo = m.repo; fillRepos(); break;
       case 'data': setData(m); break;
       case 'append': appendData(m); break;
       case 'details': showDetails(m); break;
+      case 'contains': if (details && details.sha === m.sha && details.info) { details.contains = m; renderContains(); } break;
       case 'history': gotHistory(m); break;
       case 'message': openMessageEditor(m.sha, m.message); break;
       case 'note': openNoteEditor(m.sha, m.note); break;
@@ -295,7 +351,7 @@
       case 'menuPick': { const mi = [...menu.querySelectorAll('.mi')].find((x) => x.textContent === m.label); if (mi) mi.dispatchEvent(new MouseEvent('click', { bubbles: true })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', side: document.body.classList.contains('side'), patchShown: getComputedStyle($('#patchbtn')).display !== 'none', rowsClass: rowsEl.className, nodeColors: [...rowsEl.querySelectorAll('.row')].map((r) => { const n = r.querySelector('.c-graph svg > :last-child'); return r.dataset.i + ' ' + (n ? n.getAttribute('fill') || n.getAttribute('stroke') : '') + ' ' + (r.style.getPropertyValue('--rc') || '-') + ' ' + getComputedStyle(r).backgroundColor + ' ' + getComputedStyle(r.querySelector('.c-desc')).boxShadow; }), badgeColors: [...rowsEl.querySelectorAll('.badge.bc')].map((b) => b.dataset.ref + ' ' + b.style.getPropertyValue('--bc') + ' ' + getComputedStyle(b).borderTopColor), menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, compact: $('#compact').checked, foldHint: $('#foldhint').hidden ? '' : $('#foldhint').textContent, folds: [...rowsEl.querySelectorAll('.row.k-collapsed .fold')].map((x) => x.textContent), trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': try { vscode.postMessage({ type: 'pong', side: document.body.classList.contains('side'), narrow: document.body.classList.contains('narrow') ? 2 : document.body.classList.contains('narrow1') ? 1 : 0, toolbarH: toolbar.offsetHeight, moreShown: getComputedStyle($('#morebtn')).display !== 'none', patchShown: getComputedStyle($('#patchbtn')).display !== 'none', rowsClass: rowsEl.className, nodeColors: [...rowsEl.querySelectorAll('.row')].map((r) => { const n = r.querySelector('.c-graph svg > :last-child'); return r.dataset.i + ' ' + (n ? n.getAttribute('fill') || n.getAttribute('stroke') : '') + ' ' + (r.style.getPropertyValue('--rc') || '-') + ' ' + getComputedStyle(r).backgroundColor + ' ' + getComputedStyle(r.querySelector('.c-desc')).boxShadow; }), badgeColors: [...rowsEl.querySelectorAll('.badge.bc')].map((b) => b.dataset.ref + ' ' + b.style.getPropertyValue('--bc') + ' ' + getComputedStyle(b).borderTopColor), menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, compact: $('#compact').checked, foldHint: $('#foldhint').hidden ? '' : $('#foldhint').textContent, folds: [...rowsEl.querySelectorAll('.row.k-collapsed .fold')].map((x) => x.textContent), trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), containsText: (detailsEl.querySelector('.d-contains') || {}).textContent || '', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); } catch (err) { vscode.postMessage({ type: 'pong', error: String(err && err.stack || err) }); } break;
     }
   });
 
@@ -772,6 +828,33 @@
       : '<span class="tmeta">Lightweight tag (no message)</span>'}</div>`).join('')}</div>`;
   }
 
+  /** "Contained in": the branches and tags whose history has this commit (filled in by a later 'contains' message). */
+  function containsHtml(m) {
+    const c = m.contains;
+    if (!c) return '<span class="dc-h">Contained in</span> <span class="hint">looking…</span>';
+    if (c.error) return `<span class="dc-h">Contained in</span> <span class="hint">${c.error === 'timeout' ? 'git took too long to answer (over 8 s); skipped' : esc(c.error)}</span>`;
+    if (!c.heads.length && !c.remotes.length && !c.tags.length) return '<span class="dc-h">Contained in</span> <span class="hint">no branch or tag (reachable only from a stash or the reflog)</span>';
+    const MAX = 6;
+    const names = (list, kind, key) => {
+      const all = m.containsAll && m.containsAll[key];
+      const shown = all ? list : list.slice(0, MAX);
+      return shown.map((r) => `<span class="badge ${kind} link" data-goto="${esc(r.sha)}" title="${esc(r.name)}${indexBySha.has(r.sha) ? ': go to its tip' : ' (tip not loaded)'}">${esc(r.name)}</span>`).join(' ')
+        + (list.length > shown.length ? ` <span class="link" data-cmore="${key}">+${list.length - shown.length} more</span>` : '');
+    };
+    // The current branch first: it is the one people check.
+    const heads = [...c.heads].sort((a, b) => (b.name === data.branch) - (a.name === data.branch));
+    const parts = [];
+    if (heads.length) parts.push(`<span class="dc-row"><span class="dc-h">Branches</span> ${names(heads, 'branch', 'heads')}</span>`);
+    if (c.remotes.length) parts.push(`<span class="dc-row"><span class="dc-h">Remote</span> ${names(c.remotes, 'remote', 'remotes')}</span>`);
+    if (c.tags.length) parts.push(`<span class="dc-row"><span class="dc-h">First tag</span> <span class="badge tag link" data-goto="${esc(c.tags[0].sha)}" title="The oldest tag whose history has this commit: the first release with it">${esc(c.tags[0].name)}</span>${c.tags.length > 1 ? ` <span class="hint">in ${c.tags.length} tags:</span> ${names(c.tags, 'tag', 'tags')}` : ''}</span>`);
+    else parts.push('<span class="dc-row"><span class="dc-h">Tags</span> <span class="hint">not in any tag yet</span></span>');
+    return parts.join('');
+  }
+  function renderContains() {
+    const el = detailsEl.querySelector('.d-contains');
+    if (el && details) el.innerHTML = containsHtml(details);
+  }
+
   const STATUS = { A: 'Added', M: 'Modified', D: 'Deleted', R: 'Renamed', C: 'Copied', T: 'Type changed', U: 'Untracked' };
 
   function showDetails(m) {
@@ -796,6 +879,7 @@
         ${i.committer !== i.author || i.commitDate !== i.authorDate ? `<span>Committer ${esc(i.committer)}, ${esc(new Date(i.commitDate * 1000).toLocaleString())}</span>` : ''}
         ${signatureHtml(m.signature)}
         ${data.web ? `<span><span class="link" data-url="${esc(data.web.commit + i.sha)}" title="${esc(data.web.commit + i.sha)}">Open on ${esc(data.web.name)}</span></span>` : ''}</div>
+        <div class="d-contains">${containsHtml(m)}</div>
         ${tagsHtml(m.tags)}
         ${body ? `<pre class="d-body">${linkify(body)}</pre>` : ''}
         ${m.note ? `<div class="d-note"><span class="d-note-h">Note</span> <span class="link" data-note="${esc(i.sha)}" title="Edit this note (git notes)">Edit</span><pre>${linkify(m.note)}</pre></div>` : ''}`;
@@ -944,6 +1028,8 @@
     if (dir) { const p = dir.dataset.dir; if (collapsedDirs.has(p)) collapsedDirs.delete(p); else collapsedDirs.add(p); renderFiles(); return; }
     const nb = e.target.closest('[data-note]');
     if (nb) { vscode.postMessage({ type: 'getNote', sha: nb.dataset.note }); return; }
+    const cm = e.target.closest('[data-cmore]');
+    if (cm && details) { details.containsAll = { ...(details.containsAll || {}), [cm.dataset.cmore]: true }; renderContains(); return; }
     const g = e.target.closest('[data-goto]');
     if (g) { if (indexBySha.has(g.dataset.goto)) select(g.dataset.goto, true); return; }
     const cp = e.target.closest('[data-copy]');

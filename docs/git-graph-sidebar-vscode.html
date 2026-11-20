@@ -88,7 +88,7 @@
       <p>To fit a narrow view, some things start hidden or stay in the editor tab:</p>
       <ul>
         <li>The <strong>Date</strong>, <strong>Author</strong> and <strong>Commit</strong> columns are hidden. Right-click the column header to show them. The sidebar remembers its own columns and widths, separately from the editor tab.</li>
-        <li>The <strong>Remote branches</strong> toggle, <strong>First parent</strong>, the commit <strong>Order</strong>, <strong>Patch</strong> and <strong>Remotes&hellip;</strong> are not in the sidebar toolbar. Use the editor tab for those.</li>
+        <li>The <strong>Remote branches</strong> toggle, <strong>First parent</strong>, the commit <strong>Order</strong>, <strong>Patch</strong> and <strong>Remotes&hellip;</strong> sit in the sidebar toolbar&rsquo;s <strong>&hellip;</strong> menu, next to the find box (from 0.20; in 0.19 they were only in the editor tab).</li>
       </ul>
       <p>The view&rsquo;s title bar has two buttons: <strong>Refresh</strong>, and <strong>Open in editor</strong>, which opens the same repository in an editor tab. You can keep both open. After an action in either one, both show the result; a view that is hidden catches up when you show it again.</p>
       <p>A sidebar graph is Git Graph&rsquo;s feature request <a href="https://github.com/mhutchie/vscode-git-graph/issues/781">#781, &ldquo;(Minimal) Git Graph View in Side Panel&rdquo;</a>, opened in August 2023. When we checked on 20 November 2026 it was still open, with 8 thumbs-up.</p>
@@ -111,7 +111,7 @@
     <h2 id="tab">Sidebar or editor tab?</h2>
     <ul>
       <li><strong>Sidebar or panel:</strong> keep the graph in sight while you edit, check what you just committed, select a commit and open a file diff without losing your place in the editor.</li>
-      <li><strong>Editor tab:</strong> rebasing, comparing branches, reading long commit messages, or anything that needs the remote-branches toggle, first-parent view, commit order, patches or remotes.</li>
+      <li><strong>Editor tab:</strong> rebasing, comparing branches, reading long commit messages, or anything that needs a wide table.</li>
     </ul>
     <p>The status-bar button, the Source Control title-bar button and <strong>Mergeline: Show Commit Graph</strong> still open the editor tab, as before.</p>
 
@@ -147,6 +147,8 @@
       <a href="git-file-history-vscode.html">File history</a>
       <a href="find-commit-that-changed-file.html">Find commits by path</a>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html">Commits between two tags</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>

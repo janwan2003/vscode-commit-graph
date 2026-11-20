@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git log between two tags: list the commits between releases for release notes | Mergeline</title>
+<meta name="description" content="List the commits between two git tags for release notes: git log v1.0..v1.1, --no-merges, --first-parent, shortlog, diff --stat and a changelog one-liner.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-commits-between-two-tags.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git log between two tags: the commits between two releases">
+<meta property="og:description" content="Two dots or three, leaving out merges, one line per merged branch, commits grouped by author, the files that changed, everything since the last tag, and a changelog in one command.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-commits-between-two-tags.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>List the commits between two tags</h1>
+    <p>You are writing release notes for <code>v1.1</code> and need everything that went in since <code>v1.0</code>. A tag is a fixed name for one commit, so &ldquo;between two tags&rdquo; is an ordinary git range. This guide covers <code>git log</code> with two dots and three, leaving out merge commits, one line per merged branch, commits grouped by author, the files that changed, &ldquo;everything since the last release&rdquo;, a changelog in one command, and what a git graph in VS Code can show you.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#repo">The example repository</a></li>
+        <li><a href="#two-dots">Two dots: <code>v1.0..v1.1</code></a></li>
+        <li><a href="#merges">Merge commits: <code>--no-merges</code> and <code>--first-parent</code></a></li>
+        <li><a href="#three-dots">Three dots: both sides</a></li>
+        <li><a href="#shortlog">Grouped by author: <code>git shortlog</code></a></li>
+        <li><a href="#diff">Which files changed: <code>git diff</code></a></li>
+        <li><a href="#since">Since the last release</a></li>
+        <li><a href="#changelog">A changelog in one command</a></li>
+        <li><a href="#range-diff">Compare two ranges: <code>git range-diff</code></a></li>
+        <li><a href="#mergeline">In the Mergeline graph</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Commits in <code>v1.1</code> that are not in <code>v1.0</code></td><td><code>git log v1.0..v1.1 --oneline</code></td></tr>
+          <tr><td>The same without merge commits</td><td><code>git log v1.0..v1.1 --oneline --no-merges</code></td></tr>
+          <tr><td>One line per merged branch or pull request</td><td><code>git log v1.0..v1.1 --oneline --first-parent</code></td></tr>
+          <tr><td>How many commits</td><td><code>git rev-list --count v1.0..v1.1</code></td></tr>
+          <tr><td>Grouped by author</td><td><code>git shortlog v1.0..v1.1</code></td></tr>
+          <tr><td>The files that changed</td><td><code>git diff --stat v1.0 v1.1</code></td></tr>
+          <tr><td>Everything since the last tag</td><td><code>git log $(git describe --tags --abbrev=0)..HEAD --oneline</code></td></tr>
+          <tr><td>A Markdown changelog</td><td><code>git log v1.0..v1.1 --no-merges --pretty=format:'- %s (%h)'</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53.0 in a throwaway repository and quote the output we got.</p>
+
+    <h2 id="repo">The example repository</h2>
+    <p>Between <code>v1.0</code> and <code>v1.1</code>, two feature branches were merged into <code>main</code> with merge commits, and two commits went straight onto <code>main</code>. After <code>v1.1</code>, a fix on <code>main</code> was cherry-picked onto <code>release/1.1</code> and tagged <code>v1.1.1</code>; <code>main</code> carried on to <code>v1.2</code>. Three people committed: Ann Lee, Bob Ray and Cleo Park.</p>
+<pre><span class="k">git log --oneline --graph --decorate</span> v1.2 v1.1.1
+<span class="o">* 6ecc338 (tag: v1.2) Add wishlist
+* 33ef012 Speed up order list
+* 6e9f3f2 Log failed payments
+* 9c87c13 Fix rounding in cart total
+* a8aa046 Add order history page
+| * 81f8e24 (tag: v1.1.1, origin/release/1.1, release/1.1) Fix rounding in cart total
+|/
+* 931e6db (tag: v1.1) Update README
+*   2587c3a Merge branch 'feature/shipping'
+|\
+| * a1229a3 Add shipping options
+|/
+* aecc87c Show prices with two decimals
+*   31b22d9 Merge branch 'feature/coupons'
+|\
+| * 513eee8 Validate coupon codes
+| * 14a6cfc Add coupon field
+|/
+* 46a18bd (tag: v1.0) Add checkout form
+* 3e72ed7 Initial cart page</span></pre>
+
+    <h2 id="two-dots">Two dots: <code>v1.0..v1.1</code></h2>
+    <p><code>A..B</code> means &ldquo;commits you can reach from <code>B</code> but not from <code>A</code>&rdquo;. For two releases on the same line, that is exactly what the newer one added:</p>
+<pre><span class="k">git log v1.0..v1.1 --oneline</span>
+<span class="o">931e6db Update README
+2587c3a Merge branch 'feature/shipping'
+a1229a3 Add shipping options
+aecc87c Show prices with two decimals
+31b22d9 Merge branch 'feature/coupons'
+513eee8 Validate coupon codes
+14a6cfc Add coupon field</span>
+<span class="k">git rev-list --count v1.0..v1.1</span>
+<span class="o">7</span></pre>
+    <ul>
+      <li>The commit tagged <code>v1.0</code> is not in the list; the one tagged <code>v1.1</code> is. The range starts after the old tag and ends at the new one.</li>
+      <li>Order matters. <code>git log v1.1..v1.0</code> printed nothing, because everything in <code>v1.0</code> is already in <code>v1.1</code>. If you get an empty list, check that you put the older tag first.</li>
+      <li>Newest commits come first. Add <code>--reverse</code> to read them in the order they were made.</li>
+      <li>Add a path to see only commits that touched it: <code>git log v1.0..v1.1 --oneline -- cart.js</code> printed just <code>aecc87c Show prices with two decimals</code>.</li>
+    </ul>
+
+    <h2 id="merges">Merge commits: <code>--no-merges</code> and <code>--first-parent</code></h2>
+    <p>The list above mixes the work with the merges that brought it in. Which to keep depends on how your team merges.</p>
+<pre><span class="k">git log v1.0..v1.1 --oneline --no-merges</span>
+<span class="o">931e6db Update README
+a1229a3 Add shipping options
+aecc87c Show prices with two decimals
+513eee8 Validate coupon codes
+14a6cfc Add coupon field</span>
+<span class="k">git log v1.0..v1.1 --oneline --first-parent</span>
+<span class="o">931e6db Update README
+2587c3a Merge branch 'feature/shipping'
+aecc87c Show prices with two decimals
+31b22d9 Merge branch 'feature/coupons'</span></pre>
+    <ul>
+      <li><strong><code>--no-merges</code></strong> drops the merge commits and keeps every commit inside the branches. Use it when each commit is a meaningful change.</li>
+      <li><strong><code>--first-parent</code></strong> follows only the main line: each merged branch shows up as its one merge commit, and the commits inside it are hidden. When every change arrives as a pull request with a merge commit, this is one line per pull request. The <a href="git-log-first-parent.html">first-parent guide</a> explains why.</li>
+      <li><strong><code>--merges</code></strong> keeps only the merge commits: here <code>2587c3a</code> and <code>31b22d9</code>.</li>
+    </ul>
+    <p>If your team squash-merges or rebases, there are no merge commits and the plain list is already one line per change.</p>
+
+    <h2 id="three-dots">Three dots: both sides</h2>
+    <p>Two dots answer &ldquo;what is new in the second tag&rdquo;. That is only the full story when the second tag grew from the first. <code>v1.1.1</code> and <code>v1.2</code> went separate ways after <code>v1.1</code>, so each has commits the other lacks:</p>
+<pre><span class="k">git log v1.1.1..v1.2 --oneline</span>
+<span class="o">6ecc338 Add wishlist
+33ef012 Speed up order list
+6e9f3f2 Log failed payments
+9c87c13 Fix rounding in cart total
+a8aa046 Add order history page</span>
+<span class="k">git log v1.2..v1.1.1 --oneline</span>
+<span class="o">81f8e24 Fix rounding in cart total</span></pre>
+    <p>Three dots, <code>A...B</code>, give both sides at once: the commits in either tag but not in both. Add <code>--left-right</code> to mark which side each one is on (<code>&lt;</code> for the left tag, <code>&gt;</code> for the right), and <code>--cherry-pick</code> to hide changes that exist on both sides under different hashes:</p>
+<pre><span class="k">git log v1.1.1...v1.2 --oneline --left-right</span>
+<span class="o">&gt; 6ecc338 Add wishlist
+&lt; 81f8e24 Fix rounding in cart total
+&gt; 33ef012 Speed up order list
+&gt; 6e9f3f2 Log failed payments
+&gt; 9c87c13 Fix rounding in cart total
+&gt; a8aa046 Add order history page</span>
+<span class="k">git log v1.1.1...v1.2 --oneline --left-right --cherry-pick</span>
+<span class="o">&gt; 6ecc338 Add wishlist
+&gt; 33ef012 Speed up order list
+&gt; 6e9f3f2 Log failed payments
+&gt; a8aa046 Add order history page</span></pre>
+    <p>The last list is what someone upgrading from <code>v1.1.1</code> to <code>v1.2</code> gets that they did not already have: the rounding fix is gone from it because <code>v1.1.1</code> had its own copy. To find which releases have a given commit, see <a href="find-which-tag-contains-commit.html">which branches and tags contain a commit</a>.</p>
+
+    <h2 id="shortlog">Grouped by author: <code>git shortlog</code></h2>
+<pre><span class="k">git shortlog v1.0..v1.1</span>
+<span class="o">Ann Lee (4):
+      Merge branch 'feature/coupons'
+      Show prices with two decimals
+      Merge branch 'feature/shipping'
+      Update README
+
+Bob Ray (2):
+      Add coupon field
+      Validate coupon codes
+
+Cleo Park (1):
+      Add shipping options</span>
+<span class="k">git shortlog -sn --no-merges v1.0..v1.1</span>
+<span class="o">     2	Ann Lee
+     2	Bob Ray
+     1	Cleo Park</span></pre>
+    <p>Each author&rsquo;s commits are listed oldest first. <code>-s</code> prints only the counts, <code>-n</code> sorts by count, and <code>--no-merges</code> stops merge commits counting as work, which is why Ann Lee went from 4 to 2. For a &ldquo;thanks to&rdquo; line in release notes, that last command is all you need. If one person appears under two names, a <code>.mailmap</code> file joins them; see <a href="git-log-author-filter-vscode.html">git log by author</a>.</p>
+
+    <h2 id="diff">Which files changed: <code>git diff</code></h2>
+    <p><code>git log</code> lists commits; <code>git diff</code> compares the two snapshots. Give it the two tags with a space:</p>
+<pre><span class="k">git diff --stat</span> v1.0 v1.1
+<span class="o"> README.md   | 1 +
+ cart.js     | 1 +
+ coupons.js  | 2 ++
+ shipping.js | 1 +
+ 4 files changed, 5 insertions(+)</span>
+<span class="k">git diff --name-status</span> v1.0 v1.1
+<span class="o">A	README.md
+M	cart.js
+A	coupons.js
+A	shipping.js</span></pre>
+    <p><code>A</code> is added, <code>M</code> modified, <code>D</code> deleted, <code>R</code> renamed. <code>--shortstat</code> prints only the last line. Without an option, <code>git diff v1.0 v1.1</code> prints the full change, and <code>git diff v1.0 v1.1 -- cart.js</code> limits it to one file.</p>
+    <p>Careful with dots here: for <code>git diff</code>, <code>v1.0..v1.1</code> means the same as the space, and <code>v1.0...v1.1</code> means &ldquo;what <code>v1.1</code> changed since the two split&rdquo;, not the three-dot set of commits from <code>git log</code>. The <a href="compare-branches-commits-vscode.html">compare branches guide</a> covers the difference.</p>
+
+    <h2 id="since">Since the last release</h2>
+    <p><code>git describe --tags --abbrev=0</code> prints the nearest tag behind the current commit. Use it as the start of the range:</p>
+<pre><span class="k">git describe --tags --abbrev=0</span>
+<span class="o">v1.10</span>
+<span class="k">git log $(git describe --tags --abbrev=0)..HEAD --oneline</span>
+<span class="o">87d72c4 Start dark mode</span></pre>
+    <ul>
+      <li><strong>Keep <code>--tags</code>.</strong> Without it, <code>git describe</code> only uses annotated tags. Our <code>v1.2</code> is a lightweight tag: <code>git describe --abbrev=0 v1.2</code> answered <code>v1.1</code>, and <code>git describe --tags --abbrev=0 v1.2</code> answered <code>v1.2</code>.</li>
+      <li><strong>The release before a tag:</strong> start from its parent. <code>git describe --tags --abbrev=0 v1.10^</code> printed <code>v1.9</code>, so <code>git log v1.9..v1.10</code> is the notes for <code>v1.10</code>.</li>
+      <li><strong>It follows history, not dates.</strong> On <code>release/1.1</code> it answers <code>v1.1.1</code>, the last tag on that branch, even though <code>v1.10</code> is newer.</li>
+      <li><strong>All tags, newest first:</strong> <code>git tag --sort=-creatordate</code> (by date) or <code>git tag --sort=-v:refname</code> (by version number).</li>
+    </ul>
+
+    <h2 id="changelog">A changelog in one command</h2>
+    <p><code>--pretty=format:</code> takes placeholders: <code>%s</code> is the subject, <code>%h</code> the short hash, <code>%an</code> the author name. This prints a Markdown list:</p>
+<pre><span class="k">git log v1.0..v1.1 --no-merges --pretty=format:</span>'- %s (%h)'
+<span class="o">- Update README (931e6db)
+- Add shipping options (a1229a3)
+- Show prices with two decimals (aecc87c)
+- Validate coupon codes (513eee8)
+- Add coupon field (14a6cfc)</span>
+<span class="k">git log v1.0..v1.1 --no-merges --reverse --pretty=format:</span>'- %s (%h, %an)'
+<span class="o">- Add coupon field (14a6cfc, Bob Ray)
+- Validate coupon codes (513eee8, Bob Ray)
+- Show prices with two decimals (aecc87c, Ann Lee)
+- Add shipping options (a1229a3, Cleo Park)
+- Update README (931e6db, Ann Lee)</span></pre>
+    <p>Add <code>&gt; CHANGES.md</code> to write it to a file. For a merge-based workflow, swap <code>--no-merges</code> for <code>--first-parent</code> to get one line per merge. Look at your merge messages first: if the subject is only &ldquo;Merge pull request #12 from &hellip;&rdquo; and the title is on the lines below, use <code>%b</code> (the body) instead of <code>%s</code>. A list of subjects is a draft, not finished release notes: it still needs grouping, and &ldquo;Update README&rdquo; probably does not belong in it.</p>
+
+    <h2 id="range-diff">Compare two ranges: <code>git range-diff</code></h2>
+    <p><code>git range-diff</code> compares two lists of commits and pairs up the ones that make the same change. Here it compares what <code>v1.1.1</code> and <code>v1.2</code> each added on top of <code>v1.1</code>:</p>
+<pre><span class="k">git range-diff</span> v1.1..v1.1.1 v1.1..v1.2
+<span class="o">-:  ------- &gt; 1:  a8aa046 Add order history page
+1:  81f8e24 ! 2:  9c87c13 Fix rounding in cart total
+    @@ Metadata
+      ## Commit message ##
+         Fix rounding in cart total
+
+    -    (cherry picked from commit 9c87c1376aab0e1fcfad275b359035a8a15f2ea9)
+    -
+      ## cart.js ##
+     @@
+      Initial cart page
+-:  ------- &gt; 3:  6e9f3f2 Log failed payments
+-:  ------- &gt; 4:  33ef012 Speed up order list
+-:  ------- &gt; 5:  6ecc338 Add wishlist</span></pre>
+    <p><code>-: ------- &gt;</code> marks a commit only in the second range. <code>1: 81f8e24 ! 2: 9c87c13</code> pairs the two copies of the fix; <code>!</code> means they differ, and the lines below show how: only the &ldquo;cherry picked from&rdquo; line, the code is the same. <code>=</code> would mean identical. It is meant for comparing two versions of a rebased branch, but it is also a quick check that a release branch got the same fixes as <code>main</code>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>In the Mergeline graph</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. It does not write release notes or list a range as text; use the commands above for that. What it gives you is the picture: where the tags are, what each commit changed, and what changed between two releases.</p>
+      <ol class="steps">
+        <li><strong>Show only one release&rsquo;s history (new in 0.20).</strong> The toolbar&rsquo;s <strong>Branches</strong> filter lists your tags under a <strong>Tags</strong> heading, highest version first; the first 50 are shown, and you can type to find others. Tick <code>v1.1</code> and the graph shows only its history, like <code>git log v1.1</code>. The button then reads <strong>&#9670; v1.1</strong>. Tick a second tag to see both releases&rsquo; history together.</li>
+        <li><strong>Compare two tags.</strong> Click the commit with one tag&rsquo;s badge, then <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) the commit with the other. The details pane lists every file that differs between them, with lines added and removed, like <code>git diff --stat v1.0 v1.1</code>.</li>
+        <li><strong>Read a change.</strong> Click a file in that list to open it in VS Code&rsquo;s own diff editor.</li>
+        <li><strong>Keep it.</strong> <strong>Save this diff as a patch&hellip;</strong> in the comparison writes the whole change to one file, the same as <code>git diff --binary</code>.</li>
+        <li><strong>Check a commit&rsquo;s releases (new in 0.20).</strong> Select any commit: the <strong>Contained in</strong> line in its details names the first tag that has it and lists the others. See <a href="find-which-tag-contains-commit.html">which branches and tags contain a commit</a>.</li>
+      </ol>
+      <figure class="shot">
+        <img src="screenshot-tagfilter.png" width="1100" height="480" loading="lazy" alt="The Branches checklist open over the graph: a filter box, All branches and Current branch buttons, local and remote branches with main and release/1.1 ticked, then a Tags heading listing v1.0.0 and v0.1.0">
+        <figcaption>Tags are listed under the branches in the Branches checklist; tick one to see only that release&rsquo;s history.</figcaption>
+      </figure>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Is the first tag included in <code>git log v1.0..v1.1</code>?</summary>
+      <p>No. The commit tagged <code>v1.0</code> and everything before it are left out; the commit tagged <code>v1.1</code> is included. That is what you want for release notes: <code>v1.0</code>&rsquo;s own commit was already in the previous release.</p>
+    </details>
+    <details>
+      <summary>Why is my list empty?</summary>
+      <p>Usually the tags are the wrong way round: <code>git log v1.1..v1.0</code> is empty because <code>v1.0</code> has nothing <code>v1.1</code> lacks. Put the older tag first. Also check that you have the tags locally: <code>git fetch --tags</code>.</p>
+    </details>
+    <details>
+      <summary>Two dots or three?</summary>
+      <p>Two dots when the new release grew from the old one, which is the normal case on one branch. Three dots with <code>--left-right</code> when the two tags are on different branches, such as a patch release on a release branch and the next minor release on <code>main</code>.</p>
+    </details>
+    <details>
+      <summary>How do I list the commits between two tags on GitHub?</summary>
+      <p>Open <code>https://github.com/&lt;owner&gt;/&lt;repo&gt;/compare/v1.0...v1.1</code>. The compare page has a Commits tab and a Files changed tab. Locally, <code>git log v1.0..v1.1</code> gives you the same commits as text you can paste.</p>
+    </details>
+    <p>Related: <a href="find-which-tag-contains-commit.html">which branches and tags contain a commit</a>, <a href="compare-branches-commits-vscode.html">compare branches and commits</a>, <a href="git-log-first-parent.html">git log --first-parent</a> and <a href="git-log-author-filter-vscode.html">git log by author</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html" aria-current="page">Commits between two tags</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html">Compact graph</a>
+      <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
+      <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
+      <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

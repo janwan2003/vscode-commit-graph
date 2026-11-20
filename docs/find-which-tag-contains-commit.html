@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which branches and tags contain a commit: find the first release with a fix | Mergeline</title>
+<meta name="description" content="Find which tags and branches contain a git commit and the first release with a fix: git tag --contains, describe --contains, and cherry-picked fixes.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/find-which-tag-contains-commit.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Which branches and tags contain a commit (find the first release with a fix)">
+<meta property="og:description" content="git tag --contains sorted by date or version, git describe --contains, branch -a --contains, for-each-ref, --merged, why a cherry-picked fix is missed, and the same answer in a VS Code graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/find-which-tag-contains-commit.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Which branches and tags contain a commit</h1>
+    <p>A bug was fixed in commit <code>9c87c13</code>. Which release shipped it? Is it on the release branch yet? Git answers both with <code>--contains</code>: a branch or tag <strong>contains</strong> a commit when the commit is in its history, that is, when you can reach the commit by walking back from the branch or tag through parents. This guide covers the commands, how to pick the first release out of the list, the other direction (<code>--merged</code>), the case where <code>--contains</code> gives the wrong answer (a cherry-picked fix), speed on big repositories, and the same answer in VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#repo">The example repository</a></li>
+        <li><a href="#tags">Which tags contain it</a></li>
+        <li><a href="#describe"><code>git describe --contains</code></a></li>
+        <li><a href="#branches">Which branches contain it</a></li>
+        <li><a href="#all">Branches and tags in one command</a></li>
+        <li><a href="#merged">The other way round: <code>--merged</code></a></li>
+        <li><a href="#cherry">When the fix was cherry-picked</a></li>
+        <li><a href="#speed">Speed on big repositories</a></li>
+        <li><a href="#vscode">In VS Code</a></li>
+        <li><a href="#mergeline">In the Mergeline graph</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>List the tags that contain a commit</td><td><code>git tag --contains &lt;commit&gt;</code></td></tr>
+          <tr><td>The first release with it</td><td><code>git tag --contains &lt;commit&gt; --sort=creatordate | head -1</code></td></tr>
+          <tr><td>The same, by version number</td><td><code>git tag --contains &lt;commit&gt; --sort=version:refname | head -1</code></td></tr>
+          <tr><td>Name the commit relative to the nearest later tag</td><td><code>git describe --contains &lt;commit&gt;</code></td></tr>
+          <tr><td>Local branches that have it</td><td><code>git branch --contains &lt;commit&gt;</code></td></tr>
+          <tr><td>Remote branches that have it</td><td><code>git branch -r --contains &lt;commit&gt;</code> (run <code>git fetch</code> first)</td></tr>
+          <tr><td>Branches, remote branches and tags at once</td><td><code>git for-each-ref --contains &lt;commit&gt; refs/heads refs/remotes refs/tags</code></td></tr>
+          <tr><td>Tags that are already in a release</td><td><code>git tag --merged v1.1.1</code></td></tr>
+          <tr><td>Find a cherry-picked copy of the fix</td><td><code>git log --all --oneline --grep='&lt;subject&gt;'</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53.0 in a throwaway repository and quote the output we got. <code>&lt;commit&gt;</code> can be a full or short hash, a branch, a tag or anything else git accepts as a commit.</p>
+
+    <h2 id="repo">The example repository</h2>
+    <p>A small shop with releases <code>v1.0</code> to <code>v1.10</code>. <code>v1.2</code> is a lightweight tag (no message); the others are annotated. The fix is <code>9c87c13</code> on <code>main</code>. It was also cherry-picked onto <code>release/1.1</code> and shipped there as <code>v1.1.1</code>. There is a remote, <code>origin</code>, with the same branches.</p>
+<pre><span class="k">git log --oneline --graph --decorate --all</span>
+<span class="o">* c254049 (origin/feature/dark-mode, feature/dark-mode) Dark mode for cart
+* 87d72c4 (HEAD -&gt; main, origin/main, origin/HEAD) Start dark mode
+* d0400ec (tag: v1.10) Add saved addresses
+* 248be09 (tag: v1.9) Upgrade payment SDK
+  &hellip; v1.8 down to v1.3, one commit each &hellip;
+* 6ecc338 (tag: v1.2) Add wishlist
+* 33ef012 Speed up order list
+* 6e9f3f2 Log failed payments
+* 9c87c13 Fix rounding in cart total
+* a8aa046 Add order history page
+| * 81f8e24 (tag: v1.1.1, origin/release/1.1, release/1.1) Fix rounding in cart total
+|/
+* 931e6db (tag: v1.1) Update README
+*   2587c3a Merge branch 'feature/shipping'
+|\
+| * a1229a3 Add shipping options
+|/
+* aecc87c Show prices with two decimals
+*   31b22d9 Merge branch 'feature/coupons'
+|\
+| * 513eee8 Validate coupon codes
+| * 14a6cfc Add coupon field
+|/
+* 46a18bd (tag: v1.0) Add checkout form
+* 3e72ed7 Initial cart page</span></pre>
+
+    <h2 id="tags">Which tags contain it</h2>
+<pre><span class="k">git tag --contains</span> 9c87c13
+<span class="o">v1.10
+v1.2
+v1.3
+v1.4
+v1.5
+v1.6
+v1.7
+v1.8
+v1.9</span></pre>
+    <p>Every release from <code>v1.2</code> on has the fix. But look at the order: <code>v1.10</code> comes first, because <code>git tag</code> sorts names as plain text by default. For &ldquo;the first release with it&rdquo; you want one of two other orders:</p>
+<pre><span class="k">git tag --contains</span> 9c87c13 <span class="k">--sort=creatordate</span> --format='%(refname:short) %(creatordate:short)' | head -3
+<span class="o">v1.2 2026-01-19
+v1.3 2026-01-22
+v1.4 2026-01-24</span>
+<span class="k">git tag --contains</span> 9c87c13 <span class="k">--sort=version:refname</span> | head -1
+<span class="o">v1.2</span></pre>
+    <ul>
+      <li><strong><code>--sort=creatordate</code></strong> sorts by when the tag was made: the tagger date of an annotated tag, or the commit date for a lightweight tag. That is how <code>v1.2</code>, our lightweight tag, got a date. Use it when tags are made at release time.</li>
+      <li><strong><code>--sort=version:refname</code></strong> (or <code>v:refname</code>) reads the numbers in the name, so <code>v1.10</code> comes after <code>v1.9</code>. Use it when someone tagged an old version late, or when tag dates are unreliable.</li>
+      <li>Put a <code>-</code> in front to reverse either one: <code>--sort=-creatordate</code> lists the newest first.</li>
+      <li>To make version sorting the default for every <code>git tag</code> list, run <code>git config --global tag.sort version:refname</code>.</li>
+    </ul>
+    <p>A commit that no tag contains prints nothing. <code>git tag --contains c254049</code> (a commit only on <code>feature/dark-mode</code>) gave empty output and exit code 0: not released yet.</p>
+
+    <h2 id="describe"><code>git describe --contains</code></h2>
+    <p><code>git describe --contains</code> answers in one line, by naming the commit relative to a tag that contains it:</p>
+<pre><span class="k">git describe --contains</span> 9c87c13
+<span class="o">v1.2~3</span></pre>
+    <p><code>v1.2~3</code> means &ldquo;start at <code>v1.2</code> and go back 3 first parents&rdquo;: <code>v1.2</code> is <code>6ecc338</code>, then <code>33ef012</code>, <code>6e9f3f2</code> and <code>9c87c13</code>. So the fix went out in <code>v1.2</code>, three commits before the tag. The name is a valid revision: <code>git show v1.2~3</code> shows the fix. For a commit that came in through a merge, the name has a <code>^2</code> in it, meaning &ldquo;the second parent of that merge&rdquo;:</p>
+<pre><span class="k">git describe --contains</span> 14a6cfc
+<span class="o">v1.1~3^2~1</span>
+<span class="k">git describe --contains</span> d0400ec
+<span class="o">v1.10^0</span>
+<span class="k">git describe --contains</span> c254049
+<span class="o">fatal: cannot describe 'c254049fcfeeea34f2379e947fcf7d8f419fee87'</span></pre>
+    <p>Read <code>v1.1~3^2~1</code> as: from <code>v1.1</code> go back 3, take the merge&rsquo;s second parent, go back 1 more. <code>^0</code> means the commit is exactly the tagged one. &ldquo;cannot describe&rdquo; means no tag contains it. With <code>--contains</code>, <code>git describe</code> also uses lightweight tags, which is how it found <code>v1.2</code>. It prefers a nearby tag, not the oldest one: in a copy of the repository we added an annotated tag one commit after the fix, dated six weeks after <code>v1.2</code>, and it answered <code>late-near~1</code> instead of <code>v1.2~3</code>. When the answer matters, check it with <code>git tag --contains --sort=creatordate</code>.</p>
+
+    <h2 id="branches">Which branches contain it</h2>
+<pre><span class="k">git branch --contains</span> 9c87c13
+<span class="o">  feature/dark-mode
+* main</span>
+<span class="k">git branch -r --contains</span> 9c87c13
+<span class="o">  origin/HEAD -&gt; origin/main
+  origin/feature/dark-mode
+  origin/main</span>
+<span class="k">git branch -a --contains</span> 9c87c13
+<span class="o">  feature/dark-mode
+* main
+  remotes/origin/HEAD -&gt; origin/main
+  remotes/origin/feature/dark-mode
+  remotes/origin/main</span></pre>
+    <ul>
+      <li>Plain <code>git branch</code> looks at local branches, <code>-r</code> at remote-tracking branches (your copy of the remote&rsquo;s branches), <code>-a</code> at both. The <code>*</code> marks the branch you are on.</li>
+      <li><code>origin/HEAD -&gt; origin/main</code> is not a branch of its own. It points at the remote&rsquo;s default branch, so it always repeats that branch&rsquo;s answer.</li>
+      <li>Remote-tracking branches are only as fresh as your last fetch. Run <code>git fetch</code> first, or the answer is about the remote as it was then.</li>
+      <li><code>release/1.1</code> is missing from the list even though it has this fix. More on that in <a href="#cherry">When the fix was cherry-picked</a>.</li>
+    </ul>
+
+    <h2 id="all">Branches and tags in one command</h2>
+    <p><code>git for-each-ref</code> takes <code>--contains</code> too, and you choose which kinds of ref to check:</p>
+<pre><span class="k">git for-each-ref --contains</span> 9c87c13 <span class="k">--format</span>='%(refname)' refs/heads refs/remotes refs/tags
+<span class="o">refs/heads/feature/dark-mode
+refs/heads/main
+refs/remotes/origin/HEAD
+refs/remotes/origin/feature/dark-mode
+refs/remotes/origin/main
+refs/tags/v1.10
+refs/tags/v1.2
+refs/tags/v1.3
+&hellip;
+refs/tags/v1.9</span></pre>
+    <p>Without <code>--format</code>, each line starts with the object the ref points at and its type: <code>commit</code> for branches and the lightweight <code>v1.2</code>, <code>tag</code> for annotated tags. We used the full <code>%(refname)</code> on purpose. With <code>%(refname:short)</code>, <code>refs/remotes/origin/HEAD</code> came out as just <code>origin</code>. <code>--sort=creatordate</code> works here as well.</p>
+
+    <h2 id="merged">The other way round: <code>--merged</code></h2>
+    <p><code>--contains X</code> lists the refs whose history includes <code>X</code>. <code>--merged X</code> is the mirror: the refs that are themselves in <code>X</code>&rsquo;s history. <code>--no-merged X</code> lists the rest. Both work with <code>git tag</code>, <code>git branch</code> and <code>git for-each-ref</code>.</p>
+<pre><span class="k">git tag --merged</span> v1.1.1          <span class="c"># releases v1.1.1 builds on</span>
+<span class="o">v1.0
+v1.1
+v1.1.1</span>
+<span class="k">git tag --no-merged</span> v1.2        <span class="c"># tags that are not in v1.2</span>
+<span class="o">v1.1.1
+v1.10
+v1.3
+&hellip;</span>
+<span class="k">git branch -a --no-merged</span> main  <span class="c"># branches with commits main does not have</span>
+<span class="o">  feature/dark-mode
+  release/1.1
+  remotes/origin/feature/dark-mode
+  remotes/origin/release/1.1</span></pre>
+    <p><code>v1.1.1</code> is not in <code>v1.2</code>, and <code>release/1.1</code> is not merged into <code>main</code>: the release branch went its own way after <code>v1.1</code>. <code>git branch --merged</code> is also the usual first step for <a href="delete-multiple-git-branches-vscode.html">deleting branches that are already merged</a>.</p>
+
+    <h2 id="cherry">When the fix was cherry-picked</h2>
+    <p>Release branches often get fixes by cherry-pick. A cherry-pick makes a new commit with the same change but a different hash, so <code>--contains</code> on the original says nothing about it. In our repository, <code>git tag --contains 9c87c13</code> did not list <code>v1.1.1</code>, although <code>v1.1.1</code> has the fix as <code>81f8e24</code>. Four ways to find the copy:</p>
+    <ol class="steps">
+      <li><strong>Search by message.</strong> Copies keep the subject:
+<pre><span class="k">git log --all --oneline --grep</span>='Fix rounding'
+<span class="o">81f8e24 Fix rounding in cart total
+9c87c13 Fix rounding in cart total</span></pre>
+        If the copy was made with <code>git cherry-pick -x</code>, its message ends with <code>(cherry picked from commit 9c87c13&hellip;)</code>, so <code>git log --all --oneline --grep='cherry picked from commit 9c87c13'</code> finds exactly the copies, even if the subject was reworded.</li>
+      <li><strong>Search by code.</strong> <code>-S</code> (the &ldquo;pickaxe&rdquo;) finds commits that add or remove a string, whatever their message says:
+<pre><span class="k">git log --all --oneline -S</span>'Math.round(total'
+<span class="o">81f8e24 Fix rounding in cart total
+9c87c13 Fix rounding in cart total</span></pre></li>
+      <li><strong>Let git compare the changes.</strong> <code>--cherry-mark</code> marks commits whose change exists on both sides with <code>=</code>:
+<pre><span class="k">git log --oneline --cherry-mark --left-right</span> release/1.1...main
+<span class="o">&gt; 87d72c4 Start dark mode
+&hellip;
+= 81f8e24 Fix rounding in cart total
+&gt; 33ef012 Speed up order list
+&gt; 6e9f3f2 Log failed payments
+= 9c87c13 Fix rounding in cart total
+&gt; a8aa046 Add order history page</span>
+<span class="k">git cherry -v</span> main release/1.1
+<span class="o">- 81f8e246c4eca57179c4b5ea6e09f796b86e24e9 Fix rounding in cart total</span></pre>
+        <code>git cherry -v main release/1.1</code> lists the commits on <code>release/1.1</code> that are not on <code>main</code>: <code>-</code> means an equivalent change is already on <code>main</code>, <code>+</code> means it is not. This matches on the diff, so it fails if the copy needed a conflict fix.</li>
+      <li><strong>Then ask about the copy.</strong> <code>git tag --contains 81f8e24</code> printed <code>v1.1.1</code>. The fix shipped first in <code>v1.1.1</code> on the 1.1 line and in <code>v1.2</code> on <code>main</code>.</li>
+    </ol>
+    <p>The same blind spot applies to rebased and squash-merged commits: they are new commits too, and only the message or the code connects them to the old ones.</p>
+
+    <h2 id="speed">Speed on big repositories</h2>
+    <p><code>--contains</code> has to walk history for every ref it checks, so it gets slow when there are thousands of tags. We built a test repository with 60,000 commits and 5,000 annotated tags and asked about an old commit that 4,992 of the tags contain:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Command</th><th scope="col">Time (3 runs)</th></tr></thead>
+        <tbody>
+          <tr><td><code>git tag --contains &lt;commit&gt;</code></td><td>0.20&ndash;0.24 s</td></tr>
+          <tr><td><code>git for-each-ref --contains &lt;commit&gt; refs/tags</code></td><td>3.4&ndash;3.7 s</td></tr>
+          <tr><td>the same after <code>git commit-graph write --reachable</code></td><td><code>git tag</code>: 0.09&ndash;0.11 s; <code>for-each-ref</code>: 6.0&ndash;6.3 s</td></tr>
+          <tr><td><code>git branch -a --contains &lt;commit&gt;</code> (one branch)</td><td>0.05&ndash;0.06 s</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Same list, very different times: <code>git tag --contains</code> was about 15 times faster than <code>git for-each-ref --contains</code>, and about 60 times faster once a commit-graph file existed. A real repository with long merge histories and many tags can take seconds either way. If you only need one release name, <code>git describe --contains</code> answered in 0.08&ndash;0.24 s on the same repository. (Times on a 12-core Linux machine with git 2.53.0; yours will differ.)</p>
+
+    <h2 id="vscode">In VS Code</h2>
+    <p>VS Code&rsquo;s built-in Source Control Graph does not show which branches or tags contain a commit. We searched the user-facing strings of the Source Control views and of the git extension bundled with VS Code 1.147 and found no such feature. Use the integrated terminal (<kbd>Ctrl</kbd>+<kbd>`</kbd>) with the commands above.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>In the Mergeline graph</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.20, selecting a commit shows a <strong>Contained in</strong> line in the details pane, under the commit&rsquo;s other details:</p>
+      <ul>
+        <li><strong>Branches:</strong> the local branches that have the commit, your current branch first.</li>
+        <li><strong>Remote:</strong> the remote-tracking branches that have it. <code>origin/HEAD</code> is left out, since it only repeats the default branch.</li>
+        <li><strong>First tag:</strong> the oldest tag whose history has the commit, by tag date (the commit date for a lightweight tag), which is the first release with it. When more than one tag has it, &ldquo;in N tags:&rdquo; follows with the list.</li>
+      </ul>
+      <figure class="shot">
+        <img src="screenshot-contains.png" width="1100" height="760" loading="lazy" alt="Mergeline graph with the merge commit of feature/search selected; under the commit line the details pane reads Branches main release/1.1, Remote origin/main origin/release/1.1, First tag v1.0.0, followed by the annotated tag's message">
+        <figcaption>The Contained in line for a merge commit: the branches and remote branches that have it, and v1.0.0 as the first tag.</figcaption>
+      </figure>
+      <p>For the fix in the example above, that is <code>main</code> then <code>feature/dark-mode</code>; <code>origin/feature/dark-mode</code> and <code>origin/main</code>; and First tag <code>v1.2</code>, in 9 tags. A list longer than 6 names shows the first 6 and &ldquo;+N more&rdquo;; click it to see them all. Click a branch or tag name to select its tip in the graph, when that commit is loaded.</p>
+      <p>Other cases say so in words. A commit on branches but in no tag shows <strong>Tags: not in any tag yet</strong>. A commit no branch or tag reaches shows &ldquo;no branch or tag (reachable only from a stash or the reflog)&rdquo;.</p>
+      <p>Mergeline runs <code>git for-each-ref --contains</code> for local and remote branches and <code>git tag --contains</code> for tags (the faster of the two, as measured above), side by side, after the rest of the details have appeared, so a slow answer never holds them up. On the 5,000-tag test repository above the whole line took about 0.25 s. It gives git 8 seconds; after that the line reads &ldquo;git took too long to answer (over 8 s); skipped&rdquo;.</p>
+      <p>Like git, it cannot see cherry-picked copies. For the original fix it does not list <code>v1.1.1</code>. Type the subject into <strong>Find</strong> to step to the copy, and select that to see its tags.</p>
+      <p>Version 0.20 also lists your <strong>tags</strong> in the toolbar&rsquo;s <strong>Branches</strong> filter, under a <strong>Tags</strong> heading, highest version first. The first 50 are shown; type in the box to find the others. Tick a tag to see only the history of that release, like <code>git log v1.1.1</code>; the button then reads <strong>&#9670; v1.1.1</strong>. More in <a href="git-commits-between-two-tags.html">list the commits between two tags</a> and <a href="filter-git-graph-by-branch.html">filter the graph by branch</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>How do I find the first release that has a commit?</summary>
+      <p><code>git tag --contains &lt;commit&gt; --sort=creatordate | head -1</code> gives the oldest tag that contains it. If your tag dates are unreliable, sort by version number instead with <code>--sort=version:refname</code>. <code>git describe --contains &lt;commit&gt;</code> also names a release in one line, such as <code>v1.2~3</code>.</p>
+    </details>
+    <details>
+      <summary>Why does <code>git tag --contains</code> not list a release that I know has the fix?</summary>
+      <p>The release probably got a cherry-picked copy, which has a different hash. Find the copy with <code>git log --all --oneline --grep='&lt;subject&gt;'</code> or <code>-S'&lt;code&gt;'</code> and run <code>--contains</code> on that. Also check that you have fetched the tags: <code>git fetch --tags</code>.</p>
+    </details>
+    <details>
+      <summary>Is my commit on the remote yet?</summary>
+      <p>Run <code>git fetch</code>, then <code>git branch -r --contains &lt;commit&gt;</code>. Empty output means no remote-tracking branch has it, so it has not been pushed to any branch you fetched.</p>
+    </details>
+    <details>
+      <summary>What does <code>v1.2~3</code> mean?</summary>
+      <p>Three first parents back from the commit tagged <code>v1.2</code>. The commit is in <code>v1.2</code>, three commits before the tag. <code>^2</code> in such a name means the second parent of a merge, and <code>^0</code> means the tagged commit itself.</p>
+    </details>
+    <p>Related: <a href="git-commits-between-two-tags.html">list the commits between two tags</a>, <a href="cherry-pick-commit-vscode.html">cherry-pick a commit</a>, <a href="compare-branches-commits-vscode.html">compare branches and commits</a> and <a href="git-log-first-parent.html">git log --first-parent</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html" aria-current="page">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html">Commits between two tags</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html">Compact graph</a>
+      <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
+      <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
+      <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

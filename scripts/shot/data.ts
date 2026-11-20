@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags, readSignature, readAuthors, readNote, readNotedCommits, writeNote } from '../../src/core/gitlog';
+import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags, readSignature, readAuthors, readNote, readNotedCommits, writeNote, readContaining } from '../../src/core/gitlog';
 import { avatarMap } from '../../src/core/misc';
 import { layout, newLayoutState, pinBranches } from '../../src/core/graph';
 import { pinnedTips } from '../../src/core/pins';
@@ -100,6 +100,8 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
     data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, pinned: pins.names, pinPatterns: process.env.PINS === 'none' ? [] : ['main', 'master', 'develop'], worktrees, filter: { branches: [], remotes: true, authors }, notes: commits.filter((x) => noted.has(x.sha)).map((x) => x.sha), branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), colors: rules.colors, refColors: refColors(rules, state.refs), colorPatterns: rules.rules.map((r) => r.pattern), avatars: avatarMap(log.map((x) => x.email)) },
     details: { type: 'details', sha: sel.sha, info, signature, note: await readNote(d, sel.sha), from: info.parents[0], to: sel.sha, files },
     authors: await readAuthors(d, { max: 0 }),
+    // The "Contained in" answer for the selected and the tagged commit (posted after their details).
+    contains: Object.fromEntries(await Promise.all([sel.sha, state.refs.find((r) => r.name === 'v1.0.0')!.sha].map(async (sha) => [sha, await readContaining(d, sha)]))),
     // TAGS=1 in shot.mjs: the commit tagged v1.0.0, with its tags.
     tagged: await (async () => {
       const sha = state.refs.find((r) => r.name === 'v1.0.0')!.sha;

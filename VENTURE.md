@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.19.0 is built, released on GitHub and documented; it is not in the stores yet**
+**Mergeline 0.20.0 is built, released on GitHub and documented; it is not in the stores yet**
 (store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 17).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.19.0
-  (`mergeline-0.19.0.vsix`, 99 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.20.0
+  (`mergeline-0.20.0.vsix`, 102 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  41 SEO guides (session 19: graph in the sidebar (`git-graph-sidebar-vscode.html`), delete multiple branches, Jupyter notebook diffs; session 18: collapse commits / compact graph (`compact-git-graph-vscode.html`); session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  43 SEO guides (session 20: which branches and tags contain a commit (`find-which-tag-contains-commit.html`), commits between two tags (`git-commits-between-two-tags.html`); session 19: graph in the sidebar (`git-graph-sidebar-vscode.html`), delete multiple branches, Jupyter notebook diffs; session 18: collapse commits / compact graph (`compact-git-graph-vscode.html`); session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (44 URLs, resubmitted session 19; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (46 URLs, resubmitted session 20; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -269,6 +269,17 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   worktree branches and ranks merged+gone, merged, gone, rest; `planDelete` → `branch -d --` / `branch -D --`; action `deleteBranches` in
   actions.ts: multi-select quick pick, unmerged → "Delete all N" / "Delete the K merged", Undo recreates at the old sha and restores
   `branch.<b>.remote/merge`). Branch menu "Delete several branches…", command `mergeline.deleteBranches`.
+  **0.20.0 added** (Git Graph #465 filter by tags, 6 👍; #777 "see all tags of a commit", 6 👍, was already covered by 0.11's tag blocks;
+  read session 20 with `gh api repos/mhutchie/vscode-git-graph/issues/<n>`): **Contained in** line in commit details (`readContaining`/`parseContaining`
+  in `src/core/gitlog.ts`: one `for-each-ref --contains=<sha>` over refs/heads, refs/remotes (no `*/HEAD`), refs/tags, annotated tags peeled, tags
+  sorted by creator date then name, 8 s timeout → 'timeout'; panel posts `{type:'contains'}` 150 ms after the details and only if no newer details
+  request came (`containsSeq`); webview `containsHtml`: Branches (current first), Remote, First tag + "in N tags:", 6 names then "+N more", names
+  `data-goto` their tip); **tags in the Branches checklist** (values `refs/tags/<name>` so a same-named branch is never picked; "Tags" heading,
+  numeric-aware descending sort, 50 shown unless filtered; button "◆ v1.2.0" / "N tags" / "N refs"); **toolbar fit** (`fitToolbar` in media/graph.js,
+  ResizeObserver on body and toolbar: if any toolbar child's centre sits >10 px below another's, tier `narrow1` hides `.lo` = Patch/Remotes…/Refresh,
+  then tier `narrow` hides all `.full` and narrows find to 130 px; new **⋯** button (`moreItems`: Remote branches, First parent, 3 orders with ticks,
+  Patch…, Manage remotes…, Refresh), also in the sidebar, where it sits on the find row). The webview `ping` test hook now answers `{error}` instead of
+  nothing when it throws.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -513,6 +524,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 20): release downloads v0.1.0 to v0.19.0 2 each, v0.3.0 3 (read before the v0.20.0 release); 0 stars, 0 forks, 0 open
+  issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by query or page
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap pending, never downloaded, 0 errors (`sitemaps.list`).
+
 - 2026-11-20 (session 19): release downloads v0.1.0 to v0.17.0 2 each, v0.3.0 3, v0.18.0 1 (read before the v0.19.0 release); 0 stars, 0 forks,
   0 open issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by query or
   page (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap pending, never downloaded, 0 errors (`sitemaps.list`).
@@ -594,11 +609,12 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. #598, #781 and #184 shipped in 0.19.0. Next uncovered Git Graph requests by 👍: #591 extra `git log` args (9: a validated
-   `mergeline.extraLogArgs` that rejects format-changing flags), #757 interactive rebase in a text editor (7), #465 filter by tags (6), #777 list a
-   commit's tags (6). Sidebar follow-ups: the editor toolbar wraps "Refresh" onto a second line at 1280 px wide (Chromium shot; 0.18 does the same, so
-   not a regression: shorten "Remotes…"/"Patch" to icons or drop the Refresh button, the view title and auto-refresh cover it); a sidebar-only "⋯" menu for the hidden filters (Remote branches, First parent, Order); delete several *remote*
-   branches (today local only). Notebook follow-up: the working-tree side of a compare is a `file:` URI, so it is editable; fine.
+1a. #465 (tags in the Branches filter) shipped in 0.20.0; #777 was already covered. Next uncovered Git Graph requests by 👍: #591 extra `git log`
+   args (9). Careful: `--author`/`--grep`/`--since` do not rewrite parents, so the graph disconnects; allow only revision-selecting flags that keep
+   history simplification consistent (`--since`, `--no-merges`? test each against `layout`), or route filters through the author filter's
+   `rev-list --parents` reconnect. #757 interactive rebase in a text editor (7). Contained-in follow-ups: time `--contains` on git.git (~900 tags)
+   for an old and a new commit; "Copy" for the list; a "Show only commits not yet in a tag" view. Sidebar follow-up: delete several *remote*
+   branches (today local only). (Done in 0.20: toolbar no longer wraps at 1280 px; "⋯" menu in the sidebar.) Notebook follow-up: the working-tree side of a compare is a `file:` URI, so it is editable; fine.
    Compact follow-ups: "Fold this run" on commits of an opened run (today only "fold all"); a per-row author summary ("3 authors") needs all
    chain members' metadata (only the ends are read); e2e for history search opening a folded run (unit-tested only through `expand`). Branch-colour follow-ups: colour a merged branch's line from the merge subject ("Merge branch 'feature/x'") when its ref is
    deleted (today only lines that start at a live ref get a colour); a colour swatch in the Branches checklist. #538 patches follow-ups: untracked files in "Save changes as a patch" (`git add -N` on a temp index via
@@ -812,3 +828,18 @@ on the graph). The graph itself stays free.
   and the 3 new e2e checks ok in the CI log; Pages run 44785498100 deployed; live index (`mergeline-0.19.0.vsix`), 3 guides, screenshot, sitemap
   (44 URLs) return 200; sitemap resubmitted (204); release asset byte-identical (sha256 8a4ac706…), installs as `plainbyte.mergeline@0.19.0` into a
   temp extensions dir. Not verified: the sidebar in VSCodium/Cursor; the image preview diff opening (only the bytes are checked). Inbox: 0.19.0 line.
+- 2026-11-20 (session 20): **0.20.0**: "Contained in" (branches, remote branches, first tag) in commit details; tags in the Branches checklist
+  (Git Graph #465); a toolbar that stays on one line via a two-tier "⋯" overflow menu (also in the sidebar); 2 guides (which tags contain a commit,
+  commits between two tags) + 2 screenshots; stale sidebar-guide sentence and index version fixed. Verified: unit 73/73 (`test/contains.test.ts` new:
+  parser + a real repo with lightweight/annotated tags, remote HEAD left out, dangling commit), e2e 55/55 in VS Code 1.147 (run 9, final code; new
+  checks: editor toolbar one line and "⋯" shown iff narrow, sidebar "⋯" lists 8 items and toggles First parent both ways, filter by a tag shows exactly
+  `rev-list --count` commits and the button reads "◆ e2e-rel", root commit's First tag equals `git tag --contains --sort=creatordate | head -1`).
+  e2e run 5 had one bisect `run` timeout that passed in runs 4, 6, 7, 8, 9 (flake, terminal-driven). Bugs found by the e2e on the way: `data.state.refs`
+  (extension-side shape) used in the webview broke the Branches list; the editor tab is hidden behind diff tabs after the notebook check, so its webview
+  answers no pings (test now reveals it). Chromium shots looked at: toolbar at 1400/1280/1100/700 px (1280: Patch/Remotes/Refresh move into "⋯";
+  700: filters too) and sidebar 400/300 px ("⋯" on the find row), Contained in, Tags in the checklist. Perf (subagent found it, I re-measured with
+  git 2.53.0 on its 60,000-commit / 5,000-tag repo, old commit in 4,992 tags): `for-each-ref --contains refs/tags` 3.06-3.40 s vs `git tag --contains`
+  0.20-0.22 s, so `readContaining` now splits branches (for-each-ref) and tags (git tag), in parallel: 247-273 ms end to end, same answer. Guides by
+  a subagent (git 2.53.0 runs; its checker: 48 HTML files parse, 3,180 internal links, 0 broken; sitemap 46 = 46 public pages). Package 102.5 KB,
+  `code --install-extension` into a temp dir lists `plainbyte.mergeline@0.20.0`. Not verified: Contained in on a real large repo such as git.git
+  (only the synthetic 5,000-tag repo); the "⋯" menu with real mouse clicks (synthetic click events in the webview); VSCodium/Cursor.

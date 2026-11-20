@@ -124,7 +124,7 @@
       <h2>Do it in Mergeline</h2>
       <p>Mergeline is a free, MIT-licensed git graph for VS Code. By default it shows all branches, tags and remote branches. From version 0.8 you can narrow that to any set of branches.</p>
       <ol class="steps">
-        <li><strong>Open the Branches dropdown</strong> in the toolbar. It is a checklist of your local and remote branches. Tick any number of them and the graph shows only their history: every commit reachable from at least one ticked branch, like <code>git log main feature/a</code>.</li>
+        <li><strong>Open the Branches dropdown</strong> in the toolbar. It is a checklist of your local and remote branches. Tick any number of them and the graph shows only their history: every commit reachable from at least one ticked branch, like <code>git log main feature/a</code>. From version 0.20 the list also has your tags, under a <strong>Tags</strong> heading, highest version first (the first 50; type to find others). Tick one to see only that release&rsquo;s history, like <code>git log v1.2.0</code>; the button then reads <strong>&#9670; v1.2.0</strong>.</li>
         <li><strong>Current branch</strong> ticks just the branch you have checked out. <strong>All branches</strong> clears the selection and shows everything again.</li>
         <li><strong>Hide remote branches</strong> with the <strong>Remote branches</strong> checkbox in the toolbar. That is the graphical version of leaving out <code>--remotes</code>.</li>
         <li><strong>Or keep everything and dim the rest (new in 0.8).</strong> Turn on the setting <code>mergeline.dimOtherCommits</code>. Commits that are not reachable from <code>HEAD</code> are then drawn faded, so your branch&rsquo;s line stands out while the other branches stay in view.</li>
@@ -155,6 +155,8 @@
       <a href="git-file-history-vscode.html">File history</a>
       <a href="find-commit-that-changed-file.html">Find commits by path</a>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html">Commits between two tags</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>

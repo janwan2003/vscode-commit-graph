@@ -1292,6 +1292,35 @@ exports.run = async function run() {
     }
   });
 
+  await check('tags: filter the graph by a tag; details name the branches and first tag that contain a commit', async () => {
+    // An earlier check deletes v0.1.0, so make a tag of our own three first-parent steps back.
+    git('tag', 'e2e-rel', 'HEAD~3');
+    await vscode.commands.executeCommand('mergeline.show');
+    panel = await until(() => api.panel() && api.panel().lastData && api.panel(), 20000, 'editor graph');
+    try {
+    const want = Number(git('rev-list', '--count', 'e2e-rel'));
+    await panel.refresh(true);
+    await panel.testMessage({ type: 'filter', branches: ['refs/tags/e2e-rel'], remotes: true });
+    await until(() => panel.lastData.commits.filter((c) => c.kind === 'commit').length === want, 10000, `only the ${want} commits in e2e-rel`);
+    const inTag = new Set(git('rev-list', 'e2e-rel').split('\n'));
+    assert.ok(panel.lastData.commits.filter((c) => c.kind === 'commit').every((c) => inTag.has(c.sha)), 'every row is in the tag');
+    let lastBtn = null;
+    await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); lastBtn = panel.lastPong && (panel.lastPong.error || panel.lastPong.branchBtn); return lastBtn === '◆ e2e-rel'; }, 10000, 'button names the tag').catch((e) => { throw new Error(e.message + ': ' + JSON.stringify(lastBtn)); });
+    await panel.testMessage({ type: 'filter', branches: [], remotes: true });
+    await until(() => panel.lastData.commits.filter((c) => c.kind === 'commit').length > want, 10000, 'all branches again');
+    // The root commit: in every branch, and git's own oldest tag is the "first tag".
+    const rootSha = git('rev-list', '--max-parents=0', 'HEAD').split('\n')[0];
+    const first = git('tag', '--contains', rootSha, '--sort=creatordate').split('\n')[0];
+    const heads = git('branch', '--contains', rootSha, '--format=%(refname:short)').split('\n').filter(Boolean);
+    await panel.testPost({ type: 'reveal', sha: rootSha });
+    const p2 = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && /First tag/.test(panel.lastPong.containsText) && panel.lastPong; }, 10000, 'contained in');
+    assert.match(p2.containsText, new RegExp('First tag\\s*' + first.replace(/\./g, '\\.')), p2.containsText);
+    if (heads.length <= 6) for (const h of heads) assert.ok(p2.containsText.includes(h), `${h} in: ${p2.containsText}`);
+    else assert.match(p2.containsText, new RegExp(`\\+${heads.length - 6} more`), p2.containsText);
+    assert.match(p2.containsText, /^Branches/, p2.containsText);
+    } finally { git('tag', '-d', 'e2e-rel'); }
+  });
+
   await check('graph in the Source Control sidebar view: narrow toolbar, own layout, open in editor', async () => {
     await vscode.commands.executeCommand('mergeline.show');
     panel = await until(() => api.panel() && api.panel().lastData && api.panel(), 20000, 'editor graph');
@@ -1304,7 +1333,25 @@ exports.run = async function run() {
     assert.equal(pong.patchShown, false, 'wide toolbar buttons are hidden in the sidebar');
     const ed = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong; }, 10000, 'editor pong');
     assert.equal(ed.side, false);
-    assert.equal(ed.patchShown, true);
+    // The editor toolbar stays on one line: what does not fit moves into "⋯" (tier 1: Patch/Remotes/Refresh, tier 2: filters too).
+    assert.equal(ed.patchShown, ed.narrow === 0, `narrow ${ed.narrow}`);
+    assert.equal(ed.moreShown, ed.narrow > 0, `narrow ${ed.narrow}`);
+    if (ed.narrow < 2) assert.ok(ed.toolbarH < 42, `toolbar ${ed.toolbarH}px high`);
+    assert.equal(pong.moreShown, true, 'the sidebar has the "⋯" menu');
+    // "⋯" in the sidebar: lists the hidden filters and toggles First parent.
+    const vpong = async (pred, what) => until(async () => { view.lastPong = null; await view.ping(); await sleep(120); return view.lastPong && pred(view.lastPong) && view.lastPong; }, 10000, what);
+    await view.testPost({ type: 'click', selector: '#morebtn' });
+    const mp = await vpong((p) => p.menuText, 'more menu');
+    assert.equal(mp.menuText.replace(/(✓ |\u2003)/g, ''), 'Remote branches | First parent | Order: Date | Order: Topology | Order: Author date | Patch… | Manage remotes… | Refresh');
+    assert.match(mp.menuText, /✓ Order: Date/, 'the current order is ticked');
+    const fp0 = mp.firstParent;
+    await view.testPost({ type: 'click', selector: '#menu .mi[data-k="1"]' });
+    const fpSetting = () => !!vscode.workspace.getConfiguration('mergeline').get('firstParentOnly');
+    await until(() => fpSetting() !== !!fp0, 10000, 'first parent toggled from "⋯"');
+    await view.testPost({ type: 'click', selector: '#morebtn' });
+    await vpong((p) => p.menuText.includes(fp0 ? '\u2003First parent' : '✓ First parent'), 'tick follows the state');
+    await view.testPost({ type: 'click', selector: '#menu .mi[data-k="1"]' });
+    await until(() => fpSetting() === !!fp0, 10000, 'first parent back');
     // Both refresh after a change made outside.
     git('branch', 'side-test');
     await vscode.commands.executeCommand('mergeline.refresh');

@@ -2,7 +2,7 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, readNotedCommits, readNote, writeNote, readAuthors, readCompactLog, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, readNotedCommits, readNote, writeNote, readAuthors, readCompactLog, readContaining, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
 import { layout, LayoutState, newLayoutState, pinBranches, extendPins } from '../core/graph';
 import { pinnedTips } from '../core/pins';
@@ -89,6 +89,8 @@ export class GraphPanel implements vscode.Disposable {
    * branches: show only these (empty = all). authors: only commits by these "Name <email>" (empty = all;
    * not applied in file history). path: repo-relative, '/'-separated path for file history, or null for the whole repo.
    */
+  /** Bumped per commit details request; a pending 'contains' lookup runs only if it is still the latest. */
+  private containsSeq = 0;
   private filter: { branches: string[]; remotes: boolean; path: string | null; authors: string[] };
   private subs: vscode.Disposable[] = [];
   private timer: NodeJS.Timeout | undefined;
@@ -768,6 +770,16 @@ export class GraphPanel implements vscode.Disposable {
       const files = await readChanges(root, info.parents[0] ?? null, sha);
       const avatars = this.avatars([{ email: info.email }]);
       this.post({ type: 'details', sha, info, tags, signature, note, from: info.parents[0] ?? null, to: sha, files, avatar: avatars?.[info.email] });
+      // Which branches and tags have it: after the details, so a slow `--contains` never holds them up,
+      // and only for the commit the user stops on (arrowing through rows starts no git per row).
+      const seq = ++this.containsSeq;
+      setTimeout(() => {
+        if (seq !== this.containsSeq) return;
+        readContaining(root, sha).then(
+          (c) => this.post({ type: 'contains', sha, ...c }),
+          (e) => this.post({ type: 'contains', sha, error: String(e?.message ?? e) }),
+        );
+      }, 150);
     } catch (e) {
       this.post({ type: 'details', sha, error: String((e as Error)?.message ?? e), files: [] });
     }

@@ -36,7 +36,7 @@
 <main id="content">
   <div class="wrap">
     <section class="hero">
-      <span class="tagline">Free and open source (MIT) &middot; v0.19</span>
+      <span class="tagline">Free and open source (MIT) &middot; v0.20</span>
       <h1>Your whole repository as one graph, with the git actions where you need them</h1>
       <p class="lead">Mergeline draws every branch, merge, tag and stash of your repository as an interactive commit graph inside VS Code, VSCodium, Cursor and Windsurf. Right-click a commit or a branch to check it out, merge it, rebase onto it, cherry-pick it, revert it or reset to it. Click a commit to see what changed and open any file in the editor&rsquo;s own diff view. There is no account, no paid tier and no telemetry.</p>
       <div class="cta">
@@ -63,6 +63,7 @@
         <div class="card"><h3>Commit order: date or topology</h3><p>Sort by commit date, author date or topology from the toolbar or the <code>mergeline.commitOrder</code> setting. Topology order keeps each branch&rsquo;s commits together, which means fewer crossing lines on busy repositories.</p></div>
         <div class="card"><h3>Compare any two commits <span class="plus">not built in</span></h3><p><kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to list every file that differs between the two, and open each diff. Or right-click a commit for <strong>Compare with working tree</strong>, or a branch to compare it with the current one, or to see only what it changed since it split off (what a merge would bring in).</p></div>
         <div class="card"><h3>Edit history from the graph <span class="plus">not built in</span></h3><p>Right-click a commit on your branch to <strong>edit its message</strong> (subject and body), <strong>move it up or down</strong>, <strong>squash it into its parent</strong> or <strong>drop it</strong>, or Ctrl/Cmd-click a second commit to squash the range into one. No editor or terminal opens, uncommitted changes are stashed and restored, pushed commits get a warning first, and every change has an <strong>Undo</strong>. <a href="screenshot-edit.png">See it</a>.</p></div>
+        <div class="card"><h3>Which branches and tags contain a commit <span class="plus">new in 0.20</span></h3><p>Select a commit and its details show a <strong>Contained in</strong> line: the branches and remote branches that have it, and the <strong>first tag</strong> with it, which is the first release that shipped it, followed by every other tag that has it. Click a name to jump to its tip when it is loaded. <strong>Tags in the Branches filter:</strong> the toolbar&rsquo;s Branches checklist now lists your tags too, highest version first, so you can show only the history of <code>v1.2.0</code>. <a href="find-which-tag-contains-commit.html">Contains guide</a> &middot; <a href="git-commits-between-two-tags.html">Commits between tags guide</a>.</p></div>
         <div class="card"><h3>Graph in the sidebar <span class="plus">new in 0.19</span></h3><p>A <strong>Mergeline Graph</strong> view in the Source Control sidebar, next to your files: expand it, or run <strong>Mergeline: Show Commit Graph in Sidebar</strong>. It is the full graph, with right-click actions, the details pane, find and filters, in a narrower layout. Drag it to the bottom panel or the secondary sidebar if you prefer, and use <strong>Open in editor</strong> when you need the big view. <a href="screenshot-sidebar.png">See it</a> &middot; <a href="git-graph-sidebar-vscode.html">Sidebar guide</a>.</p></div>
         <div class="card"><h3>Notebook and image diffs <span class="plus">new in 0.19</span></h3><p>Jupyter notebooks (<code>.ipynb</code>) from any commit, from a comparison of two commits or against your working copy open in VS Code&rsquo;s <strong>notebook diff editor</strong>, cell by cell, instead of as raw JSON. Images (PNG, JPG, GIF, SVG and more) at a revision open in VS Code&rsquo;s image preview instead of as garbled text. <a href="jupyter-notebook-diff-git-vscode.html">Notebook diff guide</a>.</p></div>
         <div class="card"><h3>Delete several branches <span class="plus">new in 0.19</span></h3><p>Right-click a local branch &rarr; <strong>Delete several branches&hellip;</strong> for a list of local branches with check boxes, the ones merged into your branch or deleted on the remote first, each with a note. Unmerged branches need a second, explicit choice, and <strong>Undo</strong> brings every deleted branch back with its upstream. <a href="delete-multiple-git-branches-vscode.html">Delete branches guide</a>.</p></div>
@@ -106,11 +107,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>mergeline-0.19.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>mergeline-0.20.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, VSCodium, Cursor or Windsurf open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and choose the file. From a terminal you can instead run one of:
-<pre>code --install-extension mergeline-0.19.0.vsix
-codium --install-extension mergeline-0.19.0.vsix
-cursor --install-extension mergeline-0.19.0.vsix</pre></li>
+<pre>code --install-extension mergeline-0.20.0.vsix
+codium --install-extension mergeline-0.20.0.vsix
+cursor --install-extension mergeline-0.20.0.vsix</pre></li>
         <li><strong>Open a folder that is a git repository</strong> and trust it when the editor asks (Mergeline runs git commands, so it is disabled in Restricted Mode). Then open the graph in an editor tab in any of three ways: the <strong>Mergeline</strong> button in the Source Control view&rsquo;s title bar, the Mergeline button in the status bar, or the command <strong>Mergeline: Show Commit Graph</strong>. Or expand the <strong>Mergeline Graph</strong> view in the Source Control sidebar.</li>
       </ol>
       <p class="small">Requires VS Code 1.85 or newer (or an editor built on it) and git installed on your machine. Mergeline also works in remote windows such as Remote SSH and WSL; git has to be installed on the remote side.</p>
@@ -137,6 +138,8 @@ cursor --install-extension mergeline-0.19.0.vsix</pre></li>
         <div class="card"><h3><a href="git-patch-vscode.html">Create and apply git patches</a></h3><p><code>git format-patch</code> or <code>git diff</code>, <code>git apply --3way</code>, <code>git am</code> with continue, skip and abort, and &ldquo;patch does not apply&rdquo;.</p></div>
         <div class="card"><h3><a href="find-commit-that-changed-file.html">Find which commit changed a file or folder</a></h3><p><code>git log -- path</code>, <code>*.md</code> and <code>:(glob)</code> patterns, <code>--all</code>, <code>--full-history</code> and deleted files.</p></div>
         <div class="card"><h3><a href="compare-branches-commits-vscode.html">Compare branches and commits</a></h3><p><code>git diff</code> with two dots or three, file and commit lists, one file across branches, and comparing in the editor.</p></div>
+        <div class="card"><h3><a href="find-which-tag-contains-commit.html">Which branches and tags contain a commit</a></h3><p><code>git tag --contains</code> sorted by date or version, <code>describe --contains</code>, <code>branch -a --contains</code>, and fixes that were cherry-picked.</p></div>
+        <div class="card"><h3><a href="git-commits-between-two-tags.html">List the commits between two tags</a></h3><p><code>git log v1.0..v1.1</code>, <code>--no-merges</code>, <code>--first-parent</code>, <code>shortlog</code>, <code>diff --stat</code> and a changelog one-liner.</p></div>
         <div class="card"><h3><a href="jupyter-notebook-diff-git-vscode.html">Diff Jupyter notebooks between commits</a></h3><p>Why <code>git diff</code> shows JSON, nbdime&rsquo;s <code>nbdiff</code>, and VS Code&rsquo;s notebook diff editor for any two commits.</p></div>
         <div class="card"><h3><a href="git-rebase-vs-merge.html">Rebase or merge?</a></h3><p>What each does to your history, when to pick which, and how to recover from either.</p></div>
         <div class="card"><h3><a href="squash-commits-vscode.html">Squash commits</a></h3><p>Interactive rebase, <code>reset --soft</code>, <code>merge --squash</code>, fixup commits, and undoing a squash.</p></div>
@@ -216,6 +219,8 @@ cursor --install-extension mergeline-0.19.0.vsix</pre></li>
       <a href="git-file-history-vscode.html">File history</a>
       <a href="find-commit-that-changed-file.html">Find commits by path</a>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html">Commits between two tags</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
