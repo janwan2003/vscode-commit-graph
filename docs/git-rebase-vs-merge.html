@@ -76,7 +76,7 @@
                  <span class="l2">/</span>
 <span class="l1">    D---E---F---G</span>  main</pre>
     <p><code>A'</code>, <code>B'</code> and <code>C'</code> contain the same changes as <code>A</code>, <code>B</code> and <code>C</code>, but they are <strong>new commits with new hashes</strong>, because their parent changed. The originals still exist until git garbage-collects them, which is why a rebase can be undone (see below). Now <code>git switch main</code> and <code>git merge feature</code> is a fast-forward, and history is a straight line.</p>
-    <p>An interactive rebase goes further and lets you edit the commits as they are replayed: reorder them, squash fixups together, reword messages or drop one.</p>
+    <p>An interactive rebase goes further and lets you edit the commits as they are replayed: reorder them, squash fixups together, reword messages or drop one. The <a href="squash-commits-vscode.html">squash guide</a> walks through the todo list step by step.</p>
 <pre><span class="k">git rebase -i main</span>          <span class="c"># edit the todo list: pick, reword, squash, fixup, drop</span>
 <span class="k">git commit --fixup=</span>&lt;hash-of-B&gt;  <span class="c"># mark a new commit as a fix for B ...</span>
 <span class="k">git rebase -i --autosquash main</span>   <span class="c"># ... and have rebase fold it in for you</span></pre>
@@ -145,7 +145,9 @@
       <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
       <a href="git-log-graph.html">git log --graph</a>
       <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html" aria-current="page">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>
       <a href="git-graph-alternative.html">Git Graph alternative</a>

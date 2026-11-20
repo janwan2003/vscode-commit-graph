@@ -1,6 +1,7 @@
 :root {
   --row: 24px;
   --graph-w: 40px;
+  --w-date: 120px; --w-author: 150px; --w-hash: 76px;
   --lane-0: #4b9ce2; --lane-1: #e5534b; --lane-2: #57ab5a; --lane-3: #c69026; --lane-4: #a371f7;
   --lane-5: #39c5cf; --lane-6: #e275ad; --lane-7: #8ddb8c; --lane-8: #f0883e; --lane-9: #768390;
 }
@@ -35,9 +36,9 @@ select:focus, input:focus, button:focus-visible, #scroller:focus-visible { outli
 .row > div { overflow: hidden; text-overflow: ellipsis; padding: 0 8px; }
 .c-graph { flex: 0 0 var(--graph-w); padding: 0 !important; height: var(--row); }
 .c-desc { flex: 1 1 auto; min-width: 120px; display: flex; align-items: center; gap: 4px; }
-.c-date { flex: 0 0 120px; color: var(--vscode-descriptionForeground); }
-.c-author { flex: 0 0 150px; }
-.c-hash { flex: 0 0 76px; font-family: var(--vscode-editor-font-family); font-size: 12px; color: var(--vscode-descriptionForeground); }
+.c-date { flex: 0 0 var(--w-date); color: var(--vscode-descriptionForeground); }
+.c-author { flex: 0 0 var(--w-author); }
+.c-hash { flex: 0 0 var(--w-hash); font-family: var(--vscode-editor-font-family); font-size: 12px; color: var(--vscode-descriptionForeground); }
 .hdr { flex: 0 0 auto; font-weight: 600; font-size: 12px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border, #8883); background: var(--vscode-editor-background); }
 .hdr .c-graph { padding-left: 8px !important; line-height: var(--row); }
 #scroller { flex: 1; overflow: auto; position: relative; outline: none; }
@@ -118,3 +119,16 @@ i.minus { color: var(--vscode-gitDecoration-deletedResourceForeground, #e5534b);
 .file.focus .fp { font-weight: 600; }
 #orderhint { font-size: 11.5px; color: var(--vscode-descriptionForeground); font-style: italic; }
 #orderhint[hidden] { display: none; }
+
+/* Column resizing and hiding (header), details splitter. */
+.hdr > div { position: relative; }
+.hdr .rz { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; z-index: 2; }
+.hdr .rz::after { content: ''; position: absolute; top: 5px; bottom: 5px; right: 3px; width: 1px; background: var(--vscode-panel-border, #8884); }
+.hdr .rz:hover::after, body.resizing .hdr .rz::after { background: var(--vscode-focusBorder); width: 2px; right: 2px; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
+body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select: none; }
+body.hide-graph .c-graph, body.hide-date .c-date, body.hide-author .c-author, body.hide-hash .c-hash { display: none; }
+#split { flex: 0 0 5px; margin-bottom: -5px; cursor: row-resize; position: relative; z-index: 3; }
+#split:hover, body.resizing-v #split { background: var(--vscode-focusBorder); }
+#split[hidden] { display: none; }
+#details { min-height: 80px; }

@@ -7,6 +7,10 @@ import { layout } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
+import { webRepo, commitUrl, issueUrl, branchUrl, Forge } from '../core/remote';
+import { git } from '../core/gitlog';
+
+const FORGE_NAME: Record<Forge, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
 
 export const UNCOMMITTED = '*';
 
@@ -26,7 +30,7 @@ export class GraphPanel implements vscode.Disposable {
   lastPong: any;
   lastDetails: any;
   lastHistory: any;
-  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[] } | undefined;
+  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
     if (GraphPanel.current) {
@@ -90,7 +94,7 @@ export class GraphPanel implements vscode.Disposable {
 
   private settings() {
     const cfg = vscode.workspace.getConfiguration('mergeline');
-    return { dateFormat: cfg.get('dateFormat', 'relative'), commitOrder: cfg.get('commitOrder', 'date') };
+    return { dateFormat: cfg.get('dateFormat', 'relative'), commitOrder: cfg.get('commitOrder', 'date'), layout: this.ctx.globalState.get('mergeline.layout') ?? null };
   }
   private postSettings() {
     this.post({ type: 'settings', settings: this.settings() });
@@ -183,6 +187,7 @@ export class GraphPanel implements vscode.Disposable {
       showStash ? readStashes(root) : Promise.resolve([]),
       showUnc ? readStatusCount(root) : Promise.resolve(0),
     ]);
+    const web = await this.webInfo(root, state.branch);
     const hasMore = raw > this.max;
     let commits = hasMore ? commits0.slice(0, this.max) : commits0;
     commits = insertStashes(commits, stashes);
@@ -193,7 +198,7 @@ export class GraphPanel implements vscode.Disposable {
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
     const lay = layout(commits);
-    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names };
+    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web };
     this.post({
       type: 'data',
       repo: root,
@@ -208,8 +213,37 @@ export class GraphPanel implements vscode.Disposable {
       filter: this.filter,
       names,
       order,
+      web,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
     });
+  }
+
+  /**
+   * Web links for the repository: the current branch's remote, else origin, else the first
+   * remote whose URL is on a known forge. Null when there is none (no network is used).
+   */
+  private async webInfo(root: string, branch: string | null) {
+    let out = '';
+    try {
+      out = await git(root, ['config', '--get-regexp', '^(remote\\..*\\.url|branch\\..*\\.remote)$']);
+    } catch {
+      return null; // no remotes: git config exits 1
+    }
+    const urls = new Map<string, string>();
+    let upstream: string | undefined;
+    for (const line of out.split('\n')) {
+      const sp = line.indexOf(' ');
+      if (sp < 0) continue;
+      const key = line.slice(0, sp), val = line.slice(sp + 1).trim();
+      if (key.startsWith('remote.') && key.endsWith('.url')) urls.set(key.slice(7, -4), val);
+      else if (branch && key === `branch.${branch}.remote`) upstream = val;
+    }
+    const order = [upstream, 'origin', ...urls.keys()].filter((r): r is string => !!r && urls.has(r));
+    for (const remote of order) {
+      const r = webRepo(urls.get(remote)!);
+      if (r) return { remote, name: FORGE_NAME[r.forge], commit: commitUrl(r, ''), issue: issueUrl(r, ''), branch: branchUrl(r, '') };
+    }
+    return null;
   }
 
   private logOptions(order: CommitOrder) {
@@ -278,6 +312,17 @@ export class GraphPanel implements vscode.Disposable {
       case 'openFile':
         await this.openFile(m);
         break;
+      case 'fileAction':
+        await this.fileAction(m);
+        break;
+      case 'layout':
+        // Column widths, hidden columns and the details height, kept across sessions.
+        await this.ctx.globalState.update('mergeline.layout', m.layout && typeof m.layout === 'object' ? m.layout : undefined);
+        if (m.echo) this.postSettings();
+        break;
+      case 'openUrl':
+        if (typeof m.url === 'string' && /^https?:\/\//i.test(m.url)) await vscode.env.openExternal(vscode.Uri.parse(m.url, true));
+        break;
       case 'action': {
         const info = this.info();
         if (!info) return;
@@ -324,6 +369,48 @@ export class GraphPanel implements vscode.Disposable {
     await vscode.commands.executeCommand('vscode.diff', left, right, title, { preview: true, preserveFocus: false });
   }
 
+  /** Right-click menu on a file in the details pane. `ref` null means the working tree. */
+  private async fileAction(m: { act: string; ref: string | null; path: string }) {
+    const root = this.repo;
+    if (!root || typeof m.path !== 'string') return;
+    const abs = path.resolve(root, m.path);
+    if (abs !== root && !abs.startsWith(root + path.sep)) return;
+    const fileUri = vscode.Uri.file(abs);
+    const exists = async () => {
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+        return true;
+      } catch {
+        vscode.window.showInformationMessage(`Mergeline: ${m.path} does not exist in the working tree.`);
+        return false;
+      }
+    };
+    const s = (r: string) => (r.length === 40 ? r.slice(0, 8) : r);
+    switch (m.act) {
+      case 'openWorking':
+        if (await exists()) await vscode.window.showTextDocument(fileUri, { preview: true });
+        break;
+      case 'openAt':
+        if (m.ref) await vscode.window.showTextDocument(gitUri(root, m.ref, m.path), { preview: true });
+        break;
+      case 'diffWorking':
+        if (m.ref && (await exists())) await vscode.commands.executeCommand('vscode.diff', gitUri(root, m.ref, m.path), fileUri, `${path.basename(m.path)} (${s(m.ref)} ↔ working tree)`, { preview: true });
+        break;
+      case 'history':
+        await this.showFileHistory(root, m.path);
+        break;
+      case 'copyPath':
+        await vscode.env.clipboard.writeText(m.path);
+        break;
+      case 'copyAbs':
+        await vscode.env.clipboard.writeText(abs);
+        break;
+      case 'reveal':
+        if (await exists()) await vscode.commands.executeCommand('revealInExplorer', fileUri);
+        break;
+    }
+  }
+
   /** Test hook: asks the webview to report what it rendered (answer lands in lastPong). */
   async ping(): Promise<boolean> {
     return this.post({ type: 'ping' });
@@ -340,6 +427,9 @@ export class GraphPanel implements vscode.Disposable {
   // Exposed for e2e tests.
   async testMessage(m: any) {
     await this.onMessage(m);
+  }
+  testPost(m: any) {
+    return this.post(m);
   }
   get repoRoot() {
     return this.repo;

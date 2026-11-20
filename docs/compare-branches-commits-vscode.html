@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare branches and commits in VS Code: git diff between branches | Mergeline</title>
+<meta name="description" content="How to compare two branches or two commits in VS Code: git diff with two dots vs three dots, --stat and --name-status, git log a..b, one file across branches, the built-in Compare actions, and Mergeline.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/compare-branches-commits-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Compare branches and commits in VS Code: git diff between branches">
+<meta property="og:description" content="Two dots vs three, file lists, commit lists, one file across branches, and comparing in the editor.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/compare-branches-commits-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Compare two branches or commits in VS Code</h1>
+    <p>Before you merge a branch, review someone&rsquo;s work locally, or hunt for what broke between two releases, you need the same thing: the difference between two points in history. Git can answer two different questions here, which <em>files</em> differ and which <em>commits</em> differ, and the commands for them look alike but do not behave alike. This guide covers the git commands, what VS Code&rsquo;s built-in graph offers, and how to compare any two commits in Mergeline.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#dots">Two dots or three</a></li>
+        <li><a href="#files">Just the list of files</a></li>
+        <li><a href="#commits">Which commits differ</a></li>
+        <li><a href="#one-file">One file across branches</a></li>
+        <li><a href="#worktree">Against your working tree</a></li>
+        <li><a href="#builtin">VS Code&rsquo;s built-in compare</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>See what <code>feature</code> changed since it left <code>main</code></td><td><code>git diff main...feature</code></td></tr>
+          <tr><td>Compare the two branch tips exactly as they are now</td><td><code>git diff main feature</code></td></tr>
+          <tr><td>List only the changed files</td><td><code>git diff --name-status main...feature</code></td></tr>
+          <tr><td>See lines added and removed per file</td><td><code>git diff --stat main...feature</code></td></tr>
+          <tr><td>List the commits on <code>feature</code> that are not on <code>main</code></td><td><code>git log --oneline main..feature</code></td></tr>
+          <tr><td>Compare one file between two branches</td><td><code>git diff main feature -- src/app.ts</code></td></tr>
+          <tr><td>Compare two commits</td><td><code>git diff &lt;older&gt; &lt;newer&gt;</code></td></tr>
+          <tr><td>Compare a commit with the files on disk</td><td><code>git diff &lt;commit&gt;</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="dots">Two dots or three: what are you comparing?</h2>
+    <p>Take a branch <code>feature</code> made from <code>main</code> at commit <code>A</code>. On the branch, <code>B</code> edits <code>src/app.ts</code> and <code>C</code> adds <code>src/export.ts</code>. Meanwhile <code>D</code> landed on <code>main</code> and edited <code>README.md</code>:</p>
+<pre>          <span class="l2">B---C</span>  feature
+         <span class="l2">/</span>
+<span class="l1">    A---D</span>  main</pre>
+    <p><strong>Two dots, or a space, compare the two snapshots directly.</strong> <code>git diff main feature</code> and <code>git diff main..feature</code> are the same command:</p>
+<pre><span class="k">git diff --name-status main feature</span>
+<span class="o">M       README.md
+M       src/app.ts
+A       src/export.ts</span></pre>
+    <p><code>README.md</code> is listed although nobody touched it on <code>feature</code>. From <code>feature</code>&rsquo;s point of view, the line <code>D</code> added is missing, so the diff shows it being removed. On a branch that has been open for a while, this noise from <code>main</code> can drown out the branch&rsquo;s own work.</p>
+    <p><strong>Three dots compare against the merge base</strong>, the last commit both branches share (<code>A</code> here). <code>git diff main...feature</code> shows only what <code>feature</code> did since it split off:</p>
+<pre><span class="k">git diff --name-status main...feature</span>
+<span class="o">M       src/app.ts
+A       src/export.ts</span></pre>
+    <p>It is shorthand for <code>git diff $(git merge-base main feature) feature</code>; recent versions of git also accept <code>git diff --merge-base main feature</code>. This is the comparison a pull request&rsquo;s &ldquo;Files changed&rdquo; view shows on GitHub. Order matters: <code>git diff feature...main</code> shows what <code>main</code> gained instead.</p>
+    <p>Branch names are just commits, so all of this works with hashes, tags and remote branches. Run <code>git fetch</code> first, then compare against <code>origin/main</code>; a stale remote-tracking branch gives a confidently wrong answer.</p>
+
+    <h2 id="files">Just the list of files</h2>
+<pre><span class="k">git diff --stat main...feature</span>
+<span class="o"> src/app.ts    | 1 +
+ src/export.ts | 1 +
+ 2 files changed, 2 insertions(+)</span>
+<span class="k">git diff --name-only main...feature</span>          <span class="c"># paths only, handy for scripts</span>
+<span class="k">git diff --name-status main...feature</span>        <span class="c"># A added, M modified, D deleted, R renamed</span>
+<span class="k">git diff --diff-filter=D --name-only main...feature</span>   <span class="c"># only deleted files</span></pre>
+    <p>Git detects renames by default, so a moved file shows as one <code>R</code> line with both paths rather than a delete plus an add.</p>
+
+    <h2 id="commits">Which commits differ: <code>git log</code></h2>
+    <p>Here the dots mean something else, which trips up almost everyone. For <code>git log</code>, <code>main..feature</code> means &ldquo;commits reachable from <code>feature</code> but not from <code>main</code>&rdquo;: exactly what a merge would bring in.</p>
+<pre><span class="k">git log --oneline main..feature</span>
+<span class="o">c31fb08 Add CSV export
+0ce59e1 Retry failed requests</span>
+<span class="k">git log --oneline feature..main</span>                     <span class="c"># what feature is missing from main</span>
+<span class="k">git log --oneline --left-right main...feature</span>        <span class="c"># both sides, marked &lt; and &gt;</span>
+<span class="o">&lt; 5f8a5f9 Update README
+&gt; c31fb08 Add CSV export
+&gt; 0ce59e1 Retry failed requests</span>
+<span class="k">git rev-list --left-right --count main...feature</span>
+<span class="o">1       2</span></pre>
+    <p>The last command is the &ldquo;ahead and behind&rdquo; count: <code>main</code> has 1 commit that <code>feature</code> lacks, and <code>feature</code> has 2. Add <code>--cherry-pick</code> to the <code>--left-right</code> log to hide commits that were cherry-picked across and exist on both sides. After a <code>git fetch</code>, <code>git log --oneline HEAD..@{upstream}</code> lists what a pull would bring down.</p>
+
+    <h2 id="one-file">One file across branches</h2>
+<pre><span class="k">git diff main feature --</span> src/app.ts        <span class="c"># the file as it is on each branch</span>
+<span class="k">git diff main...feature --</span> src/app.ts     <span class="c"># only feature's changes to it</span>
+<span class="k">git diff</span> main:src/app.ts feature:src/core/app.ts   <span class="c"># the file was moved on one side</span>
+<span class="k">git show</span> feature:src/app.ts                  <span class="c"># print the whole file from a branch</span></pre>
+    <p>In the <code>branch:path</code> form the path starts at the top of the repository. To read these diffs in VS Code&rsquo;s side-by-side editor instead of the terminal, register it as git&rsquo;s diff tool once:</p>
+<pre><span class="k">git config --global diff.tool</span> vscode
+<span class="k">git config --global difftool.vscode.cmd</span> 'code --wait --diff $LOCAL $REMOTE'
+<span class="k">git difftool</span> main...feature -- src/app.ts</pre>
+    <p>Keep the single quotes so your shell does not expand <code>$LOCAL</code> and <code>$REMOTE</code>. Without a path, <code>git difftool</code> opens each changed file in turn and asks before each one. In VSCodium use <code>codium</code>, in Cursor <code>cursor</code>.</p>
+
+    <h2 id="worktree">Against your working tree</h2>
+<pre><span class="k">git diff</span>                <span class="c"># edits not yet staged</span>
+<span class="k">git diff --staged</span>       <span class="c"># what the next commit will contain</span>
+<span class="k">git diff HEAD</span>           <span class="c"># everything uncommitted, staged or not</span>
+<span class="k">git diff</span> main            <span class="c"># your files on disk compared with main</span></pre>
+    <p>Untracked files never appear in <code>git diff</code>. Run <code>git add -N &lt;file&gt;</code> (&ldquo;intent to add&rdquo;) to make a new file show up without staging its content.</p>
+
+    <h2 id="builtin">VS Code&rsquo;s built-in compare</h2>
+    <p>Recent versions of VS Code can compare from the Source Control Graph in the Source Control view. In VS Code 1.147, right-clicking a commit offers three actions: <strong>Compare with Remote</strong> (your branch&rsquo;s upstream), <strong>Compare with Merge Base</strong> (the branch VS Code considers your current branch&rsquo;s base; greyed out when it cannot tell) and <strong>Compare with&hellip;</strong>, which asks you to pick a branch, remote branch or tag. The result opens in a multi-file diff editor with every changed file stacked in one tab.</p>
+    <p>Two details are worth knowing. All three use three-dot semantics: VS Code runs <code>git diff &lt;picked&gt;...&lt;commit&gt;</code>, so you see what the clicked commit added since the two sides split, not a direct comparison of two snapshots. And <strong>Compare with&hellip;</strong> lists branches and tags only, so comparing two arbitrary commits still means the terminal. (We read the menu entries and the command they run from the git extension bundled with VS Code 1.147; older versions may not have them.) For a single file, the <a href="git-file-history-vscode.html#timeline">Timeline view</a> compares each version with the one before it.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>In the graph you can see both sides of the comparison before you make it, including where the branches split.</p>
+      <ol class="steps">
+        <li><strong>Select the first commit.</strong> Click it. To compare branches, click the commit carrying the branch&rsquo;s badge, which is its tip.</li>
+        <li><strong>Add the second.</strong> <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) another commit. The details pane switches to <em>Comparing &lt;older&gt; &rarr; &lt;newer&gt;</em> and lists every file that differs, with lines added and removed and renames shown. The lower row in the graph is always the &ldquo;from&rdquo; side, so the click order does not matter.</li>
+        <li><strong>Open a file.</strong> Click it to open the change in VS Code&rsquo;s own diff editor.</li>
+        <li><strong>Choose the right base.</strong> This is a direct comparison, the same as <code>git diff A B</code>. For the three-dot view of what a branch changed, <kbd>Ctrl</kbd>-click the commit where its lane leaves <code>main</code> instead of the tip of <code>main</code>.</li>
+        <li><strong>Compare with your working tree.</strong> When you have uncommitted changes, a row at the top of the graph holds them. Select it, then <kbd>Ctrl</kbd>-click any commit to compare that commit with the files on disk, untracked files included. Mergeline 0.4.0 also adds <strong>Compare with working tree</strong> to a commit&rsquo;s right-click menu, and a compare-with-current-branch item to a branch badge&rsquo;s menu, which compares that branch&rsquo;s tip with yours in one click.</li>
+      </ol>
+      <p>Click any commit without <kbd>Ctrl</kbd> to go back to its normal details, or press <kbd>Esc</kbd> to close the pane.</p>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Why does my diff show changes I never made?</summary>
+      <p>You are almost certainly using two dots (or a space) against a branch that has moved on. The diff is reporting the other branch&rsquo;s new work as if you had removed it. Use three dots, <code>git diff main...feature</code>, to see only your side.</p>
+    </details>
+    <details>
+      <summary>How do I compare my branch with a fork or another remote?</summary>
+      <p>Add it as a remote and fetch it, then compare as usual: <code>git remote add upstream &lt;url&gt;</code>, <code>git fetch upstream</code>, <code>git diff upstream/main...HEAD</code>. Fetched branches also appear in Mergeline&rsquo;s graph, ready to <kbd>Ctrl</kbd>-click.</p>
+    </details>
+    <details>
+      <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
+      <p>It is built for them (they install the same <code>.vsix</code>, and Mergeline uses only standard VS Code APIs); our automated tests run in VS Code 1.147. Download it from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>). Listings on the VS Code Marketplace and Open VSX are coming soon.</p>
+    </details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html" aria-current="page">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, countStatus, readStatusCount } from '../src/core/gitlog';
 import { layout, newLayoutState, Row } from '../src/core/graph';
+import { webRepo, commitUrl, issueUrl, branchUrl } from '../src/core/remote';
 
 function sh(cwd: string, ...args: string[]) {
   return execFileSync('git', args, {
@@ -328,4 +329,31 @@ test('file history follows renames and skips a new file that reused the old name
   } finally {
     rmSync(d, { recursive: true, force: true });
   }
+});
+
+test('webRepo turns remote URLs into forge web links, and ignores local or unknown remotes', () => {
+  const cases: [string, string | null][] = [
+    ['git@github.com:plainbyte/mergeline.git', 'https://github.com/plainbyte/mergeline'],
+    ['https://github.com/plainbyte/mergeline.git', 'https://github.com/plainbyte/mergeline'],
+    ['https://user:tok@github.com/plainbyte/mergeline', 'https://github.com/plainbyte/mergeline'],
+    ['ssh://git@ssh.github.com:443/plainbyte/mergeline.git', 'https://github.com/plainbyte/mergeline'],
+    ['git@gitlab.com:group/sub/proj.git', 'https://gitlab.com/group/sub/proj'],
+    ['https://gitlab.example.org/team/proj/', 'https://gitlab.example.org/team/proj'],
+    ['git@bitbucket.org:team/repo.git', 'https://bitbucket.org/team/repo'],
+    ['https://github.corp.example/team/repo.git', 'https://github.corp.example/team/repo'],
+    ['/srv/git/repo.git', null],
+    ['C:\\repos\\x.git', null],
+    ['file:///srv/git/repo.git', null],
+    ['git@example.com:team/repo.git', null],
+    ['https://github.com/onlyowner', null],
+  ];
+  for (const [url, want] of cases) assert.equal(webRepo(url)?.base ?? null, want, url);
+  const gh = webRepo('git@github.com:o/r.git')!;
+  const gl = webRepo('git@gitlab.com:o/r.git')!;
+  const bb = webRepo('git@bitbucket.org:o/r.git')!;
+  assert.equal(commitUrl(gh, 'abc'), 'https://github.com/o/r/commit/abc');
+  assert.equal(commitUrl(gl, 'abc'), 'https://gitlab.com/o/r/-/commit/abc');
+  assert.equal(commitUrl(bb, 'abc'), 'https://bitbucket.org/o/r/commits/abc');
+  assert.equal(issueUrl(gl, '7'), 'https://gitlab.com/o/r/-/issues/7');
+  assert.equal(branchUrl(gh, 'feature/a b'), 'https://github.com/o/r/tree/feature/a%20b');
 });

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squash commits in git and VS Code: the last N commits, interactive rebase | Mergeline</title>
+<meta name="description" content="How to squash commits in git: git rebase -i HEAD~N with pick, squash, fixup and reword, the reset --soft shortcut, merge --squash, fixup commits with --autosquash, editing the todo list in VS Code, and staying safe.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/squash-commits-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Squash commits in git and VS Code: the last N commits, interactive rebase">
+<meta property="og:description" content="Interactive rebase, reset --soft, merge --squash, --fixup with --autosquash, and how to undo a squash.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/squash-commits-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>How to squash commits in git and VS Code</h1>
+    <p>Squashing combines several commits into one. You do it to turn &ldquo;WIP&rdquo;, &ldquo;fix typo&rdquo; and &ldquo;actually fix it&rdquo; into a single commit that says what changed, before a review or before landing a branch. Git has four ways to do it, from a full interactive editor to a two-command shortcut. This guide covers each, how to edit the rebase list in VS Code, and how to get your commits back if a squash goes wrong.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#rebase">Squash the last N commits: <code>git rebase -i</code></a></li>
+        <li><a href="#editor">Edit the todo list in VS Code</a></li>
+        <li><a href="#reset">The shortcut: <code>reset --soft</code></a></li>
+        <li><a href="#merge">Squash a whole branch: <code>merge --squash</code></a></li>
+        <li><a href="#fixup">Fixup commits and <code>--autosquash</code></a></li>
+        <li><a href="#safety">Pushed commits, and undoing a squash</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Choose which of the last 4 commits to combine</td><td><code>git rebase -i HEAD~4</code></td></tr>
+          <tr><td>Turn the last 3 commits into one, quickly</td><td><code>git reset --soft HEAD~3</code>, then <code>git commit</code></td></tr>
+          <tr><td>Squash my whole branch into one commit</td><td><code>git reset --soft $(git merge-base main HEAD)</code>, then <code>git commit</code></td></tr>
+          <tr><td>Land a branch on <code>main</code> as one commit</td><td><code>git merge --squash feature</code>, then <code>git commit</code></td></tr>
+          <tr><td>Make a commit that folds into an earlier one</td><td><code>git commit --fixup=&lt;commit&gt;</code></td></tr>
+          <tr><td>Stop a rebase halfway</td><td><code>git rebase --abort</code></td></tr>
+          <tr><td>Undo a squash I just finished</td><td><code>git reset --hard ORIG_HEAD</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="rebase">Squash the last N commits with <code>git rebase -i</code></h2>
+    <p>Interactive rebase replays your recent commits and lets you say what to do with each. Pass it the commit <em>below</em> the oldest one you want to change. <code>HEAD~4</code> means &ldquo;four commits back&rdquo;, so this edits the newest four:</p>
+<pre><span class="k">git log --oneline -5</span>
+<span class="o">f5903f4 WIP
+96a32ce Handle empty rows
+9fcf750 Fix typo
+086aa72 Add CSV export
+16cd613 Initial</span>
+<span class="k">git rebase -i HEAD~4</span></pre>
+    <p>Git opens a <em>todo list</em> in your editor. Note that it runs <strong>oldest first</strong>, the reverse of <code>git log</code> (recent git versions also print a <code>#</code> before each subject):</p>
+<pre>pick 086aa72 Add CSV export
+pick 9fcf750 Fix typo
+pick 96a32ce Handle empty rows
+pick f5903f4 WIP</pre>
+    <p>Change the word at the start of a line to decide that commit&rsquo;s fate. To fold the last three into the first:</p>
+<pre>pick 086aa72 Add CSV export
+<span class="k">fixup</span> 9fcf750 Fix typo
+<span class="k">squash</span> 96a32ce Handle empty rows
+<span class="k">fixup</span> f5903f4 WIP</pre>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>pick</code> (<code>p</code>)</td><td>Keep the commit as it is.</td></tr>
+          <tr><td><code>reword</code> (<code>r</code>)</td><td>Keep it, but stop to edit its message.</td></tr>
+          <tr><td><code>squash</code> (<code>s</code>)</td><td>Meld it into the commit above, and open the editor with both messages so you can combine them.</td></tr>
+          <tr><td><code>fixup</code> (<code>f</code>)</td><td>Meld it into the commit above and throw its message away. <code>fixup -C</code> keeps this commit&rsquo;s message instead.</td></tr>
+          <tr><td><code>drop</code> (<code>d</code>)</td><td>Remove the commit. Deleting the line does the same.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Save and close the file and git replays the list. The first line must stay <code>pick</code>: a <code>squash</code> there fails with <code>cannot 'squash' without a previous commit</code>. You can also reorder lines to squash commits that are not next to each other, though moving commits past each other can cause conflicts. Deleting every line cancels the rebase. To include the very first commit of the repository, use <code>git rebase -i --root</code>.</p>
+    <p>If a step conflicts, fix the files, <code>git add</code> them and run <code>git rebase --continue</code>. <code>git rebase --abort</code> puts everything back the way it was before you started.</p>
+
+    <h2 id="editor">Edit the todo list in VS Code</h2>
+    <p>Git opens the todo list in its configured editor, which is often Vim. To get it as a VS Code tab instead, tell git to use VS Code and to wait until you close the tab:</p>
+<pre><span class="k">git config --global core.editor</span> "code --wait"        <span class="c"># commit messages and the todo list</span>
+<span class="k">git config --global sequence.editor</span> "code --wait"    <span class="c"># only the todo list</span>
+GIT_SEQUENCE_EDITOR="code --wait" <span class="k">git rebase -i HEAD~4</span>   <span class="c"># just this once (bash, zsh)</span></pre>
+    <p>Edit the <code>git-rebase-todo</code> tab, save it, and <em>close</em> it; the rebase continues when the tab closes. Use <code>codium --wait</code> in VSCodium and <code>cursor --wait</code> in Cursor. Alternatively, the VS Code setting <code>git.terminalGitEditor</code> makes the editor itself the git editor for commands run in its integrated terminal; restart the terminal after turning it on.</p>
+
+    <h2 id="reset">The shortcut: <code>git reset --soft</code></h2>
+    <p>When you simply want the last few commits to become one, you do not need a rebase at all:</p>
+<pre><span class="k">git reset --soft HEAD~3</span>
+<span class="k">git commit -m</span> "Add CSV export"</pre>
+    <p>A soft reset moves the branch back three commits but keeps every change staged, so the next commit contains all of them. Nothing is replayed, so nothing can conflict. The old messages are gone, but git remembers where the branch was in <code>ORIG_HEAD</code>, so you can start from them: in bash or zsh, <code>git commit --edit -F &lt;(git log --format=%B --reverse HEAD..ORIG_HEAD)</code> opens the editor with all three messages.</p>
+    <p>To squash a whole feature branch, reset to the point where it left <code>main</code>: <code>git reset --soft $(git merge-base main HEAD)</code>, then commit. The <a href="undo-git-reset-cherry-pick-revert.html#reset">undo guide</a> explains the soft, mixed and hard modes.</p>
+
+    <h2 id="merge">Squash a whole branch while merging: <code>git merge --squash</code></h2>
+<pre><span class="k">git switch main</span>
+<span class="k">git merge --squash</span> feature
+<span class="o">Squash commit -- not updating HEAD</span>
+<span class="k">git commit -m</span> "Add CSV export"
+<span class="k">git branch -D</span> feature</pre>
+    <p>This stages the combined changes of the whole branch on <code>main</code> without committing or recording a merge, and you commit once. It is what hosting platforms call &ldquo;squash and merge&rdquo;. Because no merge is recorded, git does not consider <code>feature</code> merged, so deleting it needs <code>-D</code>. The <a href="git-rebase-vs-merge.html">rebase vs merge guide</a> compares this with an ordinary merge.</p>
+
+    <h2 id="fixup">Fix as you go: <code>--fixup</code> and <code>--autosquash</code></h2>
+    <p>If you notice a mistake in an earlier commit, record the fix as a commit aimed at it:</p>
+<pre><span class="k">git commit --fixup=</span>086aa72        <span class="c"># creates "fixup! Add CSV export"</span>
+<span class="k">git rebase -i --autosquash</span> main   <span class="c"># the todo list arrives with fixups already in place</span></pre>
+    <p><code>--autosquash</code> moves each <code>fixup!</code> commit under its target and marks it <code>fixup</code>, so you usually just save and close. Make it the default with <code>git config --global rebase.autoSquash true</code>. Variants: <code>--squash=&lt;commit&gt;</code> keeps the new message for editing, <code>--fixup=reword:&lt;commit&gt;</code> changes only the target&rsquo;s message, and <code>--fixup=amend:&lt;commit&gt;</code> changes its content and message. To skip the editor entirely, <code>GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash main</code> accepts the list as is.</p>
+
+    <h2 id="safety">Pushed commits, and undoing a squash</h2>
+    <p>Every method here except <code>merge --squash</code> rewrites history: the squashed commit is new, with a new hash. On commits only you have, that is harmless. If you already pushed the branch, a normal push is rejected and you must force-push. Use the safe form, which refuses if someone else pushed in the meantime:</p>
+<pre><span class="k">git push --force-with-lease</span></pre>
+    <p>Do not squash commits on a shared branch such as <code>main</code> that others have pulled. To undo a squash right after it finishes, run <code>git reset --hard ORIG_HEAD</code> (commit or stash other changes first, since <code>--hard</code> overwrites them). Later, find the old position in the reflog: the entry just below <code>rebase (start)</code> is your branch before the rebase.</p>
+<pre><span class="k">git reflog</span>
+<span class="o">1c1ee26 HEAD@{0}: rebase (finish): returning to refs/heads/main
+1c1ee26 HEAD@{1}: rebase (fixup): Add CSV export
+...
+086aa72 HEAD@{4}: rebase (start): checkout HEAD~4
+f5903f4 HEAD@{5}: commit: WIP</span>
+<span class="k">git reset --hard</span> f5903f4</pre>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>The graph shows exactly which commits you are about to combine, so there is no <code>HEAD~N</code> counting.</p>
+      <ol class="steps">
+        <li><strong>Interactive rebase:</strong> right-click the commit just <em>below</em> the oldest one you want to squash and choose <strong>Interactive rebase from here (terminal)</strong>. Mergeline opens a terminal named <em>Mergeline rebase</em> and runs <code>git rebase -i &lt;that commit&gt;</code>; edit the todo list as above. Set <code>core.editor</code> or <code>sequence.editor</code> to <code>code --wait</code> first to edit it in a tab.</li>
+        <li><strong>Soft reset:</strong> right-click the newest commit you want to <em>keep</em> as it is, choose <strong>Reset &ldquo;&lt;branch&gt;&rdquo; to here&hellip;</strong> and pick <strong>Soft</strong> (keep changes staged). The uncommitted-changes row at the top now holds the combined changes; commit them from the Source Control view with one message.</li>
+        <li><strong>Squash merge:</strong> check out the target branch, right-click the other branch&rsquo;s badge, choose <strong>Merge into &ldquo;&lt;branch&gt;&rdquo;&hellip;</strong> and pick <strong>Squash merge</strong>. The changes are staged for you to commit. Deleting the branch afterwards asks before force-deleting, because git does not see it as merged.</li>
+        <li><strong>Check and push:</strong> the graph updates when the repository changes (click <em>Refresh</em> if it has not). Right-click the branch and choose <strong>Push</strong>; if the branch was already on the remote, the push is rejected, so run <code>git push --force-with-lease</code> in the terminal.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html" aria-current="page">Squash commits</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

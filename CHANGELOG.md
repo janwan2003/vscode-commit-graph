@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 (2026-11-20)
+
+- **Resizable columns.** Drag the edge of a column header to resize the Graph, Date, Author or Commit column; double-click the edge to reset it. Right-click the header to hide or show columns. The layout is kept across sessions.
+- **Resizable details pane.** Drag the bar above it; double-click to reset.
+- **File actions in the details pane.** Right-click a changed file: open changes, open the file, open it as it was at that commit, compare that version with your working copy, show its history, reveal it in the Explorer, copy its relative or absolute path.
+- **Compare with working tree** on a commit's right-click menu, and **Compare with current branch** on a branch's.
+- **Links.** URLs in commit messages are clickable. When the remote is on GitHub, GitLab or Bitbucket, `#123` opens the issue, and commits and remote branches get **Open on GitHub** (or GitLab, Bitbucket). Links open only when you click them; Mergeline still makes no network requests itself.
+- **Keyboard:** Page Up/Down and Home/End move the selection.
+- Tested in VSCodium 1.143 as well as VS Code 1.147: the end-to-end suite passes in both.
+
 ## 0.3.0 (2026-11-20)
 
 - **Find in all history.** The find box searches only the loaded commits; when the repository has more, an **All history** button (or Enter when nothing loaded matches) searches every commit the graph can show: message, author name or email, hash prefix and ref names, case-insensitive. Stepping to a match that is not loaded yet loads the graph down to it and selects it.

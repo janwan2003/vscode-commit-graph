@@ -68,9 +68,9 @@
     <p>In VSCodium, Cursor and Windsurf this is the whole process. In a browser-based editor such as Gitpod, the editor runs on a remote machine, so first put the file into the workspace (drag it into the Explorer, or download it there from a terminal with <code>curl -LO</code>), then run the same command and choose it.</p>
     <h3>From a terminal</h3>
     <p>Each editor&rsquo;s command-line launcher accepts the same flag, if you have it on your <code>PATH</code>:</p>
-<pre><span class="k">code --install-extension</span> mergeline-0.2.0.vsix     <span class="c"># VS Code</span>
-<span class="k">codium --install-extension</span> mergeline-0.2.0.vsix   <span class="c"># VSCodium</span>
-<span class="k">cursor --install-extension</span> mergeline-0.2.0.vsix   <span class="c"># Cursor</span></pre>
+<pre><span class="k">code --install-extension</span> mergeline-0.4.0.vsix     <span class="c"># VS Code</span>
+<span class="k">codium --install-extension</span> mergeline-0.4.0.vsix   <span class="c"># VSCodium</span>
+<span class="k">cursor --install-extension</span> mergeline-0.4.0.vsix   <span class="c"># Cursor</span></pre>
     <p>This is handy in a setup script or a dev container, where you want the same extensions every time without clicking.</p>
     <p>One thing to keep in mind: an extension installed from a file stays at that version until you install a newer file. If the extension is later listed in your editor&rsquo;s registry, install it from the Extensions view instead, and updates will arrive like any other extension&rsquo;s.</p>
 
@@ -88,7 +88,7 @@
 
     <section class="in-app" id="mergeline">
       <h2>Use Mergeline in Cursor, VSCodium or Windsurf</h2>
-      <p>Mergeline is a free, MIT-licensed git graph built for VS Code and the editors built on it. It uses only standard VS Code extension APIs (no proposed APIs), draws its own right-click menus, needs VS Code 1.85 or an editor built on it, and sends no telemetry. So far it has been tested in VS Code 1.147; if something behaves differently in your editor, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a>.</p>
+      <p>Mergeline is a free, MIT-licensed git graph built for VS Code and the editors built on it. It uses only standard VS Code extension APIs (no proposed APIs), draws its own right-click menus, needs VS Code 1.85 or an editor built on it, and sends no telemetry. Its end-to-end test suite passes in VS Code 1.147 and VSCodium 1.143; Cursor and Windsurf have not been tested yet. If something behaves differently in your editor, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a>.</p>
       <ol class="steps">
         <li><strong>Install it.</strong> Once Mergeline is listed on Open VSX and the VS Code Marketplace, search for <em>Mergeline</em> in the Extensions view. Until then, download the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and install it with <strong>Extensions: Install from VSIX&hellip;</strong> or one of the commands above.</li>
         <li><strong>Open a git repository and trust it.</strong> Mergeline runs git commands, so it is disabled in Restricted Mode. Git must be on your <code>PATH</code>, on the remote machine if you work in a remote window.</li>
@@ -133,7 +133,9 @@
       <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
       <a href="git-log-graph.html">git log --graph</a>
       <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>
       <a href="git-graph-alternative.html">Git Graph alternative</a>

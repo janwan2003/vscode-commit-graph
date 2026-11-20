@@ -25,6 +25,10 @@
   let hist = null;
   let histPending = null; // query sent, answer not back yet
   let pendingReveal = null; // sha to select once it is loaded
+  /** Saved layout: column widths in px (graph null = automatic), hidden columns, details height. */
+  const COLS = { graph: 'Graph', date: 'Date', author: 'Author', hash: 'Commit' };
+  const DEFAULT_W = { date: 120, author: 150, hash: 76 };
+  let lay = { w: {}, hidden: [], details: null };
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const short = (s) => (s && s.length === 40 ? s.slice(0, 7) : s || '');
@@ -45,10 +49,11 @@
   </div>
   <div id="pathbar" hidden></div>
   <div id="main">
-    <div id="header" class="row hdr"><div class="c-graph">Graph</div><div class="c-desc">Description</div><div class="c-date">Date</div><div class="c-author">Author</div><div class="c-hash">Commit</div></div>
+    <div id="header" class="row hdr" title="Drag a column edge to resize it (double-click: reset). Right-click to show or hide columns."><div class="c-graph">Graph<span class="rz" data-col="graph"></span></div><div class="c-desc">Description</div><div class="c-date">Date<span class="rz" data-col="date"></span></div><div class="c-author">Author<span class="rz" data-col="author"></span></div><div class="c-hash">Commit<span class="rz" data-col="hash"></span></div></div>
     <div id="scroller" tabindex="0"><div id="spacer"></div><div id="rows"></div><div id="more"></div></div>
     <div id="msg" hidden></div>
   </div>
+  <div id="split" hidden title="Drag to resize the details pane (double-click: reset)"></div>
   <div id="details" hidden></div>
   <div id="menu" hidden role="menu"></div>`;
 
@@ -96,7 +101,7 @@
   window.addEventListener('message', (ev) => {
     const m = ev.data;
     switch (m.type) {
-      case 'settings': settings = m.settings; $('#order').value = settings.commitOrder || 'date'; render(); break;
+      case 'settings': settings = m.settings; $('#order').value = settings.commitOrder || 'date'; applyLayout(settings.layout); render(); break;
       case 'repos': repos = m.repos; currentRepo = m.repo; fillRepos(); break;
       case 'data': setData(m); break;
       case 'details': showDetails(m); break;
@@ -104,7 +109,7 @@
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url) }); break;
     }
   });
 
@@ -149,8 +154,7 @@
     } else pb.hidden = true;
     if (repoChanged) { selected = null; compareSha = null; closeDetails(); scroller.scrollTop = 0; }
     else if (selected && !indexBySha.has(selected)) closeDetails();
-    const gw = graphWidth();
-    document.documentElement.style.setProperty('--graph-w', gw + 'px');
+    setGraphWidth();
     spacer.style.height = m.commits.length * ROW + 44 + 'px';
     moreEl.style.top = m.commits.length * ROW + 'px';
     moreEl.innerHTML = m.hasMore ? `<button id="loadmore">Load more commits</button>` : m.commits.length ? `<span class="end">${m.commits.length} commits</span>` : '';
@@ -178,6 +182,91 @@
     // At least wide enough for the "Graph" header; lanes past MAX_LANES_SHOWN are clipped.
     return Math.max(52, PAD * 2 + Math.max(1, Math.min(data ? data.width : 1, MAX_LANES_SHOWN)) * LANE - LANE + 8);
   }
+
+  function setGraphWidth() {
+    document.documentElement.style.setProperty('--graph-w', (lay.w.graph || graphWidth()) + 'px');
+  }
+
+  // ---------- columns & layout ----------
+  function applyLayout(l) {
+    lay = { w: {}, hidden: [], details: null, ...(l || {}) };
+    const st = document.documentElement.style;
+    for (const k of ['date', 'author', 'hash']) st.setProperty('--w-' + k, (lay.w[k] || DEFAULT_W[k]) + 'px');
+    for (const k of Object.keys(COLS)) document.body.classList.toggle('hide-' + k, lay.hidden.includes(k));
+    if (data) setGraphWidth();
+    detailsEl.style.flexBasis = lay.details ? lay.details + 'px' : '';
+  }
+  function saveLayout() { vscode.postMessage({ type: 'layout', layout: lay }); }
+  function colWidths() {
+    const o = {};
+    for (const k of Object.keys(COLS)) { const el = $('#header .c-' + k); o[k] = el && getComputedStyle(el).display !== 'none' ? el.offsetWidth : 0; }
+    return o;
+  }
+  $('#header').addEventListener('mousedown', (e) => {
+    const rz = e.target.closest('.rz');
+    if (!rz || e.button !== 0) return;
+    e.preventDefault();
+    const col = rz.dataset.col;
+    const cell = rz.parentElement;
+    const x0 = e.clientX, w0 = cell.offsetWidth;
+    document.body.classList.add('resizing');
+    const move = (ev) => {
+      const w = Math.max(col === 'graph' ? 24 : 40, Math.min(900, Math.round(w0 + ev.clientX - x0)));
+      lay.w = { ...lay.w, [col]: w };
+      if (col === 'graph') setGraphWidth(); else document.documentElement.style.setProperty('--w-' + col, w + 'px');
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.body.classList.remove('resizing');
+      saveLayout();
+      render();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  $('#header').addEventListener('dblclick', (e) => {
+    const rz = e.target.closest('.rz');
+    if (!rz) return;
+    const w = { ...lay.w };
+    delete w[rz.dataset.col];
+    applyLayout({ ...lay, w });
+    saveLayout();
+    render();
+  });
+  $('#header').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const items = Object.entries(COLS).map(([k, label]) => [(lay.hidden.includes(k) ? '\u2003' : '✓ ') + label, () => {
+      const hidden = lay.hidden.includes(k) ? lay.hidden.filter((h) => h !== k) : [...lay.hidden, k];
+      applyLayout({ ...lay, hidden });
+      saveLayout();
+      render();
+    }]);
+    items.push(null, ['Reset column widths', () => { applyLayout({ ...lay, w: {} }); saveLayout(); render(); }]);
+    showMenu(items, e.clientX, e.clientY);
+  });
+  const split = $('#split');
+  split.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const y0 = e.clientY, h0 = detailsEl.offsetHeight;
+    document.body.classList.add('resizing-v');
+    const move = (ev) => {
+      const max = Math.max(140, window.innerHeight - 120);
+      lay.details = Math.max(80, Math.min(max, Math.round(h0 - (ev.clientY - y0))));
+      detailsEl.style.flexBasis = lay.details + 'px';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.body.classList.remove('resizing-v');
+      saveLayout();
+      render();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  split.addEventListener('dblclick', () => { lay.details = null; detailsEl.style.flexBasis = ''; saveLayout(); render(); });
 
   function loadMore() {
     if (loadingMore || !data || !data.hasMore) return;
@@ -311,10 +400,29 @@
 
   function closeDetails() {
     detailsEl.hidden = true;
+    split.hidden = true;
     details = null;
     selected = null;
     compareSha = null;
     render();
+  }
+
+  // URLs, #123 issue references (when the remote is on a known forge) and full commit hashes
+  // in a commit message become links. Everything else is escaped.
+  const LINK_RE = /\bhttps?:\/\/[^\s<>"'`]*[^\s<>"'`.,;:!?)\]}]|(?<![\w/&#])#(\d{1,7})\b|\b([0-9a-f]{40})\b/g;
+  function linkify(text) {
+    let out = '', last = 0, m;
+    LINK_RE.lastIndex = 0;
+    while ((m = LINK_RE.exec(text))) {
+      let a = null;
+      if (m[1] !== undefined) { if (data.web) a = `<span class="link" data-url="${esc(data.web.issue + m[1])}" title="${esc(data.web.issue + m[1])}">`; }
+      else if (m[2] !== undefined) { if (indexBySha.has(m[2])) a = `<span class="link" data-goto="${m[2]}" title="Go to commit">`; }
+      else a = `<span class="link" data-url="${esc(m[0])}" title="${esc(m[0])}">`;
+      if (!a) continue;
+      out += esc(text.slice(last, m.index)) + a + esc(m[0]) + '</span>';
+      last = m.index + m[0].length;
+    }
+    return out + esc(text.slice(last));
   }
 
   const STATUS = { A: 'Added', M: 'Modified', D: 'Deleted', R: 'Renamed', C: 'Copied', T: 'Type changed', U: 'Untracked' };
@@ -329,12 +437,13 @@
     } else if (m.info) {
       const i = m.info;
       const body = i.message.split('\n').slice(1).join('\n').trim();
-      head = `<div class="d-title">${esc(i.message.split('\n')[0])}</div>
+      head = `<div class="d-title">${linkify(i.message.split('\n')[0])}</div>
         <div class="d-meta"><span>Commit <code class="link" data-copy="${esc(i.sha)}" title="Copy">${esc(i.sha)}</code></span>
         <span>Parents ${i.parents.map((p) => `<code class="link" data-goto="${esc(p)}">${esc(short(p))}</code>`).join(' ') || 'none'}</span>
         <span>Author <b>${esc(i.author)}</b> &lt;${esc(i.email)}&gt;, ${esc(new Date(i.authorDate * 1000).toLocaleString())}</span>
-        ${i.committer !== i.author || i.commitDate !== i.authorDate ? `<span>Committer ${esc(i.committer)}, ${esc(new Date(i.commitDate * 1000).toLocaleString())}</span>` : ''}</div>
-        ${body ? `<pre class="d-body">${esc(body)}</pre>` : ''}`;
+        ${i.committer !== i.author || i.commitDate !== i.authorDate ? `<span>Committer ${esc(i.committer)}, ${esc(new Date(i.commitDate * 1000).toLocaleString())}</span>` : ''}
+        ${data.web ? `<span><span class="link" data-url="${esc(data.web.commit + i.sha)}" title="${esc(data.web.commit + i.sha)}">Open on ${esc(data.web.name)}</span></span>` : ''}</div>
+        ${body ? `<pre class="d-body">${linkify(body)}</pre>` : ''}`;
     } else if (c.kind === 'uncommitted') head = `<div class="d-title">Uncommitted changes</div>`;
     if (m.error) head += `<div class="d-err">${esc(m.error)}</div>`;
     const add = m.files.reduce((n, f) => n + (f.additions || 0), 0);
@@ -348,6 +457,7 @@
       <div class="d-files-h">${m.files.length} file${m.files.length === 1 ? '' : 's'} changed <i class="plus">+${add}</i> <i class="minus">−${del}</i>${m.compare ? '' : ' <span class="hint">Ctrl/Cmd-click another commit to compare</span>'}</div>
       <ul class="d-files">${files}</ul>`;
     detailsEl.hidden = false;
+    split.hidden = false;
     scrollTo(indexBySha.get(m.sha));
   }
 
@@ -357,11 +467,38 @@
     if (g) { if (indexBySha.has(g.dataset.goto)) select(g.dataset.goto, true); return; }
     const cp = e.target.closest('[data-copy]');
     if (cp) return action({ action: 'copyHash', sha: cp.dataset.copy });
+    const u = e.target.closest('[data-url]');
+    if (u) return vscode.postMessage({ type: 'openUrl', url: u.dataset.url });
     const f = e.target.closest('.file');
     if (f && details) {
       const file = details.files[+f.dataset.k];
       vscode.postMessage({ type: 'openFile', from: details.from === UNC ? 'HEAD' : details.from, to: details.to, path: file.path, oldPath: file.oldPath, status: file.status });
     }
+  });
+
+  detailsEl.addEventListener('contextmenu', (e) => {
+    const f = e.target.closest('.file');
+    if (!f || !details) return;
+    e.preventDefault();
+    const file = details.files[+f.dataset.k];
+    const at = details.to; // null = working tree
+    const fa = (act, p = file.path, ref = at) => () => vscode.postMessage({ type: 'fileAction', act, ref, path: p });
+    const gone = file.status === 'D';
+    const items = [
+      ['Open changes', () => vscode.postMessage({ type: 'openFile', from: details.from === UNC ? 'HEAD' : details.from, to: details.to, path: file.path, oldPath: file.oldPath, status: file.status })],
+      ['Open file', fa('openWorking')],
+      ...(at ? [
+        ['Open file at ' + short(at), fa('openAt'), gone ? 'disabled' : ''],
+        ['Compare ' + short(at) + ' with working tree', fa('diffWorking'), gone ? 'disabled' : ''],
+      ] : []),
+      null,
+      ['Show file history', fa('history')],
+      ['Reveal in Explorer', fa('reveal')],
+      null,
+      ['Copy relative path', fa('copyPath')],
+      ['Copy absolute path', fa('copyAbs')],
+    ];
+    showMenu(items, e.clientX, e.clientY);
   });
 
   // ---------- find ----------
@@ -425,10 +562,15 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#find').focus(); $('#find').select(); return; }
     if (e.key === 'Escape') { if (!menu.hidden) hideMenu(); else if (!detailsEl.hidden) closeDetails(); return; }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && data && data.commits.length) {
+    const page = Math.max(1, Math.floor(scroller.clientHeight / ROW) - 1);
+    const MOVE = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page };
+    if ((e.key in MOVE || e.key === 'Home' || e.key === 'End') && data && data.commits.length) {
       e.preventDefault();
-      const i = selected != null && indexBySha.has(selected) ? indexBySha.get(selected) + (e.key === 'ArrowDown' ? 1 : -1) : 0;
-      if (i >= 0 && i < data.commits.length) select(data.commits[i].sha, true);
+      const n = data.commits.length;
+      const cur = selected != null && indexBySha.has(selected) ? indexBySha.get(selected) : -1;
+      let i = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : cur < 0 ? 0 : cur + MOVE[e.key];
+      i = Math.max(0, Math.min(n - 1, i));
+      if (i !== cur) select(data.commits[i].sha, true);
     }
   });
 
@@ -482,10 +624,23 @@
       ['Interactive rebase from here (terminal)', { ...base, action: 'interactiveRebase' }],
       ['Reset ' + cur + ' to here…', { ...base, action: 'reset' }, isHead ? 'disabled' : ''],
       null,
+      ['Compare with working tree', () => compare(c.sha, UNC)],
+      ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
+      null,
       ['Copy hash', { ...base, action: 'copyHash' }],
       ['Copy subject', { ...base, action: 'copySubject' }],
     ];
   }
+
+  /** Show the changes between commit `a` and `b` (UNC = working tree) in the details pane. */
+  function compare(a, b) {
+    selected = a;
+    compareSha = b;
+    vscode.postMessage({ type: 'details', sha: a, compare: b });
+    scrollTo(indexBySha.get(a));
+    render();
+  }
+  const webBranch = (branch) => data.web.branch + branch.split('/').map(encodeURIComponent).join('/');
 
   function refItems(name, type, remote, c) {
     const cur = data.branch;
@@ -502,6 +657,8 @@
       ['Check out as local branch…', { ...r, action: 'checkoutBranch' }],
       ['Merge into ' + curL + '…', { ...r, action: 'merge' }],
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }],
+      ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)]] : []),
+      ...(data.web && remote === data.web.remote ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: webBranch(name.slice(remote.length + 1)) })]] : []),
       null,
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
       null,
@@ -512,6 +669,7 @@
       ['Check out', { ...r, action: 'checkoutBranch' }, isCur ? 'disabled' : ''],
       ['Merge into ' + curL + '…', { ...r, action: 'merge' }, isCur ? 'disabled' : ''],
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }, isCur ? 'disabled' : ''],
+      ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)]] : []),
       null,
       ['Push…', { ...r, action: 'pushBranch' }],
       ...(isCur ? [['Pull', { ...r, action: 'pull' }]] : []),
@@ -536,7 +694,8 @@
     const mi = e.target.closest('.mi');
     if (!mi || mi.classList.contains('disabled')) return;
     hideMenu();
-    action(menuItems[+mi.dataset.k][1]);
+    const it = menuItems[+mi.dataset.k][1];
+    if (typeof it === 'function') it(); else action(it);
   });
   document.addEventListener('mousedown', (e) => { if (!menu.contains(e.target)) hideMenu(); });
   window.addEventListener('blur', hideMenu);

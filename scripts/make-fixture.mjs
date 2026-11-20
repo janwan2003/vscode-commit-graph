@@ -2,7 +2,8 @@
 // Usage: node scripts/make-fixture.mjs <dir>
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export function makeFixture(d) {
   mkdirSync(d, { recursive: true });
@@ -44,4 +45,5 @@ export function makeFixture(d) {
   writeFileSync(join(d, 'README.md'), 'dirty\n');
   return d;
 }
-if (process.argv[2]) makeFixture(process.argv[2]);
+// Only when run directly: e2e.mjs imports this file and its argv[2] is the VS Code binary.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2]) makeFixture(process.argv[2]);

@@ -127,6 +127,72 @@ exports.run = async function run() {
     await until(() => vscode.workspace.getConfiguration('mergeline').get('commitOrder') === 'date', 5000, 'order reset');
   });
 
+  await check('compare a commit with the working tree', async () => {
+    const a = bySubject('Initial commit');
+    await panel.testMessage({ type: 'details', sha: a.sha, compare: '*' });
+    const d = panel.lastDetails;
+    assert.equal(d.from, a.sha);
+    assert.equal(d.to, null, 'right side is the working tree');
+    assert.ok(d.files.some((f) => f.path === 'README.md' && f.status === 'M'), JSON.stringify(d.files));
+  });
+
+  await check('file actions: open at a revision, diff with the working tree, copy paths, file history', async () => {
+    const c = bySubject('Add search index');
+    await panel.testMessage({ type: 'fileAction', act: 'openAt', ref: c.sha, path: 'search.txt' });
+    const ed = await until(() => { const e = vscode.window.activeTextEditor; return e && e.document.uri.scheme === 'mergeline' && JSON.parse(e.document.uri.query).ref === c.sha && e; }, 10000, 'editor at revision');
+    assert.equal(ed.document.getText(), 'Add search index\n');
+    const first = bySubject('Initial commit');
+    await panel.testMessage({ type: 'fileAction', act: 'diffWorking', ref: first.sha, path: 'README.md' });
+    const tab = await until(() => { const t = vscode.window.tabGroups.activeTabGroup.activeTab; return t && t.input instanceof vscode.TabInputTextDiff && t; }, 10000, 'diff tab');
+    assert.equal(tab.input.original.scheme, 'mergeline');
+    assert.equal(fs.realpathSync(tab.input.modified.fsPath), fs.realpathSync(root + '/README.md'));
+    await panel.testMessage({ type: 'fileAction', act: 'copyPath', ref: null, path: 'parser.txt' });
+    assert.equal(await vscode.env.clipboard.readText(), 'parser.txt');
+    await panel.testMessage({ type: 'fileAction', act: 'copyAbs', ref: null, path: '../outside.txt' });
+    assert.equal(await vscode.env.clipboard.readText(), 'parser.txt', 'a path outside the repository is ignored');
+    await panel.testMessage({ type: 'fileAction', act: 'copyAbs', ref: null, path: 'parser.txt' });
+    assert.equal(await vscode.env.clipboard.readText(), require('path').join(panel.repoRoot, 'parser.txt'));
+    await panel.testMessage({ type: 'fileAction', act: 'history', ref: c.sha, path: 'search.txt' });
+    await until(() => panel.lastData.names[0] === 'search.txt' && panel.lastData.commits.every((x) => x.kind === 'commit'), 10000, 'file history from the details pane');
+    await panel.testMessage({ type: 'filter', branch: '', remotes: true, path: '' });
+    await until(() => panel.lastData.commits.filter((x) => x.kind === 'commit').length === 8, 10000, 'full graph again');
+  });
+
+  await check('column layout is applied, and kept after the panel is closed and reopened', async () => {
+    await panel.testMessage({ type: 'layout', layout: { w: { date: 200, graph: 90 }, hidden: ['hash'], details: null }, echo: true });
+    const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.cols && panel.lastPong.cols.date === 200 && panel.lastPong; }, 10000, 'layout applied');
+    assert.equal(pong.cols.hash, 0, 'hash column hidden');
+    assert.equal(pong.cols.graph, 90);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await until(() => !api.panel(), 10000, 'panel closed');
+    await vscode.commands.executeCommand('mergeline.show');
+    panel = await until(() => api.panel() && api.panel().lastData && api.panel(), 20000, 'reopened');
+    const p2 = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.rows > 0 && panel.lastPong; }, 20000, 'reopened pong');
+    assert.deepEqual([p2.cols.date, p2.cols.hash, p2.cols.graph], [200, 0, 90], JSON.stringify(p2.cols));
+    await panel.testMessage({ type: 'layout', layout: null, echo: true });
+    const p3 = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.cols && panel.lastPong.cols.date === 120 && panel.lastPong; }, 10000, 'layout reset');
+    assert.equal(p3.cols.hash, 76);
+  });
+
+  await check('GitHub remote: details link to the commit page, issue refs and URLs in messages are links', async () => {
+    git('remote', 'add', 'gh', 'git@github.com:plainbyte/demo.git');
+    fs.writeFileSync(root + '/links.txt', 'x\n');
+    git('add', 'links.txt');
+    git('commit', '-q', '-m', 'Link test, fixes #42', '-m', 'See https://example.com/doc. Not an issue: a#1');
+    const sha = git('rev-parse', 'HEAD');
+    await panel.refresh(true);
+    await until(() => panel.lastData.web && panel.lastData.commits.some((c) => c.sha === sha), 10000, 'web info');
+    assert.equal(panel.lastData.web.commit, 'https://github.com/plainbyte/demo/commit/');
+    await panel.testPost({ type: 'reveal', sha });
+    const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.links && panel.lastPong.links.length >= 3 && panel.lastPong; }, 10000, 'links in details');
+    assert.deepEqual(pong.links.sort(), ['https://example.com/doc', 'https://github.com/plainbyte/demo/commit/' + sha, 'https://github.com/plainbyte/demo/issues/42'].sort());
+    git('reset', '-q', 'HEAD~1');
+    fs.unlinkSync(root + '/links.txt');
+    git('remote', 'remove', 'gh');
+    await panel.refresh(true);
+    await until(() => !panel.lastData.web && !panel.lastData.commits.some((c) => c.sha === sha), 10000, 'cleaned up');
+  });
+
   const act = async (m) => { await panel.testMessage({ type: 'action', ...m }); };
 
   await check('stash pop applies the stash and removes it', async () => {

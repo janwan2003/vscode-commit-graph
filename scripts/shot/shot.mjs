@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 
 const out = resolve(process.argv[2] || 'docs/screenshot.png');
 const MENU = process.env.MENU === '1';
+const INTERACT = process.env.INTERACT === '1';
 const pw = join(homedir(), '.cache/ms-playwright');
 const chrome = process.argv[3] || process.env.CHROME_BIN ||
   (existsSync(pw) ? readdirSync(pw).filter((d) => d.startsWith('chromium-')).flatMap((d) => [join(pw, d, 'chrome-linux/chrome'), join(pw, d, 'chrome-linux64/chrome')]).find(existsSync) : 'chromium');
@@ -26,6 +27,7 @@ const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${vars}</s
 <body class="${LIGHT ? 'vscode-light' : 'vscode-dark'}"><div id="app"></div><script>
 const P = ${payload};
 window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMessage(m) {
+  if (window.__onPost) window.__onPost(m);
   if (m.type === 'ready') {
     window.postMessage({ type: 'settings', settings: { dateFormat: 'relative' } }, '*');
     window.postMessage({ type: 'repos', repos: [{ root: '/work/acme-app', name: 'acme-app' }], repo: '/work/acme-app' }, '*');
@@ -38,11 +40,11 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
       }
       setTimeout(() => { document.querySelector('#find').value = 'search'; document.querySelector('#find').dispatchEvent(new Event('input')); }, 60);
       if (${MENU}) setTimeout(() => { const b = document.querySelector('.badge.branch:not(.current)'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 12 })); }, 120);
-      setTimeout(() => { document.title = 'rows=' + document.querySelectorAll('#rows .row').length + ' badges=' + document.querySelectorAll('.badge').length + ' files=' + document.querySelectorAll('.file').length + ' paths=' + document.querySelectorAll('#rows svg path').length; }, 200);
+      if (!${INTERACT}) setTimeout(() => { document.title = 'rows=' + document.querySelectorAll('#rows .row').length + ' badges=' + document.querySelectorAll('.badge').length + ' files=' + document.querySelectorAll('.file').length + ' paths=' + document.querySelectorAll('#rows svg path').length; }, 200);
     }, 50);
   }
 } });
-</script><script>${readFileSync('media/rows.js', 'utf8')}</script><script>${readFileSync('media/graph.js', 'utf8')}</script></body></html>`;
+</script><script>${readFileSync('media/rows.js', 'utf8')}</script><script>${readFileSync('media/graph.js', 'utf8')}</script>${INTERACT ? `<script>${readFileSync('scripts/shot/interact.js', 'utf8')}</script>` : ''}</body></html>`;
 writeFileSync(join(tmp, 'h.html'), html);
 const common = ['--headless', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--window-size=1280,800', '--virtual-time-budget=3000'];
 execFileSync(chrome, [...common, `--screenshot=${out}`, 'file://' + join(tmp, 'h.html')], { stdio: 'ignore' });
@@ -50,5 +52,6 @@ const dom = execFileSync(chrome, [...common, '--dump-dom', 'file://' + join(tmp,
 const title = (dom.match(/<title>(.*?)<\/title>/) || [])[1] || '(no title)';
 console.log('screenshot:', out, '|', title);
 rmSync(tmp, { recursive: true, force: true });
+if (INTERACT) { if (!title.startsWith('INTERACT ') || title.includes('"error"')) { console.error('interaction check failed'); process.exit(1); } process.exit(0); }
 const m = /rows=(\d+) badges=(\d+) files=(\d+) paths=(\d+)/.exec(title);
 if (!m || +m[1] < 15 || (!process.env.PAYLOAD && (+m[2] < 5 || +m[3] < 1)) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }

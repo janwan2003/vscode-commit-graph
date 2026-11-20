@@ -105,15 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.3.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`, checked 2026-11-20, session 3).
+**Mergeline 0.4.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`, checked 2026-11-20, session 4).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0, v0.2.0 and v0.3.0
-  (`mergeline-0.3.0.vsix`, 38 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.4.0
+  (`mergeline-0.4.0.vsix`, 43 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  8 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
+  10 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
-  git graph in Cursor/VSCodium/Windsurf), 404 and sitemap (11 URLs).
+  git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
+  404 and sitemap (13 URLs).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -130,7 +131,14 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   selects it), file history that follows renames (`git log --follow` names; unrelated files that reused an
   old name are dropped and parents rewritten across them), packed graph rows (`PackedRow` in
   `src/core/graph.ts`, decoded by `media/rows.js`), and a fix: `mergeline.initialCommits` applies at once.
-  Right-click actions on commits, branches, remote branches, tags, stashes and the
+  **0.4.0 added:** resizable and hideable columns (drag a header edge, right-click the header; saved in
+  `globalState` `mergeline.layout`), a draggable details splitter, a file right-click menu in the details pane
+  (open, open at revision, compare with working copy, file history, reveal, copy paths), Compare with working
+  tree (commit menu) and Compare with current branch (branch menus), forge links (`src/core/remote.ts`: remote
+  URL → GitHub/GitLab/Bitbucket web base; Open on GitHub for commits and remote branches, `#123` and URLs in
+  messages are clickable; nothing is fetched), Page Up/Down and Home/End. Also fixed `scripts/make-fixture.mjs`, which
+  ran on import, so `node scripts/e2e.mjs <binary>` crashed (found by the VSCodium run).
+  Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
   - `pnpm typecheck` clean; `pnpm test`: 10/10 unit tests (new: path-limited log with rewritten parents, topo order, lane collapse).
@@ -160,12 +168,34 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     headless Chromium is pixel-identical below the toolbar (PIL `ImageChops.difference`, 1280×755 px).
   - After push: CI and Pages succeeded for 47af3a6; live new guides return 200; the v0.3.0 asset
     downloads byte-identical (sha256 62a4abf3…); `code --install-extension` lists `plainbyte.mergeline@0.3.0`.
-- Not verified: Cursor, VSCodium and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
+- Verified 2026-11-20 (session 4):
+  - **VSCodium 1.143.17232** (GitHub release tarball, `product.json` version; deleted after): 0.3.0 passed 22/22 twice
+    (subagent run on a clean clone of ad6b990), and 0.4.0 passed 26/26 twice (`node scripts/e2e.mjs <codium>`).
+    The packaged `mergeline-0.4.0.vsix` installs in VSCodium and VS Code 1.147 (`--list-extensions` →
+    `plainbyte.mergeline@0.4.0`). VSCodium ships its git extension as `vscode.git`, the id `src/ext/repos.ts` uses.
+  - `pnpm typecheck` clean; `pnpm test` 14/14 (new: `webRepo` on 13 remote URL forms plus commit/issue/branch URLs).
+  - `node scripts/e2e.mjs` in VS Code 1.147, on the minified packaged build: 26/26, twice. New checks: compare with the
+    working tree; file actions (open at revision shows that revision's text, diff with working tree opens a
+    diff tab against the real file, copy paths, `../outside.txt` is ignored, file history); column layout applied,
+    **kept after closing and reopening the panel**, and reset; a GitHub remote gives the commit link, `#42` and a
+    URL as links in the details pane (read back from the webview DOM).
+  - Mouse interactions in headless Chromium on the real webview (`INTERACT=1 node scripts/shot/shot.mjs`,
+    `scripts/shot/interact.js`): drag Date edge +80 px → header and rows 120 → 200 px; header menu hides Commit
+    (header 0 px, row cells `display:none`); double-click resets Date to 120; file menu lists 8 entries and posts
+    `copyPath`; splitter drag 271 → 371 px; End selects the last row; layout messages posted. Looked at the PNGs:
+    hidden column, taller details, and (with a GitHub `web` payload) `#128`, `#97`, the URL and "Open on GitHub" as links.
+- Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
-  contributions are declarative and `vsce package` accepted them); rename following in file history
-  (not implemented).
+  contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
+  (`openUrl` → `vscode.env.openExternal`, http/https only) was not clicked in the e2e run; real mouse drags inside
+  VS Code (the drags were synthetic events in Chromium). (Corrected session 4: an older line here said rename
+  following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 4): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 0; 0 stars, 0 forks; traffic views 0
+  (`gh api .../releases`, `.../traffic/views`). Search Console: search analytics returns no rows (2026-10-20 →
+  2026-11-20); the sitemap is still pending, not yet downloaded by Google (`sitemaps.list`).
 
 - 2026-11-20 (session 1): not in any store yet, so there are no installs to read. GitHub release
   download count starts at 0 (`gh api repos/janwan2003/vscode-commit-graph/releases`).
@@ -181,12 +211,13 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Test in VSCodium or Cursor (Open VSX users are the core audience). Neither is installed here; a
-   VSCodium tarball (~100 MB) in /tmp would fit the disk budget if deleted after.
-3. Features users ask for that are still missing: resizable columns, drag-and-drop branch to merge or
-   rebase, worktree badges, avatars (opt-in; needs network, off by default).
-4. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
+2. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
    already resumable) for repos where users scroll deep.
+3. Features users ask for that are still missing: drag-and-drop branch to merge or rebase, worktree badges,
+   avatars (opt-in; needs network, off by default), a "compare with merge base" (three-dot) option next to
+   Compare with current branch.
+4. Add VSCodium as a second CI e2e target (download the tarball, `node scripts/e2e.mjs <codium>`; 610 MB
+   extracted, so CI only, not locally every session).
 5. History search positions in file-history mode are approximate (they come from the multi-name log, not
    the filtered one); fine for small file histories, revisit if users report misses.
 6. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
@@ -226,3 +257,9 @@ on the graph). The graph itself stays free.
   Cursor/VSCodium) and removed an FAQ claim of fork testing we had not done. Verified: 13/13 unit, 22/22 e2e
   ×4 (last on the packaged build), pixel-identical render vs 0.2.0, vsix install, CI + Pages green for 47af3a6,
   live pages 200, release asset byte-identical.
+- 2026-11-20 builder (session 4): store tokens still absent. Tested in VSCodium for the first time (1.143: 0.3.0 22/22 ×2,
+  0.4.0 26/26 ×2) and fixed the e2e runner bug it exposed. Built 0.4.0: resizable/hideable columns kept across sessions,
+  details splitter, file right-click menu, compare with working tree / current branch, GitHub/GitLab/Bitbucket links,
+  Page/Home/End keys. Two new guides (compare branches, squash commits); homepage version and fork-testing claims
+  corrected. Verified: 14/14 unit, 26/26 e2e ×2 on the packaged build in VS Code 1.147, headless-Chromium
+  interaction script, vsix install in VS Code and VSCodium.
