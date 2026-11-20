@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "Visualization",
     "Other"
   ],
-  "keywords": ["git graph", "compact graph", "branch colors", "git patch", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
+  "keywords": ["git graph", "compact graph", "branch colors", "git patch", "notebook diff", "delete branches", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
@@ -45,7 +45,8 @@
       {
         "command": "mergeline.refresh",
         "title": "Refresh Commit Graph",
-        "category": "Mergeline"
+        "category": "Mergeline",
+        "icon": "$(refresh)"
       },
       {
         "command": "mergeline.manageRemotes",
@@ -63,9 +64,51 @@
         "command": "mergeline.fileHistory",
         "title": "Show File History in Mergeline",
         "icon": "$(history)"
+      },
+      {
+        "command": "mergeline.showInSidebar",
+        "title": "Show Commit Graph in Sidebar",
+        "category": "Mergeline",
+        "icon": "$(layout-sidebar-left)"
+      },
+      {
+        "command": "mergeline.openInEditor",
+        "title": "Open Commit Graph in Editor",
+        "category": "Mergeline",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "mergeline.deleteBranches",
+        "title": "Delete Branches…",
+        "category": "Mergeline",
+        "icon": "$(trash)"
       }
     ],
+    "views": {
+      "scm": [
+        {
+          "type": "webview",
+          "id": "mergeline.sidebar",
+          "name": "Mergeline Graph",
+          "visibility": "collapsed",
+          "icon": "media/tab.svg",
+          "contextualTitle": "Mergeline"
+        }
+      ]
+    },
     "menus": {
+      "view/title": [
+        {
+          "command": "mergeline.refresh",
+          "when": "view == mergeline.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mergeline.openInEditor",
+          "when": "view == mergeline.sidebar",
+          "group": "navigation@2"
+        }
+      ],
       "scm/title": [
         {
           "command": "mergeline.show",
@@ -77,6 +120,10 @@
         {
           "command": "mergeline.refresh",
           "when": "mergeline.panelOpen"
+        },
+        {
+          "command": "mergeline.openInEditor",
+          "when": "false"
         },
         {
           "command": "mergeline.fileHistory",

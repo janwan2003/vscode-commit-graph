@@ -20,9 +20,69 @@ const FORGE_NAME: Record<Forge, string> = { github: 'GitHub', gitlab: 'GitLab', 
 
 export const UNCOMMITTED = '*';
 
+/**
+ * Where a graph lives: an editor tab (WebviewPanel) or the Source Control sidebar view
+ * (WebviewView, Git Graph issue #781). The controller only needs these few things.
+ */
+export interface GraphHost {
+  kind: 'editor' | 'view';
+  webview: vscode.Webview;
+  readonly visible: boolean;
+  reveal(): void;
+  onDidDispose: vscode.Event<void>;
+  onDidChangeVisible: vscode.Event<unknown>;
+  dispose(): void;
+}
+
+function editorHost(ctx: vscode.ExtensionContext): GraphHost {
+  const p = vscode.window.createWebviewPanel('mergeline.graph', 'Mergeline', vscode.ViewColumn.Active, {
+    enableScripts: true,
+    retainContextWhenHidden: true,
+    localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, 'media')],
+  });
+  p.iconPath = vscode.Uri.joinPath(ctx.extensionUri, 'media', 'tab.svg');
+  return {
+    kind: 'editor',
+    webview: p.webview,
+    get visible() {
+      return p.visible;
+    },
+    reveal: () => p.reveal(),
+    onDidDispose: p.onDidDispose,
+    onDidChangeVisible: p.onDidChangeViewState,
+    dispose: () => p.dispose(),
+  };
+}
+
+export function viewHost(ctx: vscode.ExtensionContext, v: vscode.WebviewView): GraphHost {
+  v.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, 'media')] };
+  return {
+    kind: 'view',
+    webview: v.webview,
+    get visible() {
+      return v.visible;
+    },
+    reveal: () => v.show(true),
+    onDidDispose: v.onDidDispose,
+    onDidChangeVisible: v.onDidChangeVisibility,
+    dispose: () => {},
+  };
+}
+
+/** The sidebar view's id (package.json contributes.views.scm). */
+export const VIEW_ID = 'mergeline.sidebar';
+
 export class GraphPanel implements vscode.Disposable {
+  /** The graph in an editor tab. */
   static current: GraphPanel | undefined;
-  private panel: vscode.WebviewPanel;
+  /** The graph in the Source Control sidebar view, once that view has been opened. */
+  static view: GraphPanel | undefined;
+  /** The graph the user used last (editor tab or sidebar), for commands that act on "the shown repository". */
+  static last: GraphPanel | undefined;
+  static all(): GraphPanel[] {
+    return [GraphPanel.current, GraphPanel.view].filter((p): p is GraphPanel => !!p);
+  }
+  private panel: GraphHost;
   private repo: string | undefined;
   private max: number;
   /**
@@ -59,21 +119,30 @@ export class GraphPanel implements vscode.Disposable {
       if (root && root !== GraphPanel.current.repo) GraphPanel.current.setRepo(root);
       return GraphPanel.current;
     }
-    GraphPanel.current = new GraphPanel(ctx, repos, root);
+    GraphPanel.current = new GraphPanel(ctx, repos, editorHost(ctx), root);
+    GraphPanel.last = GraphPanel.current;
     return GraphPanel.current;
   }
 
-  private constructor(private ctx: vscode.ExtensionContext, private repos: Repos, root?: string) {
+  /** Called when VS Code resolves the sidebar view (first time it is shown, or after it was moved). */
+  static attachView(ctx: vscode.ExtensionContext, repos: Repos, v: vscode.WebviewView): GraphPanel {
+    GraphPanel.view?.dispose();
+    GraphPanel.view = new GraphPanel(ctx, repos, viewHost(ctx, v));
+    GraphPanel.last ??= GraphPanel.view;
+    return GraphPanel.view;
+  }
+
+  /** Layout (column widths, hidden columns, details height) is kept per host kind: the sidebar is narrow. */
+  private get layoutKey() {
+    return this.panel.kind === 'view' ? 'mergeline.layout.view' : 'mergeline.layout';
+  }
+
+  private constructor(private ctx: vscode.ExtensionContext, private repos: Repos, host: GraphHost, root?: string) {
     const cfg = vscode.workspace.getConfiguration('mergeline');
     this.max = cfg.get<number>('initialCommits', 500);
     this.filter = { branches: [], remotes: cfg.get<boolean>('showRemoteBranches', true), path: null, authors: [] };
     this.repo = root ?? ctx.workspaceState.get<string>('mergeline.repo');
-    this.panel = vscode.window.createWebviewPanel('mergeline.graph', 'Mergeline', vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, 'media')],
-    });
-    this.panel.iconPath = vscode.Uri.joinPath(ctx.extensionUri, 'media', 'tab.svg');
+    this.panel = host;
     this.panel.webview.html = this.html();
     vscode.commands.executeCommand('setContext', 'mergeline.panelOpen', true);
     this.subs.push(
@@ -83,8 +152,8 @@ export class GraphPanel implements vscode.Disposable {
         if (!root) this.postRepos();
         if (!root || root === this.repo) this.scheduleRefresh();
       }),
-      this.panel.onDidChangeViewState((e) => {
-        if (e.webviewPanel.visible) this.scheduleRefresh(50);
+      this.panel.onDidChangeVisible(() => {
+        if (this.panel.visible) this.scheduleRefresh(50);
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('mergeline')) {
@@ -172,7 +241,8 @@ export class GraphPanel implements vscode.Disposable {
       rowColors: cfg.get('rowColors', 'none'),
       showAvatars: this.avatarsOn(),
       issueLinks: links.rules,
-      layout: this.ctx.globalState.get('mergeline.layout') ?? null,
+      layout: this.ctx.globalState.get(this.layoutKey) ?? (this.panel.kind === 'view' ? { w: {}, hidden: ['date', 'author', 'hash'], details: null } : null),
+      host: this.panel.kind,
     };
   }
   private linkProblems = '';
@@ -487,6 +557,7 @@ export class GraphPanel implements vscode.Disposable {
   }
 
   private async onMessage(m: any) {
+    if (m?.type !== 'pong' && m?.type !== 'ready') GraphPanel.last = this;
     switch (m?.type) {
       case 'ready':
         this.postSettings();
@@ -624,7 +695,7 @@ export class GraphPanel implements vscode.Disposable {
         break;
       case 'layout':
         // Column widths, hidden columns and the details height, kept across sessions.
-        await this.ctx.globalState.update('mergeline.layout', m.layout && typeof m.layout === 'object' ? m.layout : undefined);
+        await this.ctx.globalState.update(this.layoutKey, m.layout && typeof m.layout === 'object' ? m.layout : undefined);
         if (m.echo) this.postSettings();
         break;
       case 'copy':
@@ -650,7 +721,11 @@ export class GraphPanel implements vscode.Disposable {
         const info = this.info();
         if (!info) return;
         const changed = await runAction({ root: info.root, api: info.api }, { ...(m as ActionMsg), current: this.lastData?.state.branch ?? null });
-        if (changed) await this.refresh(true);
+        if (changed) {
+          // The other graph (editor tab or sidebar) catches up when it is visible.
+          for (const p of GraphPanel.all()) if (p !== this) p.scheduleRefresh(50);
+          await this.refresh(true);
+        }
         break;
       }
     }
@@ -817,9 +892,14 @@ export class GraphPanel implements vscode.Disposable {
     return this.post({ type: 'ping' });
   }
 
+  private disposed = false;
   dispose() {
-    GraphPanel.current = undefined;
-    vscode.commands.executeCommand('setContext', 'mergeline.panelOpen', false);
+    if (this.disposed) return;
+    this.disposed = true;
+    if (GraphPanel.current === this) GraphPanel.current = undefined;
+    if (GraphPanel.view === this) GraphPanel.view = undefined;
+    if (GraphPanel.last === this) GraphPanel.last = GraphPanel.current ?? GraphPanel.view;
+    vscode.commands.executeCommand('setContext', 'mergeline.panelOpen', GraphPanel.all().length > 0);
     if (this.timer) clearTimeout(this.timer);
     this.subs.forEach((s) => s.dispose());
     this.panel.dispose();
@@ -831,6 +911,9 @@ export class GraphPanel implements vscode.Disposable {
   }
   testPost(m: any) {
     return this.post(m);
+  }
+  get hostKind() {
+    return this.panel.kind;
   }
   get repoRoot() {
     return this.repo;

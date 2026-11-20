@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diff Jupyter notebooks between git commits in VS Code | Mergeline</title>
+<meta name="description" content="Why git diff shows .ipynb notebooks as raw JSON, nbdime's nbdiff, and comparing notebooks from any two commits in VS Code's notebook diff editor.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/jupyter-notebook-diff-git-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Diff Jupyter notebooks between git commits in VS Code">
+<meta property="og:description" content="See what changed in a Jupyter notebook between two commits cell by cell instead of as JSON: nbdime in a terminal, and VS Code's notebook diff editor for any commit.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/jupyter-notebook-diff-git-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Diff Jupyter notebooks between git commits in VS Code</h1>
+    <p>A Jupyter notebook (<code>.ipynb</code>) is a JSON file: cells, their source, their outputs and a lot of metadata. git stores and compares it as text, so a one-word change in a cell comes out as a JSON diff mixed with changed execution counts and outputs. This page shows what <code>git diff</code> gives you, how nbdime makes it readable in a terminal, and how to compare a notebook between any two commits cell by cell in VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#json">What <code>git diff</code> shows</a></li>
+        <li><a href="#nbdime">nbdime in a terminal</a></li>
+        <li><a href="#vscode">VS Code&rsquo;s notebook diff editor</a></li>
+        <li><a href="#mergeline">Notebooks from any commit</a></li>
+        <li><a href="#images">Images too</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Use</th></tr></thead>
+        <tbody>
+          <tr><td>A cell-by-cell diff in a terminal</td><td><code>nbdiff HEAD~1 HEAD sales.ipynb</code> (from nbdime)</td></tr>
+          <tr><td>The same, without outputs</td><td><code>nbdiff -O HEAD~1 HEAD sales.ipynb</code></td></tr>
+          <tr><td>Make <code>git diff</code> use nbdime for notebooks</td><td><code>nbdime config-git --enable</code> (add <code>--global</code> for every repository)</td></tr>
+          <tr><td>See my uncommitted notebook changes side by side in VS Code</td><td>Click the notebook in the Source Control view</td></tr>
+          <tr><td>Compare a notebook between any two commits in VS Code</td><td>Mergeline 0.19: click the commit, or <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>-click a second one, then click the <code>.ipynb</code> file</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="json">What <code>git diff</code> shows</h2>
+    <p>Here one cell changed from <code>sum()</code> to <code>mean()</code> and was run again. Plain <code>git diff</code> shows the JSON:</p>
+<pre><span class="k">git diff</span> HEAD~1 HEAD -- sales.ipynb
+<span class="o">@@ -10,7 +10,7 @@
+   {
+    "cell_type": "code",
+-   "execution_count": 3,
++   "execution_count": 7,
+    "id": "e5f6a7b8",
+@@ -19,17 +19,17 @@
+       "text/plain": [
+        "        sales\n",
+        "region       \n",
+-       "north    1200\n",
+-       "south     950"
++       "north     400\n",
++       "south     317"
+       ]
+      },
+-     "execution_count": 3,
++     "execution_count": 7,
+      "metadata": {},
+      "output_type": "execute_result"
+     }
+    ],
+    "source": [
+-    "df.groupby('region').sum()"
++    "df.groupby('region').mean()"
+    ]</span></pre>
+    <p>The code change is the last two lines. With images in the outputs (plots are stored as base64 text) or a few dozen cells, it gets much harder to find. Some teams strip outputs before committing, for example with <code>nbstripout</code>, which makes the diffs smaller but means the repository no longer has the results.</p>
+
+    <h2 id="nbdime">nbdime in a terminal</h2>
+    <p><a href="https://nbdime.readthedocs.io">nbdime</a> is the Jupyter project&rsquo;s tool for diffing and merging notebooks (<code>pip install nbdime</code>). Its <code>nbdiff</code> takes two notebook files, or two git revisions and a path:</p>
+<pre><span class="k">nbdiff</span> HEAD~1 HEAD sales.ipynb
+<span class="o">## replaced /cells/1/execution_count:
+-  3
++  7
+
+## modified /cells/1/outputs/0/data/text/plain:
+@@ -1,4 +1,4 @@
+         sales
+ region
+-north    1200
+-south     950
++north     400
++south     317
+
+## replaced /cells/1/outputs/0/execution_count:
+-  3
++  7
+
+## modified /cells/1/source:
+-  df.groupby('region').sum()
++  df.groupby('region').mean()</span></pre>
+    <ul>
+      <li><code>-O</code> (<code>--ignore-outputs</code>) leaves outputs out, so only source and metadata changes remain. Matching options leave out sources (<code>-S</code>), attachments (<code>-A</code>), metadata (<code>-M</code>) or cell ids (<code>-I</code>).</li>
+      <li><code>nbdiff-web</code> takes the same arguments and shows the diff in your browser, with the cells rendered.</li>
+      <li><code>nbdime config-git --enable</code> registers nbdime as git&rsquo;s diff driver (and merge driver) for <code>*.ipynb</code> in the current repository, so plain <code>git diff</code> prints the nbdime format. Add <code>--global</code> to do it for every repository, and <code>--disable</code> to undo it.</li>
+    </ul>
+    <p>We ran these with nbdime 4.0.4 and git 2.53.</p>
+
+    <h2 id="vscode">VS Code&rsquo;s notebook diff editor</h2>
+    <p>VS Code opens <code>.ipynb</code> files as notebooks with its built-in Jupyter notebook support, and it has a notebook diff editor to match: the two versions side by side, cell by cell, with changed cells marked and the text inside each cell diffed. Its title bar has buttons to show or hide differences in outputs and in metadata (settings <code>notebook.diff.ignoreOutputs</code> and <code>notebook.diff.ignoreMetadata</code>) and <strong>Open Text Diff Editor</strong> for the raw JSON. (We checked these in VS Code 1.147.)</p>
+    <p>The built-in Source Control view uses it: click a changed notebook under <strong>Changes</strong> to see your uncommitted changes in it. What it does not give you is a notebook from an arbitrary older commit or a comparison of two commits.</p>
+    <p>The Git Graph extension&rsquo;s <strong>View Diff</strong> opens the raw JSON text of a notebook instead. That is Git Graph <a href="https://github.com/mhutchie/vscode-git-graph/issues/598">issue #598, &ldquo;View Diff should open VS Code&rsquo;s rich diff viewer for Jupyter Notebooks&rdquo;</a>, opened in December 2021. When we checked on 20 November 2026 it was still open, with 17 thumbs-up.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Notebooks from any commit in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.19 it opens <code>.ipynb</code> files in VS Code&rsquo;s notebook diff editor wherever it shows a diff:</p>
+      <ul>
+        <li><strong>One commit:</strong> click the commit, then the notebook in the details pane. You see the notebook before and after that commit.</li>
+        <li><strong>Two commits:</strong> click one commit and <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) another, then click the notebook in the list of files that differ.</li>
+        <li><strong>A commit and your working copy:</strong> right-click a commit and choose <strong>Compare with working tree</strong>.</li>
+      </ul>
+      <p>How it works: Mergeline serves each file revision through a read-only file system, so VS Code reads the file&rsquo;s bytes at that commit the same way it reads a file on disk, and picks the editor it would use for that file type. The revisions are read-only; to change the notebook, open your working copy.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="images">Images too</h2>
+    <p>The same change applies to pictures. A PNG, JPG, GIF, SVG or other image at a revision now opens in VS Code&rsquo;s image preview instead of as garbled text. In VS Code 1.147 the image preview handles <code>jpg</code>, <code>jpe</code>, <code>jpeg</code>, <code>png</code>, <code>bmp</code>, <code>gif</code>, <code>ico</code>, <code>webp</code>, <code>avif</code> and <code>svg</code>.</p>
+    <p>In a terminal, <code>git diff</code> only says <code>Binary files a/logo.png and b/logo.png differ</code>. To look at an old version, write it to a file: <code>git show HEAD~1:logo.png &gt; logo-old.png</code>.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Do I need the Jupyter extension to see a notebook diff?</summary>
+      <p>Not to view one in VS Code: opening and diffing <code>.ipynb</code> files uses the notebook support built into VS Code. You need the Jupyter extension to run cells.</p>
+    </details>
+    <details>
+      <summary>Can I hide output changes?</summary>
+      <p>Yes. In the notebook diff editor, use the title-bar button to hide output differences, or set <code>notebook.diff.ignoreOutputs</code> to <code>true</code>. In a terminal, use <code>nbdiff -O</code>.</p>
+    </details>
+    <details>
+      <summary>How do I see the JSON instead?</summary>
+      <p>Click <strong>Open Text Diff Editor</strong> in the notebook diff editor&rsquo;s title bar, or run <code>git diff</code> without nbdime&rsquo;s driver.</p>
+    </details>
+    <p>Related: <a href="compare-branches-commits-vscode.html">compare branches and commits</a>, <a href="git-file-history-vscode.html">git file history in VS Code</a>, <a href="code-review-commits-vscode.html">review a commit file by file</a> and <a href="find-commit-that-changed-file.html">find which commit changed a file</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html">Compact graph</a>
+      <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
+      <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
+      <a href="jupyter-notebook-diff-git-vscode.html" aria-current="page">Notebook diffs</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

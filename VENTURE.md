@@ -105,11 +105,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.18.0 is built, released on GitHub and documented; it is not in the stores yet**
+**Mergeline 0.19.0 is built, released on GitHub and documented; it is not in the stores yet**
 (store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 17).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.18.0
-  (`mergeline-0.18.0.vsix`, 96 KB; corrected session 18, this line had said v0.15.0): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.19.0
+  (`mergeline-0.19.0.vsix`, 99 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
   38 SEO guides (session 18: collapse commits / compact graph (`compact-git-graph-vscode.html`); session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
@@ -255,6 +255,20 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   Webview: three-dot node, "⋯ N commits" + date span, click/Enter opens, menu (Show these N commits / Fold opened runs again / Turn off Compact),
   no details/drag/compare on folded rows. Off in file history and with the author filter. Cost on a synthetic 101,000-commit repo (1,000
   merged branches, `git fast-import`, git 2.53.0): first page 546–702 ms vs 255–293 ms for `readLog` (2 runs), whole history → 3,002 rows.
+  **0.19.0 added** (Git Graph #598 notebook diffs, 17 👍; #781 graph in the side panel, 8 👍; #184 delete several branches, 6 👍; read session 19
+  with `gh api repos/mhutchie/vscode-git-graph/issues/<n>`): **graph in the Source Control sidebar** (`contributes.views.scm` webview view
+  `mergeline.sidebar`, collapsed by default; `GraphHost` in `src/ext/panel.ts` wraps a WebviewPanel or WebviewView, so one controller class runs
+  both; `GraphPanel.current` = editor tab, `.view` = sidebar, `.last` = last used (for Manage Remotes / Apply Patch / Delete Branches commands);
+  settings carry `host: 'view'` → webview body class `side`: labels and wide controls (`.full`: Remote branches, First parent, Order, Patch, Remotes…,
+  Refresh) hidden, find on its own row; separate layout key `mergeline.layout.view`, default hides date/author/hash; view title: Refresh, Open in
+  editor; commands `mergeline.showInSidebar`, `mergeline.openInEditor`; an action in one host schedules a refresh of the other).
+  **Notebook and image diffs**: `mergeline:` revisions are now a read-only `FileSystemProvider` (`GitFileSystem` in `src/ext/content.ts`, bytes via
+  `gitBytes` in gitlog.ts; 16-entry cache for full-sha refs; missing file or ref null = empty), replacing the `TextDocumentContentProvider`, so VS Code
+  opens `.ipynb` in its notebook diff editor and images in the image preview. Control run (old provider restored, same e2e): no notebook diff tab.
+  **Delete several branches** (`src/core/branches.ts`: `parseBranches` from `for-each-ref` + `branch --merged HEAD`, `deletable` leaves out HEAD and
+  worktree branches and ranks merged+gone, merged, gone, rest; `planDelete` → `branch -d --` / `branch -D --`; action `deleteBranches` in
+  actions.ts: multi-select quick pick, unmerged → "Delete all N" / "Delete the K merged", Undo recreates at the old sha and restores
+  `branch.<b>.remote/merge`). Branch menu "Delete several branches…", command `mergeline.deleteBranches`.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -499,6 +513,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 19): release downloads v0.1.0 to v0.17.0 2 each, v0.3.0 3, v0.18.0 1 (read before the v0.19.0 release); 0 stars, 0 forks,
+  0 open issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by query or
+  page (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap pending, never downloaded, 0 errors (`sitemaps.list`).
+
 - 2026-11-20 (session 18): release downloads v0.1.0 to v0.17.0 2 each, v0.3.0 3 (read before the v0.18.0 release); 0 stars, 0 forks; traffic views 0,
   clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows (2026-10-20 → 2026-11-20,
   `searchAnalytics.query` by query); sitemap pending, never downloaded, 0 errors (`sitemaps.list`).
@@ -576,9 +594,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. #387 compact graph shipped in 0.18.0. Next uncovered Git Graph requests by 👍 (read session 18): #598 notebook diffs (17: check whether
-   `vscode.diff` on two `.ipynb` revisions already opens the notebook diff), #591 extra `git log` args (9), #781 graph view in the side panel (8),
-   #757 interactive rebase in a text editor (7), #184 delete several branches at once (6), #465 filter by tags (6), #777 list a commit's tags (6).
+1a. #598, #781 and #184 shipped in 0.19.0. Next uncovered Git Graph requests by 👍: #591 extra `git log` args (9: a validated
+   `mergeline.extraLogArgs` that rejects format-changing flags), #757 interactive rebase in a text editor (7), #465 filter by tags (6), #777 list a
+   commit's tags (6). Sidebar follow-ups: the editor toolbar wraps "Refresh" onto a second line at 1280 px wide (Chromium shot; 0.18 does the same, so
+   not a regression: shorten "Remotes…"/"Patch" to icons or drop the Refresh button, the view title and auto-refresh cover it); a sidebar-only "⋯" menu for the hidden filters (Remote branches, First parent, Order); delete several *remote*
+   branches (today local only). Notebook follow-up: the working-tree side of a compare is a `file:` URI, so it is editable; fine.
    Compact follow-ups: "Fold this run" on commits of an opened run (today only "fold all"); a per-row author summary ("3 authors") needs all
    chain members' metadata (only the ends are read); e2e for history search opening a folded run (unit-tested only through `expand`). Branch-colour follow-ups: colour a merged branch's line from the merge subject ("Merge branch 'feature/x'") when its ref is
    deleted (today only lines that start at a live ref get a colour); a colour swatch in the Branches checklist. #538 patches follow-ups: untracked files in "Save changes as a patch" (`git add -N` on a temp index via

@@ -67,6 +67,16 @@ export function git(cwd: string, args: string[], opts: { maxBuffer?: number; inp
   });
 }
 
+/** Raw bytes of a git command's output (file contents at a revision may be binary: images, notebooks). */
+export function gitBytes(cwd: string, args: string[]): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile('git', args, { cwd, encoding: 'buffer', maxBuffer: 256 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' } }, (err, stdout, stderr) => {
+      if (err) reject(new GitError((stderr.toString() || err.message).trim(), stderr.toString(), args, ''));
+      else resolve(stdout);
+    });
+  });
+}
+
 const US = '\x1f';
 const RS = '\x1e';
 const LOG_FORMAT = ['%H', '%P', '%an', '%ae', '%at', '%s'].join('%x1f') + '%x1e';

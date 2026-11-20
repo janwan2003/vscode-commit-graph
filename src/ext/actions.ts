@@ -12,6 +12,7 @@ import { archiveFormat } from '../core/misc';
 import { readBisect, markArgs, bisectRunLine, BisectMark } from '../core/bisect';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
+import { BRANCH_FORMAT, parseBranches, deletable, branchNote, planDelete, restoreArgs, nameList, LocalBranch } from '../core/branches';
 import { patchArgs, patchFileName, safeName, inspectPatch, normalizePatch, applyCommands, retryWithoutIndex, conflictedFromApply, numstatSummary, isMailboxSource, PatchSource, ApplyMode } from '../core/patch';
 
 export interface ActionMsg {
@@ -73,6 +74,86 @@ async function reportError(e: unknown, title: string) {
 async function confirm(message: string, detail: string, button: string): Promise<boolean> {
   const r = await vscode.window.showWarningMessage(message, { modal: true, detail }, button);
   return r === button;
+}
+
+/**
+ * Delete several local branches at once (Git Graph issue #184): a multi-select list, merged and
+ * upstream-gone branches first; unmerged ones need a second, explicit choice; Undo recreates them.
+ */
+async function deleteBranches(ctx: ActionCtx, preselect?: string): Promise<boolean> {
+  let list: LocalBranch[];
+  let current: string | null = null;
+  try {
+    const [out, merged, head] = await Promise.all([
+      git(ctx.root, ['for-each-ref', 'refs/heads', '--format=' + BRANCH_FORMAT]),
+      git(ctx.root, ['branch', '--merged', 'HEAD', '--format=%(refname:short)']).catch(() => ''),
+      git(ctx.root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => ''),
+    ]);
+    list = deletable(parseBranches(out, merged));
+    current = head.trim() || null;
+  } catch (e) {
+    await reportError(e, 'List branches');
+    return false;
+  }
+  if (!list.length) {
+    vscode.window.showInformationMessage('Mergeline: there are no local branches to delete (the checked-out branch and branches open in worktrees cannot be deleted).');
+    return false;
+  }
+  type Item = vscode.QuickPickItem & { b: LocalBranch };
+  const items: Item[] = list.map((b) => ({ label: b.name, description: branchNote(b, current), picked: b.name === preselect, b }));
+  const chosen = await vscode.window.showQuickPick(items, {
+    canPickMany: true,
+    title: 'Delete local branches',
+    placeHolder: `Tick the branches to delete (merged into ${current ?? 'HEAD'} and remote-deleted ones are listed first)`,
+    matchOnDescription: true,
+  });
+  if (!chosen?.length) return false;
+  const picked = chosen.map((i) => i.b);
+  const unmerged = picked.filter((b) => !b.merged);
+  let force = false;
+  if (unmerged.length) {
+    const merged = picked.length - unmerged.length;
+    const all = `Delete all ${picked.length}`;
+    const some = `Delete the ${merged} merged`;
+    const r = await vscode.window.showWarningMessage(
+      `${unmerged.length === 1 ? `${unmerged[0].name} is` : `${unmerged.length} of these branches are`} not merged into ${current ?? 'HEAD'}.`,
+      {
+        modal: true,
+        detail: `Not merged: ${nameList(unmerged.map((b) => b.name))}. Deleting them drops commits that exist only on them (Undo, or the reflog for a while, brings them back). Only local branches are deleted.`,
+      },
+      ...(merged ? [all, some] : [all]),
+    );
+    if (r === undefined) return false;
+    force = r === all;
+  } else if (!(await confirm(`Delete ${picked.length === 1 ? picked[0].name : `${picked.length} branches`}?`, `${nameList(picked.map((b) => b.name))}. All are merged into ${current ?? 'HEAD'}. Only local branches are deleted.`, 'Delete'))) return false;
+  const plan = planDelete(picked, force);
+  const gone = picked.filter((b) => !plan.kept.includes(b.name));
+  // Remember upstream settings: deleting a branch removes its branch.<name>.* config.
+  const cfg = async (k: string) => (await git(ctx.root, ['config', '--get', k]).catch(() => '')).trim();
+  const ups = await Promise.all(gone.map(async (b) => ({ b, remote: await cfg(`branch.${b.name}.remote`), merge: await cfg(`branch.${b.name}.merge`) })));
+  let ok = true;
+  for (const args of [plan.safe, plan.force]) {
+    if (args) ok = (await run(ctx, args, `Delete ${args.length - 3 === 1 ? args[3] : `${args.length - 3} branches`}`)) && ok;
+  }
+  const exists = new Set((await git(ctx.root, ['for-each-ref', 'refs/heads', '--format=%(refname:short)']).catch(() => '')).split('\n'));
+  const deleted = ups.filter((u) => !exists.has(u.b.name));
+  if (deleted.length) {
+    const msg = `Mergeline: deleted ${deleted.length === 1 ? deleted[0].b.name : `${deleted.length} branches`}${plan.kept.length ? ` (kept ${plan.kept.length} unmerged)` : ''}.`;
+    // Not awaited: the graph refreshes now; Undo runs whenever it is clicked.
+    void Promise.resolve(vscode.window.showInformationMessage(msg, 'Undo')).then(async (r) => {
+      if (r !== 'Undo') return;
+      for (const u of deleted) {
+        try {
+          await git(ctx.root, restoreArgs(u.b));
+          if (u.remote) await git(ctx.root, ['config', `branch.${u.b.name}.remote`, u.remote]);
+          if (u.merge) await git(ctx.root, ['config', `branch.${u.b.name}.merge`, u.merge]);
+        } catch (e) {
+          await reportError(e, `Restore ${u.b.name}`);
+        }
+      }
+    });
+  }
+  return ok || deleted.length > 0;
 }
 
 async function remotes(ctx: ActionCtx): Promise<string[]> {
@@ -318,6 +399,8 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
         return false;
       }
     }
+    case 'deleteBranches':
+      return deleteBranches(ctx, m.ref);
     case 'pushBranch': {
       const remote = await pickRemote(ctx);
       if (!remote) return false;

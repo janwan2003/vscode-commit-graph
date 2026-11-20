@@ -295,6 +295,8 @@ details p:last-child { margin-bottom: 0; }
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
 }
+/* A narrow screenshot (sidebar view) at its own size, not stretched to the column */
+.shot.tall img { width: auto; max-width: 100%; display: block; margin: 0 auto; }
 .shot figcaption { font-size: 0.9rem; color: var(--fg-muted); margin-top: 0.5rem; text-align: center; }
 
 /* Footer */

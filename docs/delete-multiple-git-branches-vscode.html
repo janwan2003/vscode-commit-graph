@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete multiple local git branches at once (merged and gone) | Mergeline</title>
+<meta name="description" content="Delete many local git branches at once: git branch --merged with -d, keeping main, branches whose upstream is [gone], undo, and a multi-select in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/delete-multiple-git-branches-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Delete multiple local git branches at once (merged and gone branches)">
+<meta property="og:description" content="Clean up old local branches safely: merged branches, branches deleted on the remote, why -d is safe and -D is not, getting a branch back, and doing it in VS Code.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/delete-multiple-git-branches-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Delete multiple local git branches at once</h1>
+    <p>After a few months every repository collects local branches whose pull requests were merged long ago. <code>git branch -d</code> takes several names, but you still have to find the right ones and keep <code>main</code> out of the list. This page shows how to list merged branches and branches deleted on the remote, delete them in one command without losing work, get one back if you were wrong, and do the same from a list with check boxes in VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#merged">Delete every merged branch</a></li>
+        <li><a href="#safe"><code>-d</code> or <code>-D</code></a></li>
+        <li><a href="#gone">Branches deleted on the remote</a></li>
+        <li><a href="#squash">Squash-merged branches</a></li>
+        <li><a href="#undo">Get a deleted branch back</a></li>
+        <li><a href="#vscode">In VS Code</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Use</th></tr></thead>
+        <tbody>
+          <tr><td>List branches merged into <code>main</code></td><td><code>git branch --merged main</code></td></tr>
+          <tr><td>Delete them all except <code>main</code></td><td><code>git branch --merged main --format='%(refname:short)' | grep -vx main | xargs -r git branch -d</code></td></tr>
+          <tr><td>List branches not merged yet</td><td><code>git branch --no-merged main</code></td></tr>
+          <tr><td>Find branches whose remote branch was deleted</td><td><code>git fetch --prune</code>, then <code>git branch -vv</code> and look for <code>: gone]</code></td></tr>
+          <tr><td>Get a deleted branch back</td><td><code>git branch name abc1234</code>, with the hash from the &ldquo;Deleted branch&rdquo; message</td></tr>
+          <tr><td>Pick several from a list in VS Code</td><td>Mergeline 0.19: right-click a local branch &rarr; <strong>Delete several branches&hellip;</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="merged">Delete every merged branch</h2>
+    <p><code>git branch --merged main</code> lists the local branches whose tip is already part of <code>main</code>: every commit on them is reachable from <code>main</code>, so deleting the branch name loses nothing. Without a branch name it compares with <code>HEAD</code>, the branch you are on.</p>
+<pre><span class="k">git branch --merged</span> main
+<span class="o">  develop
+  done1
+  done2
+  gone1
+* main</span></pre>
+    <p>The list always includes <code>main</code> itself, marked with <code>*</code> when it is checked out, and it can include long-lived branches that happen to point at an older <code>main</code> commit, like <code>develop</code> here. Leave those out, and use <code>--format</code> so the output is plain names without the <code>*</code> or <code>+</code> markers:</p>
+<pre><span class="c"># look first</span>
+<span class="k">git branch --merged</span> main <span class="k">--format=</span>'%(refname:short)' | grep -vxE 'main|master|develop'
+<span class="o">done1
+done2
+gone1</span>
+<span class="c"># then delete</span>
+<span class="k">git branch --merged</span> main <span class="k">--format=</span>'%(refname:short)' | grep -vxE 'main|master|develop' | xargs -r <span class="k">git branch -d</span>
+<span class="o">Deleted branch done1 (was 51c11c6).
+Deleted branch done2 (was cc61ea5).
+Deleted branch gone1 (was 09e87da).</span></pre>
+    <ul>
+      <li><code>grep -vx</code> drops lines that match the whole pattern, so <code>main</code> goes but <code>main-fix</code> stays. Add any other branch you keep to the pattern.</li>
+      <li><code>xargs -r</code> does not run <code>git branch -d</code> at all when nothing is left. That is GNU <code>xargs</code>; if yours rejects <code>-r</code> (older macOS), leave it out, since BSD <code>xargs</code> already skips empty input.</li>
+      <li>Run it while you are on <code>main</code>: for a branch without an upstream, <code>-d</code> checks against the branch you are on, not the one you gave <code>--merged</code>.</li>
+      <li>git will not delete the branch you have checked out, or one checked out in another <a href="git-worktree-vscode.html">worktree</a> (<code>error: cannot delete branch 'x' used by worktree at '&hellip;'</code>). The other names are still deleted.</li>
+      <li>Only local branches are deleted. The branches on the server stay; delete one there with <code>git push origin --delete name</code>.</li>
+    </ul>
+    <p>We ran every command on this page with git 2.53 in a scratch repository.</p>
+
+    <h2 id="safe"><code>-d</code> or <code>-D</code></h2>
+    <p><code>git branch -d</code> deletes a branch only if it is merged: into its upstream branch if it has one, otherwise into <code>HEAD</code>. If not, it stops with</p>
+<pre><span class="o">error: the branch 'wip' is not fully merged
+hint: If you are sure you want to delete it, run 'git branch -D wip'</span></pre>
+    <p>and moves on to the next name. That makes <code>-d</code> safe to feed a long list: the worst case is that it refuses some names. <code>git branch -D</code> (short for <code>--delete --force</code>) deletes whatever you give it, including commits that exist nowhere else. Before using it, look at what would go:</p>
+<pre><span class="k">git log --oneline</span> main..wip     <span class="c"># commits on wip that main does not have</span></pre>
+    <p>Because <code>-d</code> checks the upstream first, it can refuse a branch that <code>--merged main</code> listed, if the branch has commits its upstream does not have. We saw <code>warning: not deleting branch 'x' that is not yet merged to 'refs/remotes/origin/x', even though it is merged to HEAD</code>. Push it first, or use <code>-D</code> once you have checked.</p>
+
+    <h2 id="gone">Branches deleted on the remote</h2>
+    <p>When a pull request is merged, GitHub, GitLab and Bitbucket can delete its branch on the server. Your local branch still tracks it. After <code>git fetch --prune</code>, which removes the remote-tracking branches that no longer exist, git marks those local branches as <code>gone</code>:</p>
+<pre><span class="k">git fetch --prune</span>
+<span class="o"> - [deleted]         (none)     -&gt; origin/gone1
+ - [deleted]         (none)     -&gt; origin/wip</span>
+<span class="k">git for-each-ref --format=</span>'%(refname:short) %(upstream:track)' <span class="k">refs/heads</span>
+<span class="o">develop
+done1
+done2
+gone1 [gone]
+main
+wip [gone]</span></pre>
+    <p><code>git branch -vv</code> shows the same thing for people rather than scripts: <code>wip f97b21b [origin/wip: gone] wip</code>.</p>
+    <p>To delete them, keep the names with <code>[gone]</code> and pass them to <code>git branch -d</code>:</p>
+<pre><span class="k">git for-each-ref --format=</span>'%(refname:short) %(upstream:track)' <span class="k">refs/heads</span> | awk '$2 == "[gone]" {print $1}' | xargs -r <span class="k">git branch -d</span>
+<span class="o">Deleted branch gone1 (was 09e87da).
+error: the branch 'wip' is not fully merged
+hint: If you are sure you want to delete it, run 'git branch -D wip'</span></pre>
+    <p>With the upstream gone, <code>-d</code> compares with <code>HEAD</code>, so run it from <code>main</code> after pulling. A branch it refuses either has commits you never pushed, or was squash-merged (next section). The <a href="branch-ahead-behind-origin.html#gone">ahead/behind guide</a> has more on <code>[gone]</code> upstreams, and <a href="manage-git-remotes-vscode.html">manage git remotes</a> covers pruning, including <code>git config --global fetch.prune true</code> to prune on every fetch.</p>
+
+    <h2 id="squash">Squash-merged branches</h2>
+    <p>If your team squash-merges or rebase-merges pull requests, the commits on <code>main</code> are new commits with different hashes. git cannot see that your branch&rsquo;s commits are in there, so the branch never shows up in <code>--merged</code>, and <code>-d</code> refuses it. The <code>[gone]</code> marker is the useful signal then: the server deleted the branch after merging it. Check <code>git log --oneline main..branch</code>, compare with what was merged, and use <code>-D</code> for that branch.</p>
+
+    <h2 id="undo">Get a deleted branch back</h2>
+    <p>Deleting a branch removes only its name, not its commits. Every delete prints the commit the branch pointed at:</p>
+<pre><span class="k">git branch -D</span> wip
+<span class="o">Deleted branch wip (was f97b21b).</span>
+<span class="k">git branch</span> wip f97b21b     <span class="c"># back, at the same commit</span></pre>
+    <p>The deleted branch&rsquo;s own reflog and its upstream setting (<code>branch.wip.remote</code> and <code>branch.wip.merge</code>) go with it, so set the upstream again with <code>git branch -u origin/wip wip</code> if the remote branch still exists. If you no longer have the hash, look for the branch name in <code>git reflog</code>, which lists the commits <code>HEAD</code> has been on. Commits that no branch, tag or reflog entry points at are removed by <code>git gc</code> after a grace period (two weeks by default, setting <code>gc.pruneExpire</code>), so do not leave it for months. More in the <a href="undo-git-reset-cherry-pick-revert.html">undo guide</a>.</p>
+
+    <h2 id="vscode">In VS Code</h2>
+    <p>VS Code&rsquo;s built-in <strong>Git: Delete Branch&hellip;</strong> command shows a list of branches and deletes the one you pick, asking before it forces an unmerged one. The Source Control Graph can delete a branch from its label. Both delete one branch at a time.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Delete several branches in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.19 it can delete many local branches from one list.</p>
+      <ol class="steps">
+        <li><strong>Open the list.</strong> Right-click any local branch badge in the graph and choose <strong>Delete several branches&hellip;</strong>, or run <strong>Mergeline: Delete Branches&hellip;</strong> from the Command Palette. The branch you right-clicked is already ticked.</li>
+        <li><strong>Tick the branches.</strong> All local branches are listed, with the ones merged into your current branch and the ones deleted on the remote first. Each has a note, such as <em>merged into main &middot; origin/feature-x deleted on the remote</em> or <em>not merged into main &middot; tracks origin/wip</em>. The branch you have checked out and branches open in other worktrees are not offered, because git refuses to delete them.</li>
+        <li><strong>Confirm.</strong> If every branch you picked is merged, Mergeline asks once and deletes them. It has already checked that each one is merged into your current branch, so it also deletes a merged branch that <code>-d</code> would refuse because its upstream is behind. If some are not merged, the dialog names them and offers <strong>Delete all N</strong>, which uses <code>git branch -D</code> for the unmerged ones, or <strong>Delete the K merged</strong>, which keeps them.</li>
+        <li><strong>Undo.</strong> The notification afterwards has an <strong>Undo</strong> button. It recreates each deleted branch at the commit it pointed at and restores its upstream setting.</li>
+      </ol>
+      <p>Only local branches are deleted. To delete a branch on the server, right-click the remote branch badge (for example <code>origin/feature-x</code>) and choose <strong>Delete on remote&hellip;</strong>; that asks first.</p>
+      <p>Deleting several branches at once is Git Graph&rsquo;s feature request <a href="https://github.com/mhutchie/vscode-git-graph/issues/184">#184, &ldquo;Delete multiple branches at once&rdquo;</a>, opened in September 2019. When we checked on 20 November 2026 it was still open, with 6 thumbs-up.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Does <code>git branch -d</code> delete the branch on GitHub?</summary>
+      <p>No. It deletes the local branch name only. The remote branch is deleted with <code>git push origin --delete name</code>, or on the hosting site.</p>
+    </details>
+    <details>
+      <summary>Why does <code>--merged</code> not list a branch I know was merged?</summary>
+      <p>It was probably squash-merged or rebase-merged, so its commits reached <code>main</code> under new hashes. Or your local <code>main</code> is behind: pull first, or compare with <code>origin/main</code> after a fetch (<code>git branch --merged origin/main</code>).</p>
+    </details>
+    <details>
+      <summary>Is there a git command that deletes all merged branches?</summary>
+      <p>Not as one built-in command. The pipe above is the usual way; some people save it as an alias. Look at the list without the last step before you run it the first time.</p>
+    </details>
+    <p>Related: <a href="branch-ahead-behind-origin.html">ahead/behind and <code>[gone]</code> upstreams</a>, <a href="manage-git-remotes-vscode.html">manage git remotes</a>, <a href="git-worktree-vscode.html">git worktrees</a> and <a href="undo-git-reset-cherry-pick-revert.html">undo in git</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html">Compact graph</a>
+      <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
+      <a href="delete-multiple-git-branches-vscode.html" aria-current="page">Delete several branches</a>
+      <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

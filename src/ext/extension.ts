@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { Repos } from './repos';
-import { GraphPanel } from './panel';
-import { GitContentProvider, SCHEME } from './content';
+import { GraphPanel, VIEW_ID } from './panel';
+import { GitFileSystem, SCHEME } from './content';
 import { runAction } from './actions';
 
 export async function activate(ctx: vscode.ExtensionContext) {
@@ -10,7 +10,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
   async function repoAction(action: string) {
     await ready;
     const list = repos.list();
-    let repo = list.find((r) => r.root === GraphPanel.current?.repoRoot) ?? (list.length === 1 ? list[0] : undefined);
+    let repo = list.find((r) => r.root === GraphPanel.last?.repoRoot) ?? (list.length === 1 ? list[0] : undefined);
     if (!repo && list.length) {
       const pick = await vscode.window.showQuickPick(list.map((r) => ({ label: r.name, description: r.root, r })), { placeHolder: 'Repository' });
       repo = pick?.r;
@@ -19,9 +19,9 @@ export async function activate(ctx: vscode.ExtensionContext) {
       if (!list.length) vscode.window.showInformationMessage('Mergeline: no git repository found in this workspace.');
       return;
     }
-    if (await runAction({ root: repo.root, api: repo.api }, { action })) await GraphPanel.current?.refresh(true);
+    if (await runAction({ root: repo.root, api: repo.api }, { action })) await Promise.all(GraphPanel.all().map((p) => p.refresh(true)));
   }
-  ctx.subscriptions.push(repos, vscode.workspace.registerTextDocumentContentProvider(SCHEME, new GitContentProvider()));
+  ctx.subscriptions.push(repos, vscode.workspace.registerFileSystemProvider(SCHEME, new GitFileSystem(), { isCaseSensitive: true, isReadonly: true }));
   const ready = repos.init();
 
   ctx.subscriptions.push(
@@ -31,7 +31,24 @@ export async function activate(ctx: vscode.ExtensionContext) {
       const root = arg?.rootUri?.fsPath;
       return GraphPanel.show(ctx, repos, root);
     }),
-    vscode.commands.registerCommand('mergeline.refresh', () => GraphPanel.current?.refresh(true)),
+    vscode.commands.registerCommand('mergeline.refresh', () => Promise.all(GraphPanel.all().map((p) => p.refresh(true)))),
+    // The graph in the Source Control sidebar (it can be dragged to the bottom panel or the secondary sidebar).
+    vscode.window.registerWebviewViewProvider(
+      VIEW_ID,
+      {
+        resolveWebviewView: async (v) => {
+          await ready;
+          GraphPanel.attachView(ctx, repos, v);
+        },
+      },
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
+    vscode.commands.registerCommand('mergeline.openInEditor', async () => {
+      await ready;
+      return GraphPanel.show(ctx, repos, GraphPanel.view?.repoRoot);
+    }),
+    vscode.commands.registerCommand('mergeline.deleteBranches', () => repoAction('deleteBranches')),
+    vscode.commands.registerCommand('mergeline.showInSidebar', () => vscode.commands.executeCommand(`${VIEW_ID}.focus`)),
     // Remotes / patches of the repository shown in the graph (or the only / a picked repository).
     vscode.commands.registerCommand('mergeline.manageRemotes', () => repoAction('manageRemotes')),
     vscode.commands.registerCommand('mergeline.applyPatch', () => repoAction('applyPatch')),
@@ -68,9 +85,9 @@ export async function activate(ctx: vscode.ExtensionContext) {
   ctx.subscriptions.push(sb, repos.onDidChange(updateSb), vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('mergeline.statusBarButton') && updateSb()));
 
   // Returned API is used by the end-to-end tests.
-  return { ready, repos, panel: () => GraphPanel.current };
+  return { ready, repos, panel: () => GraphPanel.current, view: () => GraphPanel.view };
 }
 
 export function deactivate() {
-  GraphPanel.current?.dispose();
+  for (const p of GraphPanel.all()) p.dispose();
 }

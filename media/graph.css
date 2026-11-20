@@ -266,3 +266,13 @@ button:disabled { opacity: .5; cursor: default; }
 .row.k-collapsed:hover .fold { text-decoration: underline; }
 .row.k-collapsed .fold-span, .row.k-collapsed .c-date, .row.k-collapsed .c-author { color: var(--vscode-descriptionForeground); }
 #foldhint a { color: var(--vscode-textLink-foreground); }
+
+/* Sidebar view (Source Control): a narrow toolbar. Filters that need room stay in the editor tab ("Open in editor"). */
+body.side #toolbar { gap: 6px; padding: 4px 6px; }
+body.side #toolbar .tbl, body.side #toolbar .full, body.side #orderhint, body.side #toolbar .grow { display: none !important; }
+body.side #toolbar select { max-width: 140px; }
+body.side .find { order: 10; flex: 1 1 100%; min-width: 0; }
+body.side .find input { flex: 1; width: auto; min-width: 0; }
+body.side #details { padding: 8px; }
+body.side #branchbtn::before { content: 'Branches: '; opacity: .75; }
+body.side #authbtn::before { content: 'Authors: '; opacity: .75; }

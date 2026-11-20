@@ -11,7 +11,9 @@ account, has no paid tier and sends no telemetry.
 
 - Click **Graph** in the status bar,
 - or the Mergeline button in the **Source Control** title bar,
-- or run **Mergeline: Show Commit Graph** from the Command Palette.
+- or run **Mergeline: Show Commit Graph** from the Command Palette,
+- or expand **Mergeline Graph** in the Source Control sidebar (or run **Mergeline: Show Commit Graph in Sidebar**). It is the same graph with a narrower toolbar; drag it to the bottom panel or the secondary sidebar if you prefer, and use its **Open in editor** button for the full toolbar. [Guide](https://janwan2003.github.io/vscode-commit-graph/git-graph-sidebar-vscode.html).
+![The graph in the Source Control sidebar, with the details pane under it](docs/screenshot-sidebar.png)
 
 ## Features
 
@@ -55,6 +57,8 @@ account, has no paid tier and sends no telemetry.
 - **First parent**: tick **First parent** in the toolbar to follow only the first parent of merges (`git log --first-parent`). Each branch shows its own line, and the commits a merge brought in are hidden behind it, so a mainline with hundreds of merged pull requests reads as one list.
 - **Remotes**: the **Remotes…** button (or **Mergeline: Manage Remotes**) lists your remotes with their URLs. Add one (and fetch it), or pick one to fetch, fetch and prune, change its URL, rename or remove it, copy its URL or open it on GitHub/GitLab/Bitbucket. Removing says first which remote-tracking branches go and which local branches lose their upstream.
 - **Pull requests**: right-click a branch → **Create pull request on GitHub** (or GitLab, Bitbucket) opens the forge's new pull request page for it. Not pushed yet? Mergeline offers to push it first.
+- **Notebook and image diffs**: a Jupyter notebook (`.ipynb`) from any commit or comparison opens in VS Code's notebook diff editor (cells side by side), not as raw JSON, and images open in the image preview. [Guide](https://janwan2003.github.io/vscode-commit-graph/jupyter-notebook-diff-git-vscode.html).
+- **Delete several branches at once**: right-click a branch → **Delete several branches…** (or **Mergeline: Delete Branches…**) lists your local branches with merged and remote-deleted ones first; tick the ones to go. Unmerged branches are only force-deleted if you say so, and **Undo** brings them all back. [Guide](https://janwan2003.github.io/vscode-commit-graph/delete-multiple-git-branches-vscode.html).
 - **Keyboard**: ↑/↓, Page Up/Down and Home/End move between commits, Ctrl/Cmd+H jumps to the checked-out commit, Ctrl/Cmd+F finds, Esc closes the details pane.
 
 ### Right-click actions
@@ -62,7 +66,7 @@ account, has no paid tier and sends no telemetry.
 | On | Actions |
 |---|---|
 | Commit | Create branch here · Add tag (lightweight or annotated) · Check out (detached) · Cherry-pick · Revert · Merge into current branch (fast-forward, `--no-ff` or `--squash`) · Rebase current branch onto it · Interactive rebase from here (in a terminal) · Reset current branch to it (soft, mixed or hard) · On the checked-out branch: Edit commit message (subject and body) · Move commit up / down · Squash into parent · Stop at this commit to change it · Create fixup commit for this · Squash fixup commits into their targets · Drop commit · Squash N commits into one (with a Ctrl/Cmd-click selection) · Review changes file by file · Compare with working tree · Create worktree here (detached) · Open on GitHub/GitLab/Bitbucket · Save as archive (zip, tar.gz, tar) · Save / copy as a patch (a merge: its diff against the first parent) · Save the Ctrl/Cmd-click series as patches · Start bisect: this commit is bad / good · While bisecting: mark as bad, good or skip, stop and go back (reset) · Add / edit / remove note · Show only commits by its author · Copy hash or subject |
-| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Update from its upstream without checking it out (fast-forward) · Create pull request on GitHub/GitLab/Bitbucket · Rename · Delete (asks before force-deleting an unmerged branch) · Save as archive · Save commits not on the current branch as patches · Pin / unpin · Hide this branch (or all with its prefix) · Copy name |
+| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Update from its upstream without checking it out (fast-forward) · Create pull request on GitHub/GitLab/Bitbucket · Rename · Delete (asks before force-deleting an unmerged branch) · Delete several branches (merged first, Undo) · Save as archive · Save commits not on the current branch as patches · Pin / unpin · Hide this branch (or all with its prefix) · Copy name |
 | Remote branch | Check out as a local tracking branch · Merge · Fetch and merge into the current branch (pull it, even if you have not fetched lately) · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Open on GitHub/GitLab/Bitbucket · Create pull request · Delete on remote · Manage remote · Save as archive · Save commits not on the current branch as patches · Pin / unpin · Hide · Copy name |
 | Tag | Show tag details · Push · Merge · Save as archive · Delete locally or also on the remote · Copy name |
 | Stash | Apply · Pop · Create branch from stash · Save as a patch · Drop |

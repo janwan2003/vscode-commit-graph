@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.0 (2026-11-20)
+
+- **The graph in the sidebar.** A **Mergeline Graph** view now sits in the Source Control sidebar (collapsed until you expand it, or run **Mergeline: Show Commit Graph in Sidebar**). It is the full graph, with right-click actions, the details pane, find, the Branches and Authors filters, Compact and Fetch, and a toolbar narrowed to fit. The Date, Author and Commit columns start hidden there (right-click the column header to show them); the sidebar keeps its own column layout, separate from the editor tab's. Its title bar has **Refresh** and **Open in editor**. Drag the view to the bottom panel or the secondary sidebar if you prefer it there. The sidebar and an editor tab can be open together, and both catch up after an action.
+- **Notebook and image diffs.** Opening a changed `.ipynb` file from a commit, a comparison or the working-tree compare now shows VS Code's notebook diff editor (cells side by side) instead of the raw JSON, and images open in VS Code's image preview instead of as unreadable text. Mergeline now serves file revisions through a read-only file system, so VS Code can read their bytes the way it reads its own Git files.
+- **Delete several branches at once.** Right-click a branch → **Delete several branches…**, or run **Mergeline: Delete Branches…**, to tick any number of local branches. Branches merged into the current one and branches whose remote branch was deleted are listed first, each with a note ("merged into main · origin/x deleted on the remote"); the checked-out branch and branches open in other worktrees are left out. If some ticked branches are not merged, you choose between deleting all of them (force) and only the merged ones. Afterwards **Undo** recreates every deleted branch at its old commit, with its upstream.
+
 ## 0.18.0 (2026-11-20)
 
 - **Compact graph.** Tick **Compact** in the toolbar (or set `mergeline.compactGraph`) to see only the shape of your history. Every straight run of commits is folded into one row, "⋯ 12 commits", with the dates it spans. What stays: commits with a branch, remote branch or tag on them, `HEAD`, merges, the commits where a branch split off, and first commits, so a merged branch that was deleted still shows as its own line, which `git log --simplify-by-decoration` loses. The toolbar counts what is folded ("61 of 70 commits folded").

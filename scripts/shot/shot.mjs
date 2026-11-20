@@ -30,7 +30,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
   if (window.__onPost) window.__onPost(m);
   if (m.type === 'authors') setTimeout(() => window.postMessage({ type: 'authors', list: P.authors }, '*'), 10);
   if (m.type === 'ready') {
-    window.postMessage({ type: 'settings', settings: ${process.env.TAGS === '1'} ? { dateFormat: 'relative', showAvatars: true, issueLinks: [{ pattern: 'PROJ-[0-9]+', url: 'https://acme.atlassian.net/browse/$0' }] } : { dateFormat: 'relative', rowColors: ${JSON.stringify(process.env.ROWS || 'none')} } }, '*');
+    window.postMessage({ type: 'settings', settings: ${process.env.TAGS === '1'} ? { dateFormat: 'relative', showAvatars: true, issueLinks: [{ pattern: 'PROJ-[0-9]+', url: 'https://acme.atlassian.net/browse/$0' }] } : { dateFormat: 'relative', rowColors: ${JSON.stringify(process.env.ROWS || 'none')}, ...(${process.env.SIDE === '1'} ? { host: 'view', layout: { w: {}, hidden: ['date', 'author', 'hash'], details: 300 } } : {}) } }, '*');
     // TAGS=1: avatars on, a Jira issue-link rule, and the details of the commit tagged v1.0.0.
     if (${process.env.TAGS === '1'}) P.details = P.tagged;
     window.postMessage({ type: 'repos', repos: [{ root: '/work/acme-app', name: 'acme-app' }], repo: '/work/acme-app' }, '*');
@@ -107,7 +107,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
 } });
 </script><script>${readFileSync('media/rows.js', 'utf8')}</script><script>${readFileSync('media/graph.js', 'utf8')}</script>${INTERACT ? `<script>${readFileSync('scripts/shot/interact.js', 'utf8')}</script>` : ''}</body></html>`;
 writeFileSync(join(tmp, 'h.html'), html);
-const common = ['--headless', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--window-size=1280,800', '--virtual-time-budget=3000'];
+const common = ['--headless', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--window-size=' + (process.env.SIZE || '1280,800'), '--virtual-time-budget=3000'];
 execFileSync(chrome, [...common, `--screenshot=${out}`, 'file://' + join(tmp, 'h.html')], { stdio: 'ignore' });
 const dom = execFileSync(chrome, [...common, '--dump-dom', 'file://' + join(tmp, 'h.html')], { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
 const title = (dom.match(/<title>(.*?)<\/title>/) || [])[1] || '(no title)';

@@ -1231,6 +1231,94 @@ exports.run = async function run() {
   });
   Object.assign(w, { showInputBox: orig.input, showQuickPick: orig.pick, showWarningMessage: orig.warn });
 
+  // An unreachable commit holding a notebook and a PNG: it does not change the graph.
+  const blob = (buf) => execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, input: buf }).toString().trim();
+  const nb = JSON.stringify({ cells: [{ cell_type: 'markdown', metadata: {}, source: ['# Hello notebook'] }], metadata: {}, nbformat: 4, nbformat_minor: 5 }, null, 1) + '\n';
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000' + '1f15c4890000000d49444154789c6360f8cfc0f01f0005000201' + '7e9fa6f00000000049454e44ae426082', 'hex');
+  const tree = execFileSync('git', ['mktree'], { cwd: root, input: `100644 blob ${blob(nb)}\tnb.ipynb\n100644 blob ${blob(png)}\tdot.png\n` }).toString().trim();
+  const extra = execFileSync('git', ['commit-tree', tree, '-p', 'HEAD', '-m', 'Add notebook'], { cwd: root, env: { ...process.env, GIT_AUTHOR_NAME: 'Ada', GIT_AUTHOR_EMAIL: 'ada@example.com', GIT_COMMITTER_NAME: 'Ada', GIT_COMMITTER_EMAIL: 'ada@example.com' } }).toString().trim();
+
+  await check('notebook diff opens in the notebook diff editor; images read as exact bytes', async () => {
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await vscode.commands.executeCommand('mergeline.show');
+    panel = await until(() => api.panel() && api.panel().lastData && api.panel(), 20000, 'graph again');
+    await panel.testMessage({ type: 'openFile', from: git('rev-parse', 'HEAD'), to: extra, path: 'nb.ipynb', status: 'A' });
+    const tab = await until(() => vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputNotebookDiff), 20000, 'notebook diff tab');
+    assert.equal(tab.input.notebookType, 'jupyter-notebook');
+    assert.equal(tab.input.modified.scheme, 'mergeline');
+    const doc = await until(() => vscode.workspace.notebookDocuments.find((d) => d.uri.scheme === 'mergeline' && JSON.parse(d.uri.query).ref === extra), 10000, 'notebook document');
+    assert.equal(doc.cellAt(0).document.getText(), '# Hello notebook');
+    const u = (ref, p) => vscode.Uri.from({ scheme: 'mergeline', path: '/' + p, query: JSON.stringify({ repo: panel.repoRoot, ref }) });
+    assert.deepEqual(Buffer.from(await vscode.workspace.fs.readFile(u(extra, 'dot.png'))), png);
+    assert.equal((await vscode.workspace.fs.stat(u(extra, 'dot.png'))).size, png.length);
+    assert.equal((await vscode.workspace.fs.readFile(u(null, 'dot.png'))).length, 0, 'no ref = empty');
+    assert.equal((await vscode.workspace.fs.readFile(u(extra, 'missing.txt'))).length, 0, 'missing = empty');
+    await assert.rejects(Promise.resolve(vscode.workspace.fs.writeFile(u(extra, 'dot.png'), new Uint8Array(1))));
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  });
+
+  await check('delete several branches: merged ones by default, unmerged only when chosen, Undo restores', async () => {
+    git('branch', 'old-a', 'HEAD~1');
+    git('branch', 'unmerged-b', extra);
+    const prev = { pick: w.showQuickPick, warn: w.showWarningMessage, info: w.showInformationMessage };
+    let seen = null, warned = null, undo = null;
+    try {
+      w.showQuickPick = async (items, o) => { const arr = await items; seen = { items: arr.map((i) => [i.label, i.description, !!i.picked]), many: o.canPickMany }; return arr.filter((i) => ['old-a', 'unmerged-b'].includes(i.label)); };
+      w.showWarningMessage = async (msg, o, ...btns) => { warned = { msg, btns }; return btns.find((b) => /merged$/.test(b)); };
+      w.showInformationMessage = (msg, ...btns) => { if (btns.includes('Undo')) return new Promise((r) => { undo = r; }); return prev.info(msg, ...btns); };
+      await panel.testMessage({ type: 'action', action: 'deleteBranches', ref: 'old-a' });
+      assert.ok(seen.many);
+      const row = (n) => seen.items.find((i) => i[0] === n);
+      assert.deepEqual(row('old-a'), ['old-a', 'merged into main', true]);
+      assert.deepEqual(row('unmerged-b'), ['unmerged-b', 'not merged into main', false]);
+      assert.ok(!row('main'), 'the current branch is not offered');
+      assert.match(warned.msg, /unmerged-b is not merged into main/);
+      assert.deepEqual(warned.btns, ['Delete all 2', 'Delete the 1 merged']);
+      const heads = () => git('for-each-ref', 'refs/heads', '--format=%(refname:short)').split('\n');
+      assert.ok(!heads().includes('old-a') && heads().includes('unmerged-b'), heads().join(' '));
+      await until(() => undo, 5000, 'undo offer');
+      undo('Undo');
+      await until(() => heads().includes('old-a'), 10000, 'old-a restored');
+      // Now force: both go.
+      undo = null;
+      w.showWarningMessage = async (msg, o, ...btns) => btns.find((b) => /^Delete all/.test(b));
+      await panel.testMessage({ type: 'action', action: 'deleteBranches' });
+      assert.ok(!heads().includes('old-a') && !heads().includes('unmerged-b'), heads().join(' '));
+      await until(() => !panel.lastData.state.refs.some((r) => r.name === 'unmerged-b'), 10000, 'graph refreshed');
+    } finally {
+      Object.assign(w, { showQuickPick: prev.pick, showWarningMessage: prev.warn, showInformationMessage: prev.info });
+      if (undo) undo(undefined);
+      for (const b of ['old-a', 'unmerged-b']) try { git('branch', '-D', b); } catch {}
+    }
+  });
+
+  await check('graph in the Source Control sidebar view: narrow toolbar, own layout, open in editor', async () => {
+    await vscode.commands.executeCommand('mergeline.show');
+    panel = await until(() => api.panel() && api.panel().lastData && api.panel(), 20000, 'editor graph');
+    await vscode.commands.executeCommand('mergeline.showInSidebar');
+    const view = await until(() => api.view() && api.view().lastData && api.view(), 20000, 'sidebar graph data');
+    assert.equal(view.hostKind, 'view');
+    assert.equal(view.lastData.commits.length, panel.lastData.commits.length, 'same graph as the editor tab');
+    const pong = await until(async () => { view.lastPong = null; await view.ping(); await sleep(150); return view.lastPong && view.lastPong.rows > 0 && view.lastPong; }, 20000, 'sidebar pong');
+    assert.equal(pong.side, true);
+    assert.equal(pong.patchShown, false, 'wide toolbar buttons are hidden in the sidebar');
+    const ed = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong; }, 10000, 'editor pong');
+    assert.equal(ed.side, false);
+    assert.equal(ed.patchShown, true);
+    // Both refresh after a change made outside.
+    git('branch', 'side-test');
+    await vscode.commands.executeCommand('mergeline.refresh');
+    await until(() => view.lastData.state.refs.some((r) => r.name === 'side-test') && panel.lastData.state.refs.some((r) => r.name === 'side-test'), 10000, 'both refreshed');
+    git('branch', '-D', 'side-test');
+    // Closing the editor tab leaves the sidebar graph working; Open in editor brings the tab back.
+    panel.dispose();
+    assert.equal(api.panel(), undefined);
+    assert.ok(api.view());
+    await vscode.commands.executeCommand('mergeline.openInEditor');
+    panel = await until(() => api.panel() && api.panel().lastData && api.panel(), 20000, 'editor graph again');
+    assert.equal(panel.hostKind, 'editor');
+  });
+
   fs.writeFileSync(process.env.MERGELINE_E2E_REPORT, results.join('\n') + '\n');
   if (results.some((r) => r.startsWith('FAIL'))) throw new Error('e2e failures');
 };

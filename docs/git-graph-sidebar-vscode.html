@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git graph in the VS Code sidebar, bottom panel or secondary sidebar | Mergeline</title>
+<meta name="description" content="Show a git commit graph in the VS Code Source Control sidebar, bottom panel or secondary sidebar, and what VS Code's built-in graph can and cannot do.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-graph-sidebar-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git graph in the VS Code sidebar, bottom panel or secondary sidebar">
+<meta property="og:description" content="A commit graph next to your files instead of in an editor tab: the built-in Source Control Graph, and a full git graph view you can move to the panel or the secondary sidebar.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-graph-sidebar-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>A git graph in the VS Code sidebar</h1>
+    <p>A commit graph in an editor tab takes the place of the file you are working on. Often you want it next to your code instead: in the Source Control sidebar, in the bottom panel under the editor, or in the secondary sidebar on the other side. This page covers the graph VS Code ships in the Source Control view, what it can and cannot do, and how to put a full git graph with a details pane in any of those three places.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#builtin">VS Code&rsquo;s Source Control Graph</a></li>
+        <li><a href="#mergeline">The Mergeline graph in the sidebar</a></li>
+        <li><a href="#move">Move it to the panel or the secondary sidebar</a></li>
+        <li><a href="#tab">Sidebar or editor tab?</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Do this</th></tr></thead>
+        <tbody>
+          <tr><td>See recent history in the sidebar, nothing installed</td><td>Open Source Control (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>) and expand the <strong>Source Control Graph</strong> section</td></tr>
+          <tr><td>A full graph with details, find and filters in the sidebar</td><td>Mergeline 0.19: expand <strong>Mergeline Graph</strong> in the Source Control view, or run <strong>Mergeline: Show Commit Graph in Sidebar</strong></td></tr>
+          <tr><td>Put it under the editor or on the right</td><td>Drag the view&rsquo;s title to the bottom panel or the secondary sidebar, or run <strong>View: Move View</strong></td></tr>
+          <tr><td>Go back to a big graph</td><td>The <strong>Open in editor</strong> button in the view&rsquo;s title bar</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="builtin">VS Code&rsquo;s Source Control Graph</h2>
+    <p>Since version 1.93 (the August 2024 release), VS Code has a <strong>Source Control Graph</strong> section in the Source Control view. It draws the history of your current branch together with its upstream, marks incoming and outgoing commits, and lets you choose which other branches to include. Its title bar has fetch, pull and push. Clicking a commit opens its changes.</p>
+    <p>In VS Code 1.147, its right-click menu on a commit offers <strong>Checkout (Detached)</strong>, <strong>Create Branch&hellip;</strong>, <strong>Create Tag&hellip;</strong>, <strong>Cherry Pick</strong>, three compare actions (with the remote, with the merge base, or with any other ref) and copying the hash or message. A branch or tag label can be checked out or deleted. (We read this list from the menus in VS Code&rsquo;s bundled git extension.)</p>
+    <p>For a quick look at recent history it is good, and it needs nothing installed. It does not have:</p>
+    <ul>
+      <li>merge, rebase, reset, revert or stash actions;</li>
+      <li>a row for uncommitted changes, or stashes in the graph;</li>
+      <li>author and date columns;</li>
+      <li>a details pane with the commit&rsquo;s full message and a list of changed files;</li>
+      <li>search.</li>
+    </ul>
+    <p>There is more on the built-in graph, <code>git log --graph</code> and extensions in <a href="visualize-git-branches-vscode.html">visualize git branches in VS Code</a>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>The Mergeline graph in the sidebar</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.19 it adds a <strong>Mergeline Graph</strong> view to the Source Control sidebar, below the built-in sections. It is collapsed at first: click its title to expand it, or run <strong>Mergeline: Show Commit Graph in Sidebar</strong> from the Command Palette.</p>
+      <figure class="shot tall">
+        <img src="screenshot-sidebar.png" width="400" height="820" loading="lazy" alt="The Mergeline graph in a narrow sidebar view: Branches, Authors, Compact and Fetch above a find box; a graph column and a description column with branch, tag and stash badges; a merge commit selected, and under it the details pane with the hash, parents, author, signature, a note and the one changed file.">
+        <figcaption>The graph in a 400-pixel-wide view, with the details pane open for a merge commit.</figcaption>
+      </figure>
+      <p>It is the same graph as the editor tab, not a cut-down one:</p>
+      <ul>
+        <li>every right-click action on commits, branches, tags and stashes;</li>
+        <li>the details pane with the changed files, and diffs that open in the editor;</li>
+        <li>find, the <strong>Branches</strong> and <strong>Authors</strong> filters, the <strong>Compact</strong> checkbox and <strong>Fetch</strong>.</li>
+      </ul>
+      <p>To fit a narrow view, some things start hidden or stay in the editor tab:</p>
+      <ul>
+        <li>The <strong>Date</strong>, <strong>Author</strong> and <strong>Commit</strong> columns are hidden. Right-click the column header to show them. The sidebar remembers its own columns and widths, separately from the editor tab.</li>
+        <li>The <strong>Remote branches</strong> toggle, <strong>First parent</strong>, the commit <strong>Order</strong>, <strong>Patch</strong> and <strong>Remotes&hellip;</strong> are not in the sidebar toolbar. Use the editor tab for those.</li>
+      </ul>
+      <p>The view&rsquo;s title bar has two buttons: <strong>Refresh</strong>, and <strong>Open in editor</strong>, which opens the same repository in an editor tab. You can keep both open. After an action in either one, both show the result; a view that is hidden catches up when you show it again.</p>
+      <p>A sidebar graph is Git Graph&rsquo;s feature request <a href="https://github.com/mhutchie/vscode-git-graph/issues/781">#781, &ldquo;(Minimal) Git Graph View in Side Panel&rdquo;</a>, opened in August 2023. When we checked on 20 November 2026 it was still open, with 8 thumbs-up.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="move">Move it to the panel or the secondary sidebar</h2>
+    <p>Views in VS Code are not fixed to the container they start in. This works for the Mergeline Graph view and for the built-in Source Control Graph:</p>
+    <ol class="steps">
+      <li><strong>Drag the view&rsquo;s title</strong> (the bar with its name) onto the bottom panel, next to Terminal and Problems, or onto the secondary sidebar. Open the secondary sidebar first with <strong>View: Toggle Secondary Side Bar Visibility</strong> if it is closed.</li>
+      <li><strong>Or use the Command Palette:</strong> run <strong>View: Move View</strong>, pick the view, then pick where it should go.</li>
+      <li><strong>To put it back,</strong> drag it again, or right-click its title and choose <strong>Reset Location</strong>.</li>
+    </ol>
+    <p>In the bottom panel the graph gets the full width of the window, which suits a wide table: show the Date and Author columns again from the column header. VS Code remembers where you put a view.</p>
+
+    <h2 id="tab">Sidebar or editor tab?</h2>
+    <ul>
+      <li><strong>Sidebar or panel:</strong> keep the graph in sight while you edit, check what you just committed, select a commit and open a file diff without losing your place in the editor.</li>
+      <li><strong>Editor tab:</strong> rebasing, comparing branches, reading long commit messages, or anything that needs the remote-branches toggle, first-parent view, commit order, patches or remotes.</li>
+    </ul>
+    <p>The status-bar button, the Source Control title-bar button and <strong>Mergeline: Show Commit Graph</strong> still open the editor tab, as before.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Why is the view empty or collapsed?</summary>
+      <p>It starts collapsed so it does not push the built-in sections down. Click <strong>Mergeline Graph</strong> in the Source Control view to expand it. The folder must be a git repository and trusted, as for the editor tab.</p>
+    </details>
+    <details>
+      <summary>Can I hide the built-in Source Control Graph?</summary>
+      <p>Yes. Right-click any section title in the Source Control view and untick <strong>Source Control Graph</strong>. The same menu hides or shows <strong>Mergeline Graph</strong>.</p>
+    </details>
+    <details>
+      <summary>Does a second graph slow VS Code down?</summary>
+      <p>The view loads nothing until you expand it for the first time. After that, each graph loads its own first page of commits (500 by default, setting <code>mergeline.initialCommits</code>) and draws only the rows on screen, and a graph you cannot see waits until it is shown again to catch up with changes.</p>
+    </details>
+    <p>Related: <a href="visualize-git-branches-vscode.html">visualize git branches in VS Code</a>, <a href="compact-git-graph-vscode.html">compact graph</a>, <a href="filter-git-graph-by-branch.html">filter the graph by branch</a> and <a href="git-graph-alternative.html">a maintained alternative to Git Graph</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html">Compact graph</a>
+      <a href="git-graph-sidebar-vscode.html" aria-current="page">Graph in the sidebar</a>
+      <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
+      <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
