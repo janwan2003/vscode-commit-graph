@@ -11,6 +11,7 @@ import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
 import { readOperation, OpState } from '../core/progress';
+import { waitingFor } from './rebaseeditor';
 import { readBisect, BisectState } from '../core/bisect';
 import { webRepo, commitUrl, issueUrl, branchUrl, pullRequestUrl, Forge, issueLinkRules } from '../core/remote';
 import { avatarMap } from '../core/misc';
@@ -390,7 +391,7 @@ export class GraphPanel implements vscode.Disposable {
     const stateP = readState(root);
     const stashP: Promise<Commit[]> = showStash ? readStashes(root) : Promise.resolve([]);
     this.folded = null;
-    const [commits0, state, stashes, unc, wts, op, bisect, noted] = await Promise.all([
+    const [commits0, state, stashes, unc, wts, op0, bisect, noted] = await Promise.all([
       fileMode
         ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
             names = h.names;
@@ -415,6 +416,11 @@ export class GraphPanel implements vscode.Disposable {
       readBisect(root).catch((): BisectState | null => null),
       readNotedCommits(root),
     ]);
+    // A rebase waiting for its todo or a message in an editor tab (the bar offers Start / Done / Cancel).
+    const wait = waitingFor(root);
+    const op: OpState | null = wait
+      ? { ...(op0 ?? { kind: 'rebase', branch: state.branch, onto: null, step: null, total: null, stopped: null, stoppedSubject: null, conflicts: [] }), waiting: wait.kind }
+      : op0;
     // Other working trees of this repository (git worktree), shown as badges on the commit each has checked out.
     const real = (p: string) => {
       try {

@@ -5,6 +5,8 @@ import * as path from 'node:path';
 import { git, GitError } from '../core/gitlog';
 import { planRewrite, runRewrite, rewordMessage, squashMessage, findFixups, RewriteError, RewriteOp, RewritePlan } from '../core/rewrite';
 import { readOperation, unmerged, leftoverMarkers, opArgs, opNames, NO_EDITOR, OpKind } from '../core/progress';
+import { runWithEditors, finish as finishEditor, reveal as revealEditor, busy as editorBusy } from './rebaseeditor';
+import { todoNeedsMessage } from '../core/waiteditor';
 import { GitApiRepo } from './repos';
 import { readRemotes, remoteNameProblem, remoteUsage, Remote } from '../core/remotes';
 import { webRepo } from '../core/remote';
@@ -284,12 +286,14 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       if (!(await confirm(`Rebase ${m.current ?? 'HEAD'} onto ${m.ref ?? short(sha)}?`, 'Your commits that are not on the target are replayed on top of it. This rewrites their hashes.', 'Rebase'))) return false;
       return run(ctx, ['rebase', target], `Rebase onto ${m.ref ?? short(sha)}`);
     }
-    case 'interactiveRebase': {
-      const t = vscode.window.createTerminal({ name: 'Mergeline rebase', cwd: ctx.root });
-      t.show();
-      t.sendText(`git rebase -i ${sha}`);
+    case 'interactiveRebase':
+      return interactiveRebase(ctx, m);
+    case 'waitDone':
+    case 'waitCancel':
+      return finishEditor(undefined, m.action === 'waitDone').then(() => false);
+    case 'waitShow':
+      await revealEditor();
       return false;
-    }
     case 'reset': {
       const pick = await vscode.window.showQuickPick(
         [
@@ -896,13 +900,133 @@ async function goOn(ctx: ActionCtx, what: 'continue' | 'skip' | 'abort', force =
   if (what === 'skip' && !force && !(await confirm(`Skip ${op.stopped ? short(op.stopped) + (op.stoppedSubject ? ` "${op.stoppedSubject.slice(0, 60)}"` : '') : 'this commit'}?`, `Its changes are left out and the ${name} goes on with the next commit.`, 'Skip commit'))) return false;
   const verb = what[0].toUpperCase() + what.slice(1);
   try {
-    await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${verb} ${name}` }, () => git(ctx.root, opArgs(op.kind as OpKind, what), { env: NO_EDITOR }));
+    const args = opArgs(op.kind as OpKind, what);
+    if (what !== 'abort' && op.kind === 'rebase' && rebaseInTabs() && !editorBusy() && (await rebaseNeedsMessage(ctx.root))) {
+      // Reword/squash steps left: their messages open in tabs instead of being kept as they are.
+      const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${verb} ${name}` }, () => runWithEditors(ctx.root, args));
+      if (r.aborted) vscode.window.showInformationMessage('Mergeline: rebase aborted; the branch is back where it was.');
+      return true;
+    }
+    await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${verb} ${name}` }, () => git(ctx.root, args, { env: NO_EDITOR }));
   } catch (e) {
     const msg = e instanceof GitError ? e.message : String((e as Error)?.message ?? e);
     // Stopping again on the next commit is normal: the bar shows the new step.
     if (/CONFLICT|could not apply|conflict/i.test(msg)) vscode.window.showWarningMessage(`Mergeline: the ${name} stopped again on a conflict. Resolve it, stage the files, then Continue.`);
     else vscode.window.showErrorMessage(`${verb} ${name} failed: ${msg.split('\n').slice(0, 6).join(' ')}`);
   }
+  return true;
+}
+
+// ---- interactive rebase in editor tabs ----
+
+const rebaseInTabs = () => vscode.workspace.getConfiguration('mergeline').get<string>('interactiveRebase', 'editor') !== 'terminal';
+
+/** The stopped step (last line of `done`) or a later one in the todo asks for a commit message. */
+async function rebaseNeedsMessage(root: string): Promise<boolean> {
+  const [done, todo] = (await git(root, ['rev-parse', '--git-path', 'rebase-merge/done', '--git-path', 'rebase-merge/git-rebase-todo'])).trim().split('\n').map((p) => path.resolve(root, p));
+  const read = (p: string) => fs.readFile(p, 'utf8').catch(() => '');
+  const [d, t] = await Promise.all([read(done), read(todo)]);
+  const last = d.trim().split('\n').filter((l) => l && !l.startsWith('#')).pop() ?? '';
+  return todoNeedsMessage(last) || todoNeedsMessage(t);
+}
+
+/**
+ * `git rebase -i <sha>` with the todo list in an editor tab (Git Graph #757); reword and squash
+ * messages open in tabs too. Setting mergeline.interactiveRebase = "terminal" keeps the old way.
+ */
+async function interactiveRebase(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  const sha = m.sha ?? '';
+  if (!rebaseInTabs()) {
+    const t = vscode.window.createTerminal({ name: 'Mergeline rebase', cwd: ctx.root });
+    t.show();
+    t.sendText(`git rebase -i ${sha}`);
+    return false;
+  }
+  if (editorBusy()) {
+    vscode.window.showWarningMessage('Mergeline: a rebase is already waiting for you in an editor tab. Finish or cancel it first.');
+    await revealEditor();
+    return false;
+  }
+  const op = await readOperation(ctx.root).catch(() => null);
+  if (op) {
+    vscode.window.showWarningMessage(`Mergeline: a ${opNames[op.kind]} is in progress. Continue or abort it first (the bar above the graph).`);
+    return false;
+  }
+  let count = 0, merges = 0;
+  try {
+    [count, merges] = await Promise.all([
+      git(ctx.root, ['rev-list', '--count', `${sha}..HEAD`]).then((x) => Number(x.trim()) || 0),
+      git(ctx.root, ['rev-list', '--count', '--merges', `${sha}..HEAD`]).then((x) => Number(x.trim()) || 0),
+    ]);
+  } catch (e) {
+    await reportError(e, 'Interactive rebase');
+    return false;
+  }
+  if (!count) {
+    vscode.window.showInformationMessage(`Mergeline: ${short(sha)} is ${m.current ?? 'HEAD'} itself or not behind it, so there are no commits after it to rebase.`);
+    return false;
+  }
+  // A commit off the checked-out branch's history: git would rebase the branch onto it.
+  if (!(await isAncestor(ctx.root, sha, 'HEAD')) && !(await confirm(`${short(sha)} is not in ${m.current ?? 'HEAD'}'s history.`, `The interactive rebase would replay ${plural(count, 'commit')} of ${m.current ?? 'HEAD'} on top of ${short(sha)} (like Rebase onto). Pick a commit on ${m.current ?? 'HEAD'} to only edit its own commits.`, 'Rebase onto it'))) return false;
+  const args = ['rebase', '-i', '--autostash'];
+  if (merges) {
+    const pick = await vscode.window.showQuickPick(
+      [
+        { label: 'Keep merge commits', description: '--rebase-merges: the todo gets label/reset/merge lines', flag: '--rebase-merges' },
+        { label: 'Flatten', description: 'merge commits are left out and their changes replayed in a line', flag: '' },
+      ],
+      { placeHolder: `${plural(merges, 'merge commit')} among the ${plural(count, 'commit')} after ${short(sha)}` },
+    );
+    if (!pick) return false;
+    if (pick.flag) args.push(pick.flag);
+  }
+  args.push(sha);
+  const before = (await git(ctx.root, ['rev-parse', 'HEAD'])).trim();
+  const title = `Interactive rebase of ${plural(count, 'commit')}`;
+  try {
+    const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${title}` }, () => runWithEditors(ctx.root, args));
+    if (r.cancelled) {
+      vscode.window.showInformationMessage('Mergeline: interactive rebase cancelled; nothing changed.');
+      return true;
+    }
+    if (r.aborted) {
+      vscode.window.showInformationMessage('Mergeline: rebase aborted; the branch is back where it was.');
+      return true;
+    }
+  } catch (e) {
+    const msg = e instanceof GitError ? e.message : String((e as Error)?.message ?? e);
+    if (/nothing to do/i.test(msg)) {
+      vscode.window.showInformationMessage('Mergeline: the todo list was empty, so nothing changed.');
+      return true;
+    }
+    if (/CONFLICT|could not apply|Resolve all conflicts/i.test(msg)) {
+      vscode.window.showWarningMessage(`${title}: a commit conflicts. Resolve the conflicts, stage the files, then press Continue in the bar above the graph (or abort).`, 'Open Source Control', 'Abort rebase').then((pick) => {
+        if (pick === 'Open Source Control') vscode.commands.executeCommand('workbench.view.scm');
+        else if (pick === 'Abort rebase') run(ctx, ['rebase', '--abort'], 'Abort rebase');
+      });
+      return true;
+    }
+    if (!(await readOperation(ctx.root).catch(() => null))) {
+      await reportError(e, title);
+      return true;
+    }
+    // Stopped for another reason (a failing exec line, an empty message): the bar shows it.
+    vscode.window.showWarningMessage(`${title} stopped: ${msg.split('\n').slice(0, 3).join(' ')}`);
+    return true;
+  }
+  const stopped = await readOperation(ctx.root).catch(() => null);
+  if (stopped) {
+    vscode.window.showInformationMessage(`Mergeline: the rebase stopped${stopped.stopped ? ` at ${short(stopped.stopped)}` : ''} (edit or break). Change and stage files, then press Continue in the bar above the graph.`);
+    return true;
+  }
+  const after = (await git(ctx.root, ['rev-parse', 'HEAD'])).trim();
+  if (after === before) {
+    vscode.window.showInformationMessage('Mergeline: interactive rebase finished; no commits changed.');
+    return true;
+  }
+  vscode.window.showInformationMessage(`Mergeline: interactive rebase finished (${m.current ?? 'HEAD'} rewritten).`, 'Undo').then((pick) => {
+    if (pick) runAction(ctx, { action: 'undoRewrite', sha: before, target: after });
+  });
   return true;
 }
 

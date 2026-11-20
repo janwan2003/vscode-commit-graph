@@ -42,6 +42,8 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
       const onto = (P.data.refs.find((r) => r.type === 'head' && r.name !== P.data.branch) || {}).sha || c[6].sha;
       P.data.op = { kind: 'rebase', branch: P.data.branch, onto, step: 2, total: 5, stopped: c[3].sha, stoppedSubject: c[3].subject, conflicts: ['src/app.ts', 'README.md', 'src/search/index.ts', 'package.json', 'docs/guide.md'] };
     }
+    // OPBAR=wait: an interactive rebase waiting for its todo list in an editor tab.
+    if (${process.env.OPBAR === 'wait'}) P.data.op = { kind: 'rebase', branch: P.data.branch, onto: null, step: null, total: null, stopped: null, stoppedSubject: null, conflicts: [], waiting: 'todo' };
     // BISECT=1: a git bisect in progress: bad at the newest commit, good further down, one skipped, one under test (detached HEAD).
     if (${process.env.BISECT === '1'}) {
       const c = P.data.commits.filter((x) => x.kind === 'commit');

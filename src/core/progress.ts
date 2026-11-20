@@ -21,6 +21,8 @@ export interface OpState {
   stoppedSubject: string | null;
   /** Paths with unresolved conflicts (unmerged in the index). */
   conflicts: string[];
+  /** Set by the extension: git is waiting for the rebase todo or a commit message in an editor tab. */
+  waiting?: 'todo' | 'message';
 }
 
 const read = (p: string) => {

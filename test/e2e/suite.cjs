@@ -1366,6 +1366,67 @@ exports.run = async function run() {
     assert.equal(panel.hostKind, 'editor');
   });
 
+  await check('interactive rebase in editor tabs (#757): todo tab + bar, Cancel changes nothing; Start, reword message tab, Done; drop', async () => {
+    const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+    const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+    for (const s of ['IR1', 'IR2', 'IR3']) { wf(s + '.txt', s + '\n'); git('add', s + '.txt'); git('commit', '-q', '-m', 'Edit ' + s); }
+    await panel.refresh(true);
+    const base = git('rev-parse', 'HEAD~3');
+    const before = git('rev-parse', 'HEAD');
+    const tabOf = (name) => vscode.window.visibleTextEditors.find((e) => path.basename(e.document.uri.fsPath) === name);
+    const barText = async (re, what) => (await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && re.test(panel.lastPong.opbar) && panel.lastPong; }, 10000, what)).opbar;
+    // 1. Cancel from the tab's title-bar command: nothing changes.
+    let run = act({ action: 'interactiveRebase', sha: base, current: branch });
+    let ed = await until(() => tabOf('git-rebase-todo'), 15000, 'todo tab');
+    assert.equal(ed.document.languageId, 'git-rebase', 'VS Code highlights it as a rebase todo');
+    assert.equal(ed.document.getText().split('\n').filter((l) => l.startsWith('pick ')).length, 3);
+    assert.match(await barText(/edit the todo list/, 'waiting bar'), /Start rebase.*Cancel/);
+    await vscode.commands.executeCommand('mergeline.editorCancel');
+    await run;
+    assert.equal(git('rev-parse', 'HEAD'), before, 'cancel leaves HEAD');
+    assert.ok(!fs.existsSync(path.join(root, '.git', 'rebase-merge')), 'no rebase left in progress');
+    await until(() => !tabOf('git-rebase-todo'), 5000, 'todo tab closed');
+    // 2. Edit the todo (drop IR1, reword IR3), Start from the graph's bar, edit the message tab, Done.
+    run = act({ action: 'interactiveRebase', sha: base, current: branch });
+    ed = await until(() => tabOf('git-rebase-todo'), 15000, 'todo tab again');
+    const text = ed.document.getText().split('\n').map((l) => (/^pick \S+ (# )?Edit IR1$/.test(l) ? l.replace(/^pick/, 'drop') : /^pick \S+ (# )?Edit IR3$/.test(l) ? l.replace(/^pick/, 'reword') : l)).join('\n');
+    assert.ok(/^drop /m.test(text) && /^reword /m.test(text), text);
+    await ed.edit((b) => b.replace(new vscode.Range(0, 0, ed.document.lineCount, 0), text));
+    await panel.testPost({ type: 'click', selector: '#opbar button[data-op="waitDone"]' });
+    const msg = await until(() => tabOf('COMMIT_EDITMSG'), 15000, 'message tab');
+    assert.match(msg.document.getText(), /^Edit IR3\n/);
+    assert.match(await barText(/edit the commit message/, 'message bar'), /Done.*Abort rebase/);
+    await msg.edit((b) => b.replace(new vscode.Range(0, 0, 1, 0), 'IR3 reworded in a tab\n'));
+    await vscode.commands.executeCommand('mergeline.editorDone');
+    await run;
+    assert.deepEqual(git('log', '-2', '--format=%s').split('\n'), ['IR3 reworded in a tab', 'Edit IR2']);
+    assert.ok(!fs.existsSync(root + '/IR1.txt'), 'IR1 dropped');
+    assert.ok(!fs.existsSync(path.join(root, '.git', 'rebase-merge')), 'rebase finished');
+    await barText(/^$/, 'bar cleared');
+    git('reset', '-q', '--keep', before);
+    await panel.refresh(true);
+    // 3. edit IR2 + reword IR3: the rebase stops at IR2; Continue from the bar opens IR3's message in a tab.
+    run = act({ action: 'interactiveRebase', sha: base, current: branch });
+    ed = await until(() => tabOf('git-rebase-todo'), 15000, 'todo tab 3');
+    const t3 = ed.document.getText().split('\n').map((l) => (/^pick \S+ (# )?Edit IR2$/.test(l) ? l.replace(/^pick/, 'edit') : /^pick \S+ (# )?Edit IR3$/.test(l) ? l.replace(/^pick/, 'reword') : l)).join('\n');
+    await ed.edit((b) => b.replace(new vscode.Range(0, 0, ed.document.lineCount, 0), t3));
+    await vscode.commands.executeCommand('mergeline.editorDone');
+    await run;
+    assert.ok(fs.existsSync(path.join(root, '.git', 'rebase-merge')), 'stopped at the edit');
+    await panel.refresh(true);
+    assert.match(await barText(/Rebasing/, 'stopped bar'), /Continue/);
+    const cont = act({ action: 'opContinue', message: 'force' });
+    const msg3 = await until(() => tabOf('COMMIT_EDITMSG'), 15000, 'message tab after Continue');
+    assert.match(msg3.document.getText(), /^Edit IR3\n/);
+    await msg3.edit((b) => b.replace(new vscode.Range(0, 0, 1, 0), 'IR3 after continue\n'));
+    await vscode.commands.executeCommand('mergeline.editorDone');
+    await cont;
+    assert.deepEqual(git('log', '-3', '--format=%s').split('\n'), ['IR3 after continue', 'Edit IR2', 'Edit IR1']);
+    assert.ok(!fs.existsSync(path.join(root, '.git', 'rebase-merge')), 'rebase finished after Continue');
+    git('reset', '-q', '--keep', before);
+    await panel.refresh(true);
+  });
+
   fs.writeFileSync(process.env.MERGELINE_E2E_REPORT, results.join('\n') + '\n');
   if (results.some((r) => r.startsWith('FAIL'))) throw new Error('e2e failures');
 };

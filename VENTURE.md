@@ -280,6 +280,21 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   then tier `narrow` hides all `.full` and narrows find to 130 px; new **⋯** button (`moreItems`: Remote branches, First parent, 3 orders with ticks,
   Patch…, Manage remotes…, Refresh), also in the sidebar, where it sits on the find row). The webview `ping` test hook now answers `{error}` instead of
   nothing when it throws.
+  **0.21.0 added** (Git Graph #757 "interactive rebase using vscode text editor", 7 👍; read session 21 with `gh api search/issues ... sort=reactions-+1`):
+  **interactive rebase in editor tabs**. `src/core/waiteditor.ts`: `WaitDir` writes a POSIX `editor.sh` into a temp folder and sets
+  `GIT_SEQUENCE_EDITOR`/`GIT_EDITOR` = `sh '<script>'` + `MERGELINE_WAIT_DIR`; the script drops `req.<pid>` (the path git wants edited) and polls
+  for `ok.<pid>` (exit 0) / `no.<pid>` (exit 1), giving up after 3 h; `dispose()` answers every waiting request with no so git never hangs.
+  `src/ext/rebaseeditor.ts`: `runWithEditors(root, args)` polls every 150 ms, opens each file as a tab (git-rebase-todo → VS Code's `git-rebase`
+  language; COMMIT_EDITMSG reverted from disk if a stale copy is loaded), context key `mergeline.waitingEditor` shows ✓/✕ title-bar commands
+  `mergeline.editorDone`/`editorCancel` (when `resourceFilename =~ /^(git-rebase-todo|COMMIT_EDITMSG)$/`); closing the tab = done (as `code --wait`).
+  Cancel on the todo → git aborts (verified: "problem with the editor", autostash restored); cancel on a message → git stops, then `rebase --abort`.
+  Action `interactiveRebase` (`src/ext/actions.ts`): refuses while another op is in progress, counts `rev-list <sha>..HEAD` (0 → message), asks
+  Keep merges (`--rebase-merges`) / Flatten when merges are in range, runs `git rebase -i --autostash`, then reports cancelled / stopped (edit/break
+  → bar) / no change / rewritten + Undo (`undoRewrite`). `goOn` (bar Continue/Skip on a rebase) uses the tabs when the stopped step or the rest of
+  the todo has reword/squash/`fixup -c`/`merge -c` (`todoNeedsMessage`), else `NO_EDITOR` as before. Panel adds `op.waiting` ('todo'|'message')
+  from `waitingFor(root)`; webview `renderOpBar` shows "edit the todo list in the git-rebase-todo tab" + Start rebase / Cancel / Show tab
+  (`waitDone`/`waitCancel`/`waitShow`). Setting `mergeline.interactiveRebase`: `editor` (default) | `terminal` (old). Menu item renamed
+  "Interactive rebase of the commits after this…", disabled on HEAD.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -609,10 +624,12 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. #465 (tags in the Branches filter) shipped in 0.20.0; #777 was already covered. Next uncovered Git Graph requests by 👍: #591 extra `git log`
-   args (9). Careful: `--author`/`--grep`/`--since` do not rewrite parents, so the graph disconnects; allow only revision-selecting flags that keep
+1a. #757 (interactive rebase in a VS Code editor) shipped in 0.21.0. Rebase-tab follow-ups: a Windows check of the `sh` wait script (only Linux tested;
+   git for Windows runs editors through its own sh, which should work, unverified); "Edit todo" (`git rebase --edit-todo`) in the bar while a rebase is
+   stopped; open the todo for a range picked with Ctrl/Cmd-click. Remaining uncovered Git Graph requests by 👍 (read session 21): #591 extra `git log`
+   args (9; the top one now). Careful: `--author`/`--grep`/`--since` do not rewrite parents, so the graph disconnects; allow only revision-selecting flags that keep
    history simplification consistent (`--since`, `--no-merges`? test each against `layout`), or route filters through the author filter's
-   `rev-list --parents` reconnect. #757 interactive rebase in a text editor (7). Contained-in follow-ups: time `--contains` on git.git (~900 tags)
+   `rev-list --parents` reconnect. #147 advanced search operators (6: `author:`, `after:`/`before:` dates in Find). #687 web extension (6). Contained-in follow-ups: time `--contains` on git.git (~900 tags)
    for an old and a new commit; "Copy" for the list; a "Show only commits not yet in a tag" view. Sidebar follow-up: delete several *remote*
    branches (today local only). (Done in 0.20: toolbar no longer wraps at 1280 px; "⋯" menu in the sidebar.) Notebook follow-up: the working-tree side of a compare is a `file:` URI, so it is editable; fine.
    Compact follow-ups: "Fold this run" on commits of an opened run (today only "fold all"); a per-row author summary ("3 authors") needs all

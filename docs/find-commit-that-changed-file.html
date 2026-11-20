@@ -42,7 +42,7 @@
         <li><a href="#patterns">Patterns: <code>*.md</code>, globs and case</a></li>
         <li><a href="#all">Every branch, and merges git hides</a></li>
         <li><a href="#deleted">Added or deleted files</a></li>
-        <li><a href="#content">By path and content</a></li>
+        <li><a href="#path-and-content">By path and content</a></li>
         <li><a href="#mergeline">Search by path in Mergeline</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
@@ -100,7 +100,7 @@ bcd7749 Feature tweak to login
 docs/setup.md</span></pre>
     <p>For a file that no longer exists the <code>--</code> is required: without it git stopped with <code>fatal: ambiguous argument 'docs/setup.md': unknown revision or path not in the working tree</code>. <code>--diff-filter=D</code> keeps only commits that deleted a matching file, and <code>--name-only</code> says which; use <code>A</code> for the commit that added it. If the file was renamed rather than deleted, <code>--follow</code> traces it back through its old name, for one file at a time.</p>
 
-    <h2 id="content">By path and content</h2>
+    <h2 id="path-and-content">By path and content</h2>
 <pre><span class="k">git log --oneline --all -S</span> retryTimeout <span class="k">--</span> src/api
 <span class="o">b4920a3 API: retry</span></pre>
     <p><code>-S</code> finds commits that added or removed a string; with a path it searches only those files. <code>-G</code> takes a regular expression instead. Both are explained in the <a href="git-file-history-vscode.html#lines">file history guide</a>.</p>
@@ -191,6 +191,8 @@ docs/setup.md</span></pre>
       <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
       <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
       <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+      <a href="git-rebase-todo-commands.html">Rebase todo commands</a>
+      <a href="git-editor-vscode.html">VS Code as git editor</a>
     </nav>
   </div>
 </footer>

@@ -1234,7 +1234,7 @@
       null,
       ['Merge into ' + cur + '…', { ...base, action: 'merge' }, isHead ? 'disabled' : ''],
       ['Rebase ' + cur + ' onto this…', { ...base, action: 'rebase' }, isHead ? 'disabled' : ''],
-      ['Interactive rebase from here (terminal)', { ...base, action: 'interactiveRebase' }],
+      ['Interactive rebase of the commits after this…', { ...base, action: 'interactiveRebase' }, isHead ? 'disabled' : ''],
       ['Reset ' + cur + ' to here…', { ...base, action: 'reset' }, isHead ? 'disabled' : ''],
       null,
       ...editItems(c, base),
@@ -1427,6 +1427,18 @@
     const bar = $('#opbar');
     if (!op) { bar.hidden = true; bar.innerHTML = ''; return; }
     const sh = (s) => (s ? s.slice(0, 8) : '');
+    if (op.waiting) {
+      // git is waiting for a file in an editor tab (interactive rebase).
+      const todo = op.waiting === 'todo';
+      bar.innerHTML = `<span class="op-icon" aria-hidden="true">✎</span><span class="op-what">${todo
+        ? `Interactive rebase of <b>${esc(op.branch || 'HEAD')}</b>: edit the todo list in the <code>git-rebase-todo</code> tab`
+        : `Rebasing <b>${esc(op.branch || 'HEAD')}</b>${op.step && op.total ? ` — step ${op.step} of ${op.total}` : ''}: edit the commit message in its tab`}</span><span class="grow"></span>`
+        + `<button data-op="waitDone" title="${todo ? 'Save the todo list and run it' : 'Save the message and go on'}">${todo ? 'Start rebase' : 'Done'}</button>`
+        + `<button data-op="waitCancel" class="secondary" title="${todo ? 'Nothing is changed' : 'Abort the rebase and put the branch back'}">${todo ? 'Cancel' : 'Abort rebase'}</button>`
+        + `<button data-op="waitShow" class="secondary" title="Bring the tab to the front">Show tab</button>`;
+      bar.hidden = false;
+      return;
+    }
     const ref = (sha) => { const r = sha && (refsBySha.get(sha) || []).find((x) => x.type === 'head' || x.type === 'remote'); return r ? r.name : sh(sha); };
     let what;
     if (op.kind === 'rebase') what = `Rebasing <b>${esc(op.branch || 'HEAD')}</b>${op.onto ? ` onto <code>${esc(ref(op.onto))}</code>` : ''}`;

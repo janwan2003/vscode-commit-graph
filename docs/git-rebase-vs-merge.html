@@ -125,7 +125,7 @@
       <ol class="steps">
         <li><strong>Merge:</strong> check out the branch you want to merge <em>into</em> (the current branch has a bold badge with a &#9679;), then right-click the other branch&rsquo;s badge, or any commit, and choose <strong>merge into current</strong>. The new merge commit appears at the top with both lanes joining.</li>
         <li><strong>Rebase:</strong> check out your feature branch, right-click <code>main</code> (or any commit) and choose <strong>rebase current onto</strong>. Your commits move to the top of that lane with new hashes.</li>
-        <li><strong>Interactive rebase:</strong> right-click the commit just <em>below</em> the oldest one you want to edit and choose the interactive rebase action. It runs <code>git rebase -i</code> from that commit in the integrated terminal so you can edit the todo list. Set <code>git config --global core.editor "code --wait"</code> to edit it in a tab.</li>
+        <li><strong>Interactive rebase:</strong> right-click the commit just <em>below</em> the oldest one you want to edit and choose <strong>Interactive rebase of the commits after this&hellip;</strong>. It runs <code>git rebase -i --autostash</code> from that commit and opens git&rsquo;s todo list in an editor tab; press <strong>Start Rebase</strong> in the tab&rsquo;s title bar when you are done, or <strong>Cancel Rebase</strong> to change nothing. The commands are explained in <a href="git-rebase-todo-commands.html">git rebase -i todo commands</a>.</li>
         <li><strong>Conflicts:</strong> resolve them in the editor as usual. The uncommitted-changes row at the top of the graph shows the work in progress. Then continue or abort with the commands above and click <em>Refresh</em>.</li>
         <li><strong>Push:</strong> right-click the branch and choose <strong>push</strong>. If you rebased a branch that was already on the remote, a normal push is rejected; run <code>git push --force-with-lease</code> in the terminal instead. Mergeline asks before every action and uses a modal confirmation for destructive ones.</li>
       </ol>
@@ -190,6 +190,8 @@
       <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
       <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
       <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+      <a href="git-rebase-todo-commands.html">Rebase todo commands</a>
+      <a href="git-editor-vscode.html">VS Code as git editor</a>
     </nav>
   </div>
 </footer>

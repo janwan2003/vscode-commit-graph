@@ -103,7 +103,7 @@ pick f5903f4 WIP</pre>
 <pre><span class="k">git config --global core.editor</span> "code --wait"        <span class="c"># commit messages and the todo list</span>
 <span class="k">git config --global sequence.editor</span> "code --wait"    <span class="c"># only the todo list</span>
 GIT_SEQUENCE_EDITOR="code --wait" <span class="k">git rebase -i HEAD~4</span>   <span class="c"># just this once (bash, zsh)</span></pre>
-    <p>Edit the <code>git-rebase-todo</code> tab, save it, and <em>close</em> it; the rebase continues when the tab closes. Use <code>codium --wait</code> in VSCodium and <code>cursor --wait</code> in Cursor. Alternatively, the VS Code setting <code>git.terminalGitEditor</code> makes the editor itself the git editor for commands run in its integrated terminal; restart the terminal after turning it on.</p>
+    <p>Edit the <code>git-rebase-todo</code> tab, save it, and <em>close</em> it; the rebase continues when the tab closes. Use <code>codium --wait</code> in VSCodium and <code>cursor --wait</code> in Cursor; <a href="git-editor-vscode.html">VS Code as your git editor</a> has the details. Alternatively, the VS Code setting <code>git.terminalGitEditor</code> makes the editor itself the git editor for commands run in its integrated terminal; restart the terminal after turning it on.</p>
 
     <h2 id="reset">The shortcut: <code>git reset --soft</code></h2>
     <p>When you simply want the last few commits to become one, you do not need a rebase at all:</p>
@@ -142,7 +142,7 @@ f5903f4 HEAD@{5}: commit: WIP</span>
       <h2>Do it in Mergeline</h2>
       <p>The graph shows exactly which commits you are about to combine, so there is no <code>HEAD~N</code> counting.</p>
       <ol class="steps">
-        <li><strong>Interactive rebase:</strong> right-click the commit just <em>below</em> the oldest one you want to squash and choose <strong>Interactive rebase from here (terminal)</strong>. Mergeline opens a terminal named <em>Mergeline rebase</em> and runs <code>git rebase -i &lt;that commit&gt;</code>; edit the todo list as above. Set <code>core.editor</code> or <code>sequence.editor</code> to <code>code --wait</code> first to edit it in a tab.</li>
+        <li><strong>Interactive rebase:</strong> right-click the commit just <em>below</em> the oldest one you want to squash and choose <strong>Interactive rebase of the commits after this&hellip;</strong> (Mergeline 0.21 and later). Mergeline runs <code>git rebase -i --autostash &lt;that commit&gt;</code> and opens the todo list in an editor tab, with no editor setup needed. Change the lines as above and press <strong>Start Rebase</strong> in the tab&rsquo;s title bar; for each <code>squash</code> line the combined message opens in another tab, where you press <strong>Done</strong>. For one-click squashing, use <strong>Squash into parent</strong> or Ctrl/Cmd-click a second commit for <strong>Squash N commits into one&hellip;</strong>.</li>
         <li><strong>Soft reset:</strong> right-click the newest commit you want to <em>keep</em> as it is, choose <strong>Reset &ldquo;&lt;branch&gt;&rdquo; to here&hellip;</strong> and pick <strong>Soft</strong> (keep changes staged). The uncommitted-changes row at the top now holds the combined changes; commit them from the Source Control view with one message.</li>
         <li><strong>Squash merge:</strong> check out the target branch, right-click the other branch&rsquo;s badge, choose <strong>Merge into &ldquo;&lt;branch&gt;&rdquo;&hellip;</strong> and pick <strong>Squash merge</strong>. The changes are staged for you to commit. Deleting the branch afterwards asks before force-deleting, because git does not see it as merged.</li>
         <li><strong>Check and push:</strong> the graph updates when the repository changes (click <em>Refresh</em> if it has not). Right-click the branch and choose <strong>Push</strong>; if the branch was already on the remote, the push is rejected, so run <code>git push --force-with-lease</code> in the terminal.</li>
@@ -208,6 +208,8 @@ f5903f4 HEAD@{5}: commit: WIP</span>
       <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
       <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
       <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+      <a href="git-rebase-todo-commands.html">Rebase todo commands</a>
+      <a href="git-editor-vscode.html">VS Code as git editor</a>
     </nav>
   </div>
 </footer>

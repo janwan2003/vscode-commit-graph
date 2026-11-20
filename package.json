@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "Visualization",
     "Other"
   ],
-  "keywords": ["git graph", "compact graph", "branch colors", "git patch", "notebook diff", "delete branches", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git tags", "merge", "rebase", "cherry-pick", "stash"],
+  "keywords": ["git graph", "compact graph", "branch colors", "git patch", "notebook diff", "delete branches", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git rebase editor", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git tags", "merge", "rebase", "cherry-pick", "stash"],
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
@@ -78,6 +78,18 @@
         "icon": "$(link-external)"
       },
       {
+        "command": "mergeline.editorDone",
+        "title": "Start Rebase / Done",
+        "category": "Mergeline",
+        "icon": "$(check)"
+      },
+      {
+        "command": "mergeline.editorCancel",
+        "title": "Cancel Rebase",
+        "category": "Mergeline",
+        "icon": "$(close)"
+      },
+      {
         "command": "mergeline.deleteBranches",
         "title": "Delete Branches…",
         "category": "Mergeline",
@@ -118,6 +130,14 @@
       ],
       "commandPalette": [
         {
+          "command": "mergeline.editorDone",
+          "when": "mergeline.waitingEditor"
+        },
+        {
+          "command": "mergeline.editorCancel",
+          "when": "mergeline.waitingEditor"
+        },
+        {
           "command": "mergeline.refresh",
           "when": "mergeline.panelOpen"
         },
@@ -135,6 +155,18 @@
           "command": "mergeline.fileHistory",
           "when": "resourceScheme == file && !explorerResourceIsRoot",
           "group": "7_mergeline@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mergeline.editorDone",
+          "when": "mergeline.waitingEditor && resourceFilename =~ /^(git-rebase-todo|COMMIT_EDITMSG)$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mergeline.editorCancel",
+          "when": "mergeline.waitingEditor && resourceFilename =~ /^(git-rebase-todo|COMMIT_EDITMSG)$/",
+          "group": "navigation@2"
         }
       ],
       "editor/title/context": [
@@ -155,6 +187,13 @@
     "configuration": {
       "title": "Mergeline",
       "properties": {
+        "mergeline.interactiveRebase": {
+          "type": "string",
+          "enum": ["editor", "terminal"],
+          "enumDescriptions": ["The rebase todo list and any reword/squash messages open as editor tabs, with Start rebase / Done and Cancel in the tab's title bar.", "Runs git rebase -i in a terminal, using your git editor."],
+          "default": "editor",
+          "description": "Where \"Interactive rebase\" from the graph lets you edit the todo list."
+        },
         "mergeline.initialCommits": {
           "type": "number",
           "default": 500,

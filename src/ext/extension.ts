@@ -4,6 +4,7 @@ import { Repos } from './repos';
 import { GraphPanel, VIEW_ID } from './panel';
 import { GitFileSystem, SCHEME } from './content';
 import { runAction } from './actions';
+import { registerRebaseEditor, onDidChangeWaiting } from './rebaseeditor';
 
 export async function activate(ctx: vscode.ExtensionContext) {
   const repos = new Repos();
@@ -75,6 +76,10 @@ export async function activate(ctx: vscode.ExtensionContext) {
       return panel;
     }),
   );
+
+  registerRebaseEditor(ctx);
+  // The bar above the graph says when a rebase waits for a tab.
+  ctx.subscriptions.push(onDidChangeWaiting(() => GraphPanel.all().forEach((p) => p.refresh(true))));
 
   const sb = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   sb.text = '$(git-merge) Graph';

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use VS Code as your git editor (commit messages and rebase -i) | Mergeline</title>
+<meta name="description" content="Use VS Code for git commit messages and rebase -i: core.editor code --wait, sequence.editor, GIT_EDITOR order, VSCodium, Cursor, Windows, and undo.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-editor-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Use VS Code as your git editor (commit messages and rebase -i)">
+<meta property="og:description" content="code --wait, sequence.editor, which of GIT_EDITOR, core.editor, VISUAL and EDITOR wins, code not on PATH, VSCodium and Cursor, Windows paths, undo.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-editor-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Use VS Code as your git editor (commit messages and rebase -i)</h1>
+    <p>When git needs text from you, such as a commit message, a tag message or the todo list of <code>git rebase -i</code>, it opens a file in its editor and waits for that program to exit. Out of the box that is usually Vim. This page shows how to make it VS Code instead, why the <code>--wait</code> flag matters, which setting wins when several are set, what to do when <code>code</code> is not found, the commands for VSCodium and Cursor, Windows quoting, and how to undo it. Commands were checked with git 2.53 and VS Code 1.147 on Linux.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#set">Set VS Code as the editor</a></li>
+        <li><a href="#wait">Why <code>--wait</code> is needed</a></li>
+        <li><a href="#sequence">Only for rebase -i: <code>sequence.editor</code></a></li>
+        <li><a href="#order">Which setting wins</a></li>
+        <li><a href="#path"><code>code</code>: command not found</a></li>
+        <li><a href="#forks">VSCodium, Cursor, Windsurf</a></li>
+        <li><a href="#windows">Windows and paths with spaces</a></li>
+        <li><a href="#undo">Check it and undo it</a></li>
+        <li><a href="#mergeline">No configuration: Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Use VS Code for everything git asks me to edit</td><td><code>git config --global core.editor "code --wait"</code></td></tr>
+          <tr><td>Use it only for the <code>rebase -i</code> todo list</td><td><code>git config --global sequence.editor "code --wait"</code></td></tr>
+          <tr><td>Use it just this once</td><td><code>git -c core.editor="code --wait" commit</code></td></tr>
+          <tr><td>See which editor git will run</td><td><code>git var GIT_EDITOR</code></td></tr>
+          <tr><td>VSCodium or Cursor</td><td><code>codium --wait</code> or <code>cursor --wait</code> instead of <code>code --wait</code></td></tr>
+          <tr><td>Go back to the default editor</td><td><code>git config --global --unset core.editor</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="set">Set VS Code as the editor</h2>
+<pre><span class="k">git config --global core.editor</span> "code --wait"</pre>
+    <p>From now on git opens a VS Code tab whenever it needs text: <code>git commit</code> without <code>-m</code>, <code>git commit --amend</code>, <code>git tag -a</code> without <code>-m</code>, a merge commit message, the <code>git rebase -i</code> todo list, and the messages for <code>reword</code> and <code>squash</code> lines. Type, save, and <strong>close the tab</strong>; git carries on when the tab closes. While it waits, git prints <code>hint: Waiting for your editor to close the file...</code> in the terminal.</p>
+    <p>Git runs the value through a shell and adds the file name at the end, so the command it runs is <code>code --wait /path/to/repo/.git/COMMIT_EDITMSG</code>. VS Code recognises that file, and <code>git-rebase-todo</code>, and highlights them with its built-in git commit and rebase syntax. Drop <code>--global</code> to set it for the current repository only.</p>
+    <p>This does not change VS Code&rsquo;s own Source Control view, whose message box commits without an editor.</p>
+
+    <h2 id="wait">Why <code>--wait</code> is needed</h2>
+    <p>Git treats the editor exiting as &ldquo;I am done editing&rdquo;. Plain <code>code file</code> hands the file to the VS Code window and exits at once, so git reads the file before you have typed anything. <code>code --help</code> describes the flag as <code>Wait for the files to be closed before returning</code>. We tested what git does with an editor that returns at once (the command <code>true</code>):</p>
+    <ul>
+      <li><code>git commit</code> stops with <code>Aborting commit due to empty commit message.</code></li>
+      <li><code>git rebase -i</code> runs the list as git wrote it, all <code>pick</code>, so nothing changes.</li>
+      <li>A <code>reword</code> keeps the old message.</li>
+    </ul>
+    <p>Saving is not enough: git waits until the tab is <em>closed</em>. If you open the same file in two tabs, close both.</p>
+
+    <h2 id="sequence">Only for rebase -i: <code>sequence.editor</code></h2>
+    <p>Git has a separate setting for the <code>rebase -i</code> todo list. Set it alone to edit the list in VS Code and keep your usual editor for commit messages:</p>
+<pre><span class="k">git config --global sequence.editor</span> "code --wait"                 <span class="c"># todo list only</span>
+GIT_SEQUENCE_EDITOR="code --wait" <span class="k">git rebase -i HEAD~3</span>            <span class="c"># this once (bash, zsh)</span></pre>
+    <p>The todo list and what each command in it does are explained in <a href="git-rebase-todo-commands.html">git rebase -i todo commands</a>.</p>
+
+    <h2 id="order">Which setting wins</h2>
+    <p>Git picks the editor in this order and uses the first one that is set (from the <code>git var</code> documentation, and checked with git 2.53):</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">For</th><th scope="col">Order</th></tr></thead>
+        <tbody>
+          <tr><td>Commit and tag messages</td><td>1. <code>GIT_EDITOR</code> environment variable<br>2. <code>core.editor</code> setting<br>3. <code>VISUAL</code> (skipped when <code>TERM=dumb</code>)<br>4. <code>EDITOR</code><br>5. the default built into git, usually <code>vi</code></td></tr>
+          <tr><td>The <code>rebase -i</code> todo list</td><td>1. <code>GIT_SEQUENCE_EDITOR</code> environment variable<br>2. <code>sequence.editor</code> setting<br>3. whatever commit messages use (the list above)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A repository&rsquo;s own <code>core.editor</code> (in <code>.git/config</code>) wins over your <code>--global</code> one, as with any git setting. The common surprise is a <code>GIT_EDITOR</code> variable set by your shell profile or by a tool: it beats <code>core.editor</code>, so your setting seems to be ignored. To see what git will actually run, and where a setting comes from:</p>
+<pre><span class="k">git var GIT_EDITOR</span>
+<span class="k">git var GIT_SEQUENCE_EDITOR</span>
+<span class="k">git config --show-origin --get core.editor</span>
+<span class="o">file:/home/you/.gitconfig	code --wait</span></pre>
+    <p>Ubuntu<p>Debian and Ubuntu build git with <code>editor</code> as the default instead of <code>vi</code>; <code>man git-var</code> says which default your build chose.</p>rsquo;s git package uses <code>editor</code> as the default instead of <code>vi</code> (we checked on Ubuntu 26.04); <code>man git-var</code> says which default your build chose.</p>
+
+    <h2 id="path"><code>code</code>: command not found</h2>
+    <p><code>code --wait</code> only works if <code>code</code> runs in a terminal. Check with <code>code --version</code>.</p>
+    <ul>
+      <li><strong>macOS:</strong> in VS Code, open the Command Palette (<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and run <strong>Shell Command: Install &lsquo;code&rsquo; command in PATH</strong>. Open a new terminal afterwards.</li>
+      <li><strong>Windows:</strong> the installer adds VS Code to <code>PATH</code> unless you unticked that option. Open a new terminal after installing.</li>
+      <li><strong>Linux:</strong> the <code>.deb</code>, <code>.rpm</code> and snap packages install <code>code</code> on the <code>PATH</code>.</li>
+    </ul>
+    <p>Alternatively, give the full path. On macOS the command is inside the app; quote it because of the spaces (see <a href="#windows">below</a>):</p>
+<pre><span class="k">git config --global core.editor</span> "'/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code' --wait"</pre>
+    <p>In the integrated terminal of a Remote-SSH, WSL or dev container window, VS Code provides its own <code>code</code> command that opens files in that window, so <code>code --wait</code> works there. In a terminal outside VS Code on the remote machine, it does not.</p>
+    <p>VS Code also has a setting, <code>git.terminalGitEditor</code> (off by default), that makes it the git editor for git commands run in its integrated terminal, without touching your git config. Restart the terminal after turning it on.</p>
+
+    <h2 id="forks">VSCodium, Cursor, Windsurf</h2>
+    <p>VS Code forks ship their own command line tool with the same <code>--wait</code> flag. Use the one for your editor:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Editor</th><th scope="col">Setting</th></tr></thead>
+        <tbody>
+          <tr><td>VS Code</td><td><code>git config --global core.editor "code --wait"</code></td></tr>
+          <tr><td>VS Code Insiders</td><td><code>git config --global core.editor "code-insiders --wait"</code></td></tr>
+          <tr><td>VSCodium</td><td><code>git config --global core.editor "codium --wait"</code></td></tr>
+          <tr><td>Cursor</td><td><code>git config --global core.editor "cursor --wait"</code></td></tr>
+          <tr><td>Windsurf</td><td><code>git config --global core.editor "windsurf --wait"</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>We tested <code>code</code> only; the other command names come from those editors. If yours is not found, look for that editor&rsquo;s &ldquo;Install command in PATH&rdquo; command, as for VS Code above.</p>
+
+    <h2 id="windows">Windows and paths with spaces</h2>
+    <p>In PowerShell and in Command Prompt, <code>git config --global core.editor "code --wait"</code> works as written. The Git for Windows installer can also set VS Code as git&rsquo;s editor for you on its &ldquo;default editor&rdquo; page.</p>
+    <p>If you give a full path, remember that git runs the value through a shell (Git for Windows ships its own), which splits it at spaces. Put single quotes around the path inside the double quotes, and use forward slashes:</p>
+<pre><span class="k">git config --global core.editor</span> "'C:/Program Files/Microsoft VS Code/bin/code' --wait"</pre>
+    <p>Without the inner quotes, git tries to run <code>C:/Program</code> and reports <code>there was a problem with the editor</code>. A per-user install lives under <code>%LOCALAPPDATA%\Programs\Microsoft VS Code</code> instead. Check what was stored with <code>git config --global --get core.editor</code>: it should print the single quotes. We checked this quoting rule with git&rsquo;s shell on Linux, not on Windows itself.</p>
+
+    <h2 id="undo">Check it and undo it</h2>
+<pre><span class="k">git config --global --get core.editor</span>        <span class="c"># what is set</span>
+<span class="k">git config --global --unset core.editor</span>      <span class="c"># back to VISUAL, EDITOR or the default</span>
+<span class="k">git config --global --unset sequence.editor</span>
+<span class="k">git config unset --global core.editor</span>        <span class="c"># the same in the newer syntax</span></pre>
+    <p>If you set it in one repository without <code>--global</code>, run the <code>--unset</code> command there without <code>--global</code>. For a single command, <code>git -c core.editor=vim commit</code> overrides the setting without changing it.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>No configuration: interactive rebase in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.21, its interactive rebase opens git&rsquo;s todo list and commit messages in VS Code tabs without any of the setup above:</p>
+      <ol class="steps">
+        <li><strong>Right-click the commit</strong> just below the oldest one you want to change, on the checked-out branch, and choose <strong>Interactive rebase of the commits after this&hellip;</strong>. Mergeline runs <code>git rebase -i --autostash &lt;that commit&gt;</code>.</li>
+        <li><strong>Edit the <code>git-rebase-todo</code> tab</strong> and press <strong>&#x2713; Start Rebase / Done</strong> in its title bar, or close the tab. <strong>&#x2715; Cancel Rebase</strong> makes git abort, so nothing changes. The bar above the graph shows the same choices while git waits.</li>
+        <li><strong>Messages</strong> for <code>reword</code> and <code>squash</code> lines open in a <code>COMMIT_EDITMSG</code> tab with <strong>Done</strong> and <strong>Abort rebase</strong>.</li>
+        <li><strong>Afterwards</strong> the notification offers <strong>Undo</strong> (<code>git reset --keep</code> to where the branch was).</li>
+      </ol>
+      <p>Mergeline sets <code>GIT_SEQUENCE_EDITOR</code> and <code>GIT_EDITOR</code> for that one git process only, so it ignores and does not change your <code>core.editor</code>, and it does not need <code>code</code> on your <code>PATH</code>. That is why it also works in VSCodium, Cursor, Windsurf and remote or WSL windows. It covers rebases started from the graph; git commands you type in a terminal still use the editor you configured. Set <code>mergeline.interactiveRebase</code> to <code>terminal</code> to have Mergeline run <code>git rebase -i</code> in a terminal with your git editor instead. More in <a href="interactive-rebase-vscode.html">interactive rebase in VS Code</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Git says &ldquo;Aborting commit due to empty commit message&rdquo; as soon as the tab opens.</summary>
+      <p>The editor command has no <code>--wait</code>, so git saw it exit before you typed anything. Set it to <code>code --wait</code>.</p>
+    </details>
+    <details>
+      <summary>The terminal says &ldquo;Waiting for your editor to close the file&rdquo; and nothing happens.</summary>
+      <p>Git is waiting for the tab to close. Look for a <code>COMMIT_EDITMSG</code> or <code>git-rebase-todo</code> tab, possibly in another VS Code window, save it and close it.</p>
+    </details>
+    <details>
+      <summary>I set <code>core.editor</code> but git still opens Vim.</summary>
+      <p>Something with higher priority is set: a <code>GIT_EDITOR</code> variable, a repository-level <code>core.editor</code>, or, for <code>rebase -i</code>, <code>sequence.editor</code> or <code>GIT_SEQUENCE_EDITOR</code>. <code>git var GIT_EDITOR</code> and <code>git config --show-origin --get core.editor</code> show which.</p>
+    </details>
+    <details>
+      <summary>Can I keep Vim for commit messages and use VS Code only for the todo list?</summary>
+      <p>Yes: set only <code>sequence.editor</code> to <code>code --wait</code>. Messages for <code>reword</code> and <code>squash</code> lines still open in your commit editor.</p>
+    </details>
+    <p>Related: <a href="git-rebase-todo-commands.html">git rebase -i todo commands</a>, <a href="interactive-rebase-vscode.html">interactive rebase in VS Code</a> and <a href="rebase-conflict-continue-abort-vscode.html">rebase conflicts</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="find-which-tag-contains-commit.html">Which tags contain a commit</a>
+      <a href="git-commits-between-two-tags.html">Commits between two tags</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html">Compact graph</a>
+      <a href="git-graph-sidebar-vscode.html">Graph in the sidebar</a>
+      <a href="delete-multiple-git-branches-vscode.html">Delete several branches</a>
+      <a href="jupyter-notebook-diff-git-vscode.html">Notebook diffs</a>
+      <a href="git-rebase-todo-commands.html">Rebase todo commands</a>
+      <a href="git-editor-vscode.html" aria-current="page">VS Code as git editor</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
