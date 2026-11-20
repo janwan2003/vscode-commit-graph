@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
-import { layout } from '../core/graph';
+import { layout, LayoutState, newLayoutState } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
@@ -26,6 +26,12 @@ export class GraphPanel implements vscode.Disposable {
   private subs: vscode.Disposable[] = [];
   private timer: NodeJS.Timeout | undefined;
   private lastSig = '';
+  /** Everything but the commit list and page size, so load more can tell whether only commits were added. */
+  private lastBase = '';
+  /** Layout state after the last row sent, so load more lays out and sends only the new rows. */
+  private layState: LayoutState | undefined;
+  /** Rows sent by the last load (counted for the e2e: 'data' sends all, 'append' only new ones). */
+  lastSent = { kind: '', rows: 0 };
   private loading = false;
   private again = false;
   /** Last data posted to the webview (tests read it). */
@@ -248,10 +254,27 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const sig = JSON.stringify([root, state, unc, this.filter, order, this.max, worktrees, op, commits.map((c) => c.sha)]);
+    const base = JSON.stringify([root, state, unc, this.filter, order, worktrees, op, names, web]);
+    const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
-    const lay = layout(commits);
+    // Load more (or any reload where only more commits arrived): when nothing else changed and the
+    // commits already shown are an unchanged prefix of the new list, lay out and send only the new rows.
+    const prev = this.lastData;
+    if (this.layState && prev && base === this.lastBase && prev.commits.length < commits.length && prev.commits.every((c, i) => c.sha === commits[i].sha)) {
+      const tail = commits.slice(prev.commits.length);
+      const st = this.layState;
+      const lay = layout(tail, st);
+      this.lastData = { ...prev, commits, width: lay.width };
+      this.lastSent = { kind: 'append', rows: tail.length };
+      this.post({ type: 'append', commits: tail, packed: lay.packed, width: lay.width, hasMore });
+      return;
+    }
+    this.lastBase = base;
+    const st = newLayoutState();
+    const lay = layout(commits, st);
+    this.layState = st;
+    this.lastSent = { kind: 'data', rows: commits.length };
     this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees, op };
     this.post({
       type: 'data',
@@ -486,6 +509,21 @@ export class GraphPanel implements vscode.Disposable {
       case 'openWorking':
         if (await exists()) await vscode.window.showTextDocument(fileUri, { preview: true });
         break;
+      case 'resolve': {
+        // A conflicted file from the in-progress bar: VS Code's 3-way merge editor (git extension's
+        // "Resolve in Merge Editor"); the plain file when that is unavailable or opened nothing.
+        if (!(await exists())) break;
+        try {
+          await vscode.commands.executeCommand('git.openMergeEditor', fileUri);
+        } catch {
+          // command missing (git extension disabled) or failed
+        }
+        const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+        const merge = (vscode as any).TabInputTextMerge;
+        const input = tab?.input as { result?: vscode.Uri } | undefined;
+        if (!(merge && input instanceof merge && input?.result?.fsPath === fileUri.fsPath)) await vscode.window.showTextDocument(fileUri, { preview: false });
+        break;
+      }
       case 'openAt':
         if (m.ref) await vscode.window.showTextDocument(gitUri(root, m.ref, m.path), { preview: true });
         break;

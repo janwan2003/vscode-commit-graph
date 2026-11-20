@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { git, GitError } from '../core/gitlog';
-import { planRewrite, runRewrite, rewordMessage, squashMessage, RewriteError, RewriteOp, RewritePlan } from '../core/rewrite';
+import { planRewrite, runRewrite, rewordMessage, squashMessage, findFixups, RewriteError, RewriteOp, RewritePlan } from '../core/rewrite';
 import { readOperation, unmerged, leftoverMarkers, opArgs, opNames, NO_EDITOR, OpKind } from '../core/progress';
 import { GitApiRepo } from './repos';
 import { readRemotes, remoteNameProblem, remoteUsage, Remote } from '../core/remotes';
@@ -192,7 +192,10 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
     case 'moveCommit':
     case 'placeCommit':
     case 'editCommit':
+    case 'autosquash':
       return rewrite(ctx, m);
+    case 'createFixup':
+      return createFixup(ctx, m);
     case 'opContinue':
     case 'opSkip':
     case 'opAbort':
@@ -500,8 +503,49 @@ async function manageRemotes(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : /(ch|sh|s|x)$/.test(w) ? 'es' : 's'}`;
 
+/** Exit status 0 → true, 1 → false (git diff --quiet and friends). */
+async function quiet(root: string, args: string[]): Promise<boolean> {
+  try {
+    await git(root, args);
+    return true;
+  } catch (e) {
+    if (e instanceof GitError) return false;
+    throw e;
+  }
+}
+
+/** `git commit --fixup=<sha>` from the staged changes (offers `git add -u` when nothing is staged). */
+async function createFixup(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  const sha = m.sha ?? '';
+  const label = m.subject ? `${short(sha)} "${m.subject.slice(0, 60)}"` : short(sha);
+  if (await quiet(ctx.root, ['diff', '--cached', '--quiet'])) {
+    if (await quiet(ctx.root, ['diff', '--quiet'])) {
+      vscode.window.showWarningMessage('Mergeline: nothing to put in a fixup commit. Change files (and stage them) first; the staged changes become the fixup commit.');
+      return false;
+    }
+    if (!(await confirm(`Nothing is staged. Stage all changes to tracked files and create a fixup commit for ${label}?`, 'Runs git add -u (new, untracked files are left out), then git commit --fixup. To pick the changes yourself, stage them in Source Control and run this again.', 'Stage all and create'))) return false;
+    if (!(await run(ctx, ['add', '-u'], 'Stage changes'))) return false;
+  }
+  if (!(await run(ctx, ['commit', `--fixup=${sha}`], `Create fixup commit for ${short(sha)}`))) return true;
+  vscode.window.showInformationMessage(`Created a fixup commit for ${label}. "Squash fixup commits into their targets" (commit menu) folds it in, now or later.`, 'Squash now').then((pick) => {
+    if (pick) runAction(ctx, { action: 'autosquash', current: m.current });
+  });
+  return true;
+}
+
 /** Reword, drop, fold into parent or squash a range of commits on the current branch. */
 async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  let fixups: Awaited<ReturnType<typeof findFixups>> = [];
+  if (m.action === 'autosquash') {
+    fixups = await findFixups(ctx.root);
+    if (!fixups.length) {
+      vscode.window.showWarningMessage('Mergeline: no fixup!, squash! or amend! commits with a target were found on the checked-out branch (back to its last merge).');
+      return false;
+    }
+    // The oldest target: the one furthest from HEAD on the first-parent line.
+    const line = (await git(ctx.root, ['rev-list', '--first-parent', 'HEAD', `-n${fixups.length + 2000}`])).split('\n');
+    m = { ...m, sha: fixups.map((f) => f.target).sort((a, b) => line.indexOf(b) - line.indexOf(a))[0] };
+  }
   const sha = m.sha ?? '';
   const label = m.subject ? `${short(sha)} "${m.subject.slice(0, 60)}"` : short(sha);
   const branch = m.current ?? 'HEAD';
@@ -512,6 +556,7 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
     : m.action === 'fixupCommit' ? { kind: 'fixup', sha }
     : m.action === 'moveCommit' ? { kind: 'move', sha, dir: m.dir === 'newer' ? 'newer' : 'older' }
     : m.action === 'placeCommit' ? { kind: 'place', sha, target: m.target ?? '', fold: !!m.fold }
+    : m.action === 'autosquash' ? { kind: 'autosquash', sha }
     : { kind: 'squash', from: sha, to: m.target ?? '', message: '' };
   let plan: RewritePlan;
   try {
@@ -558,6 +603,11 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
   } else if (op.kind === 'edit') {
     if (!(await confirm(`Stop at ${label} to change it?`, `Git replays ${branch} up to this commit and stops there. Change files and stage them, then press Continue in the bar above the graph: the staged changes are added to this commit (its message is kept) and the later commits are replayed on top. Abort puts everything back. ${common}`, 'Stop here'))) return false;
     [title, done] = [`Stop at ${short(sha)}`, ''];
+  } else if (op.kind === 'autosquash') {
+    const k = fixups.length;
+    const list = fixups.slice(0, 4).map((f) => `• ${f.subject.slice(0, 70)} → ${short(f.target)}`).join('\n') + (k > 4 ? `\n• … ${k - 4} more` : '');
+    if (!(await confirm(`Squash ${plural(k, 'fixup commit')} into ${k === 1 ? 'its target' : 'their targets'}?`, `${list}\n\nRuns git rebase --autosquash from ${short(sha)}'s parent: fixup! commits fold in silently, amend! ones also replace the message, squash! ones add their message. ${common}`, 'Squash fixups'))) return false;
+    [title, done] = [`Squash ${plural(k, 'fixup commit')}`, `Squashed ${plural(k, 'fixup commit')}`];
   } else if (op.kind === 'drop') {
     if (!(await confirm(`Drop ${label}?`, `Its changes are removed from ${branch}, and later commits are replayed without it. ${common}`, 'Drop commit'))) return false;
     [title, done] = [`Drop ${short(sha)}`, `Dropped ${short(sha)}`];

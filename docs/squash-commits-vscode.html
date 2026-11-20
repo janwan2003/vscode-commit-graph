@@ -124,7 +124,7 @@ GIT_SEQUENCE_EDITOR="code --wait" <span class="k">git rebase -i HEAD~4</span>   
     <p>If you notice a mistake in an earlier commit, record the fix as a commit aimed at it:</p>
 <pre><span class="k">git commit --fixup=</span>086aa72        <span class="c"># creates "fixup! Add CSV export"</span>
 <span class="k">git rebase -i --autosquash</span> main   <span class="c"># the todo list arrives with fixups already in place</span></pre>
-    <p><code>--autosquash</code> moves each <code>fixup!</code> commit under its target and marks it <code>fixup</code>, so you usually just save and close. Make it the default with <code>git config --global rebase.autoSquash true</code>. Variants: <code>--squash=&lt;commit&gt;</code> keeps the new message for editing, <code>--fixup=reword:&lt;commit&gt;</code> changes only the target&rsquo;s message, and <code>--fixup=amend:&lt;commit&gt;</code> changes its content and message. To skip the editor entirely, <code>GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash main</code> accepts the list as is.</p>
+    <p><code>--autosquash</code> moves each <code>fixup!</code> commit under its target and marks it <code>fixup</code>, so you usually just save and close. Make it the default with <code>git config --global rebase.autoSquash true</code>. Variants: <code>--squash=&lt;commit&gt;</code> keeps the new message for editing, <code>--fixup=reword:&lt;commit&gt;</code> changes only the target&rsquo;s message, and <code>--fixup=amend:&lt;commit&gt;</code> changes its content and message. To skip the editor entirely, <code>GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash main</code> accepts the list as is. The <a href="fixup-commit-autosquash-vscode.html">fixup and autosquash guide</a> covers each variant in detail.</p>
 
     <h2 id="safety">Pushed commits, and undoing a squash</h2>
     <p>Every method here except <code>merge --squash</code> rewrites history: the squashed commit is new, with a new hash. On commits only you have, that is harmless. If you already pushed the branch, a normal push is rejected and you must force-push. Use the safe form, which refuses if someone else pushed in the meantime:</p>
@@ -171,8 +171,10 @@ f5903f4 HEAD@{5}: commit: WIP</span>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html" aria-current="page">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
       <a href="edit-commit-message-vscode.html">Edit a commit message</a>
       <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
       <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
       <a href="reorder-commits-vscode.html">Reorder commits</a>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>

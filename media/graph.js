@@ -181,6 +181,7 @@
       case 'settings': settings = m.settings; $('#order').value = settings.commitOrder || 'date'; applyLayout(settings.layout); render(); break;
       case 'repos': repos = m.repos; currentRepo = m.repo; fillRepos(); break;
       case 'data': setData(m); break;
+      case 'append': appendData(m); break;
       case 'details': showDetails(m); break;
       case 'history': gotHistory(m); break;
       case 'message': openMessageEditor(m.sha, m.message); break;
@@ -189,7 +190,7 @@
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -237,18 +238,48 @@
     renderOpBar(m.op);
     const pb = $('#pathbar');
     if (m.filter.path) {
-      pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code>${m.names && m.names.length > 1 ? `<span class="pb-n" title="${esc(m.names.slice(1).join('\n'))}">also as ${m.names.slice(1, 3).map((n) => `<code>${esc(n)}</code>`).join(', ')}${m.names.length > 3 ? ` +${m.names.length - 3}` : ''}</span>` : ''}<span class="pb-n">${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
+      pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code>${m.names && m.names.length > 1 ? `<span class="pb-n" title="${esc(m.names.slice(1).join('\n'))}">also as ${m.names.slice(1, 3).map((n) => `<code>${esc(n)}</code>`).join(', ')}${m.names.length > 3 ? ` +${m.names.length - 3}` : ''}</span>` : ''}<span class="pb-n pb-count">${countLabel(m)}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
       pb.hidden = false;
     } else pb.hidden = true;
     if (repoChanged) { selected = null; compareSha = null; closeDetails(); scroller.scrollTop = 0; }
     else if (selected && !indexBySha.has(selected)) closeDetails();
+    sizeList();
+    if (!m.commits.length) showMsg(m.filter.path ? 'No commits touch this file on the shown branches. It may be new or untracked.' : 'This repository has no commits yet.');
+    runFind(false);
+    if (pendingReveal && indexBySha.has(pendingReveal)) { const r = pendingReveal; pendingReveal = null; select(r, true); }
+    render();
+  }
+
+  function countLabel(m) { return `${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}`; }
+
+  function sizeList() {
+    const m = data;
     setGraphWidth();
     spacer.style.height = m.commits.length * ROW + 44 + 'px';
     moreEl.style.top = m.commits.length * ROW + 'px';
     moreEl.innerHTML = m.hasMore ? `<button id="loadmore">Load more commits</button>` : m.commits.length ? `<span class="end">${m.commits.length} commits</span>` : '';
     const lm = $('#loadmore');
     if (lm) lm.addEventListener('click', loadMore);
-    if (!m.commits.length) showMsg(m.filter.path ? 'No commits touch this file on the shown branches. It may be new or untracked.' : 'This repository has no commits yet.');
+  }
+
+  // Load more: the extension sends only the new rows; they continue the packed lanes of the last row.
+  function appendData(m) {
+    loadingMore = false;
+    if (!data) return;
+    const n0 = data.commits.length;
+    for (let i = 0; i < m.commits.length; i++) {
+      data.commits.push(m.commits[i]);
+      data.packed.push(m.packed[i]);
+      indexBySha.set(m.commits[i].sha, n0 + i);
+    }
+    data.width = m.width;
+    data.hasMore = m.hasMore;
+    reachFor = null; // caches keyed on `data`, which was extended in place
+    editableFor = null;
+    $('#orderhint').hidden = !(data.order !== 'topo' && data.width > 20);
+    const pc = $('#pathbar .pb-count');
+    if (pc) pc.textContent = countLabel(data);
+    sizeList();
     runFind(false);
     if (pendingReveal && indexBySha.has(pendingReveal)) { const r = pendingReveal; pendingReveal = null; select(r, true); }
     render();
@@ -890,6 +921,7 @@
   // ---------- edit history (reword, drop, squash) ----------
   /** Commits on HEAD's first-parent line up to the first merge: the ones a linear rebase can rewrite. */
   let editable = null, editableFor = null;
+  const FIXUP_RE = /^(fixup|squash|amend)! /;
   function editableSet() {
     if (editableFor === data) return editable;
     editableFor = data;
@@ -929,9 +961,14 @@
       ['Move commit down (older)', { ...base, action: 'moveCommit', dir: 'older' }, below],
       ['Squash into parent', { ...base, action: 'fixupCommit' }, below],
       ['Stop at this commit to change it…', { ...base, action: 'editCommit' }, c.sha === data.head ? 'disabled' : ''],
+      ['Create fixup commit for this', { ...base, action: 'createFixup' }],
       ['Drop commit…', { ...base, action: 'dropCommit' }, 'danger'],
-      null,
     );
+    // fixup!/squash!/amend! commits on the editable line: fold them in (git rebase --autosquash).
+    let fix = 0;
+    for (const s of set) if (FIXUP_RE.test(data.commits[indexBySha.get(s)].subject)) fix++;
+    if (fix) items.push([`Squash ${fix} fixup commit${fix === 1 ? '' : 's'} into ${fix === 1 ? 'its target' : 'their targets'}…`, { action: 'autosquash', current: data.branch }]);
+    items.push(null);
     return items;
   }
 
@@ -950,7 +987,12 @@
     const step = op.step && op.total ? ` — step ${op.step} of ${op.total}` : '';
     const at = op.stopped ? `${op.kind === 'rebase' ? ', stopped at' : ''} <code class="op-sha" data-sha="${esc(op.stopped)}" title="Show this commit">${sh(op.stopped)}</code>${op.stoppedSubject ? ` “${esc(op.stoppedSubject.slice(0, 80))}”` : ''}` : '';
     const n = op.conflicts.length;
-    const conf = n ? `<span class="op-conf" title="${esc(op.conflicts.join('\n'))}">${n} conflicted file${n === 1 ? '' : 's'}</span>` : `<span class="op-ok">no conflicts left</span>`;
+    // Conflicted files: the first few by name (click → merge editor), the rest behind a menu.
+    const SHOW = 3;
+    const fileBtn = (f) => `<button class="op-file link" data-path="${esc(f)}" title="Open ${esc(f)} in the merge editor">${esc(f.split('/').pop())}</button>`;
+    const conf = n
+      ? `<span class="op-conf">${n} conflicted file${n === 1 ? '' : 's'}:</span><span class="op-files">${op.conflicts.slice(0, SHOW).map(fileBtn).join('')}${n > SHOW ? `<button class="op-more link" title="All conflicted files">+${n - SHOW} more ▾</button>` : ''}</span>`
+      : `<span class="op-ok">no conflicts left</span>`;
     bar.innerHTML = `<span class="op-icon" aria-hidden="true">⚠</span><span class="op-what">${what}${step}${at}</span>${conf}<span class="grow"></span>`
       + `<button data-op="opContinue" title="${n ? 'Resolve and stage the conflicted files first' : 'Go on (keeps the prepared commit message; no editor opens)'}"${n ? ' class="secondary"' : ''}>Continue</button>`
       + (op.kind !== 'merge' ? `<button data-op="opSkip" class="secondary" title="Leave this commit out and go on">Skip</button>` : '')
@@ -959,6 +1001,14 @@
     bar.hidden = false;
   }
   $('#opbar').addEventListener('click', (e) => {
+    const f = e.target.closest('.op-file');
+    if (f) { vscode.postMessage({ type: 'fileAction', act: 'resolve', ref: null, path: f.dataset.path }); return; }
+    if (e.target.closest('.op-more') && data && data.op) {
+      const r = e.target.getBoundingClientRect();
+      showMenu(data.op.conflicts.map((p) => [`Open ${p} in the merge editor`, () => vscode.postMessage({ type: 'fileAction', act: 'resolve', ref: null, path: p })]), r.left, r.bottom);
+      e.stopPropagation();
+      return;
+    }
     const c = e.target.closest('.op-sha');
     if (c && indexBySha.has(c.dataset.sha)) select(c.dataset.sha, true);
   });

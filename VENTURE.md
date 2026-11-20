@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.9.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 9).
+**Mergeline 0.10.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 10).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.9.0
-  (`mergeline-0.9.0.vsix`, 65 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.10.0
+  (`mergeline-0.10.0.vsix`, 67 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  25 SEO guides (session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  27 SEO guides (session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (25 URLs). Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (27 URLs). Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -172,6 +172,14 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   that go, copy URL, open on forge; the old "Remotes" checkbox is now "Remote branches"); **Stop at this commit to change it** (`edit`
   op in `src/core/rewrite.ts`; the rebase stops there and the existing bar's Continue amends with the staged changes). A webview test hook
   `click` (selector, ctrl) lets the e2e click real DOM elements.
+  **0.10.0 added:** **fixup commits** (commit menu "Create fixup commit for this": `git commit --fixup=<sha>` from the staged changes, offers
+  `git add -u` when nothing is staged; "Squash N fixup commits into their targets…" when the editable line has fixup!/squash!/amend! commits:
+  `findFixups` in `src/core/rewrite.ts` matches targets as `--autosquash` does, then op `autosquash` runs `git rebase -i --autosquash --autostash`
+  from the oldest target's parent with `GIT_SEQUENCE_EDITOR=true`, with the usual pushed warning and Undo); **conflicted files named in the
+  in-progress bar** (first 3, then "+N more ▾" menu; click → `git.openMergeEditor`, falls back to the plain file; `fileAction` act `resolve`
+  in `src/ext/panel.ts`); **append-only Load more** (`GraphPanel.load` keeps the `LayoutState`; when only the page size changed and the shown
+  commits are a prefix of the new list it posts `{type:'append'}` with just the new rows; webview `appendData`). Fixed with it: the webview's
+  `headReach`/`editableSet` caches are keyed on `data` and went stale on append.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -320,6 +328,26 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     Mergeline paragraphs against the shipped labels. Link check: 0 broken internal links, 0 descriptions over 155 chars.
   - Not verified: real clicks in the remote quick picks (the e2e passes `op` and stubs the modal); "Open on GitHub" for a remote opening a
     browser; review mode on a branch's "Changes since it split" diff (same key logic, not exercised end to end).
+- Verified 2026-11-20 (session 10), on the minified packaged 0.10.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 29/29, also with an empty `HOME` and `GIT_CONFIG_NOSYSTEM=1` (new: `findFixups` matches by exact
+    subject, hash prefix, subject prefix and nested `fixup! fixup!`, leaves out a fixup with no target, stops at a merge; autosquash from the root
+    folds 3 fixups into the right commits with a staged file kept by autostash; and the random-DAG test now checks that laying out a list in two
+    calls with the carried state gives the same packed rows and width as one call, 200 DAGs).
+  - `node scripts/e2e.mjs` in VS Code 1.147: 37/37 twice on the packaged build (plus 36/36 and 37/37 runs during development). New checks: load more
+    sends pages as `append` and the webview's rows, end text, HEAD-reachable count and editable-line count equal a full reload; a **real click** on the
+    conflicted file in the bar opens a `TabInputTextMerge` tab for `m.txt`; fixup: menu item present, refused with no changes, stubbed "Stage all" stages
+    only tracked files, `fixup! Fix F1` created, menu then shows "Squash 1 fixup commit into its target…", autosquash leaves `Fix F2`, `Fix F1` with the fix.
+  - Mutation check: with the cache reset removed from `appendData`, the load-more e2e check fails on the HEAD-reachable count (so the check catches it).
+  - Payload (`scripts/bench.ts`, commits-only clone of git.git at f7de8145, 83,079 commits, git 2.53.0): loading to 5,000 commits in pages of 500 posts
+    11.85 MB re-sending everything vs 2.03 MB appending; extension-side layout + serialise 597 ms vs 89 ms. Webview-side time not measured.
+  - Headless Chromium (`OPBAR=1`, dark and light; looked at both): five conflicted files show as `app.ts README.md index.ts +2 more ▾`; at 1280 px the
+    Source Control button wraps to a second line. Saved as `docs/screenshot-rebase.png`. `INTERACT=1` steps still pass (exit 0).
+  - `code --install-extension mergeline-0.10.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.10.0`. Package 67.4 KB, 30 keywords
+    (added "fixup commit", "merge editor"; dropped "tags", "branches").
+  - Guides (subagent): git 2.53.0 in throwaway repos; VS Code labels read from `/snap/code/281/.../extensions/{git,merge-conflict}` and
+    `out/nls.messages.json`. Link check: 1,071 internal links, 0 broken; 0 descriptions over 155 chars; sitemap 27 URLs.
+  - Not verified: clicking "+N more ▾" inside VS Code (only rendered in Chromium); the "Squash now" button on the notification (the e2e calls the
+    `autosquash` action directly); autosquash with `squash!` commits (git keeps both messages since no editor opens; not tested); Windows.
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -328,6 +356,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 10): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2, v0.9.0 1 (read before the
+  v0.10.0 release); 0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`).
 
 - 2026-11-20 (session 9): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2 (read before the
   v0.9.0 release); 0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search
@@ -367,11 +399,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Edit history, next pieces (0.9 shipped "Stop at this commit"): "Create fixup commit for this" (`git commit --fixup` + autosquash), and a
-   conflicted-files list in the bar → click to open the merge editor. Review mode: a "Review changes since it split" item on branch menus and a
-   keyboard shortcut for Next unreviewed.
-3. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
-   already resumable via `LayoutState`; stashes whose base is in the new page and the uncommitted row need care).
+2. Edit history, next pieces (0.10 shipped fixup commits): review mode "Review changes since it split" on branch menus and a keyboard shortcut
+   for Next unreviewed; a "Squash now" end-to-end check (click the notification button).
+3. Load more now appends (0.10). Next for big repos: measure webview-side time per append on git.git (Chromium shot with a large payload), and a
+   "jump to date/commit" that loads straight to it.
 4. Still missing that Git Graph users have: avatars (opt-in; needs network, off by default) and a commit search by changed path
    (0.9 shipped remote management and review mode). Drag-and-drop: cherry-pick onto a non-current branch (checks it out first). (Session 9 fixed the over-long meta descriptions and missing releases links.)
 5. CI now runs e2e in the latest stable VS Code (session 8). Add VSCodium as a second target (download the tarball,
@@ -454,3 +485,8 @@ on the graph). The graph itself stays free.
   35/35 e2e ×3 locally (×2 packaged), Chromium review render (dark/light), vsix install. After push: CI for main and tag v0.9.0 green with unit
   28/28 + e2e 35/35 (run 44754814285), Pages deployed, live index (v0.9, `mergeline-0.9.0.vsix`), both guides, screenshot and sitemap (25 URLs)
   return 200, release asset byte-identical (sha256 0336189e…), sitemap resubmitted (HTTP 204).
+- 2026-11-20 builder (session 10): store tokens still absent. Built 0.10.0: fixup commits (create from staged changes; squash all fixups into their
+  targets with one autosquash rebase), conflicted files named in the in-progress bar (click → merge editor), append-only Load more (git.git to 5,000
+  commits: 11.85 → 2.03 MB posted) and a stale-cache fix it exposed. Two guides by a subagent (fixup/autosquash, resolve merge conflicts; git 2.53
+  checked), screenshot updated. Verified: 29/29 unit (also CI conditions), 37/37 e2e ×2 on the packaged build, a real click opening the merge editor,
+  a mutation run proving the cache check, Chromium renders, vsix install. Post-push CI/Pages results: see the next line.

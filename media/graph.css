@@ -206,3 +206,7 @@ button:disabled { opacity: .5; cursor: default; }
 .rv { width: 13px; height: 13px; flex: none; border: 1px solid var(--vscode-checkbox-border, var(--vscode-descriptionForeground)); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; color: var(--vscode-testing-iconPassed, #3fb950); background: var(--vscode-checkbox-background, transparent); }
 .rv:hover { border-color: var(--vscode-focusBorder); }
 .file.reviewed .fp, .file.reviewed .ad, .file.reviewed .st { opacity: .55; }
+#opbar .op-files { display: inline-flex; flex-wrap: wrap; gap: 2px 8px; }
+#opbar button.link { background: none; border: none; padding: 0; margin: 0; font: inherit; font-family: var(--vscode-editor-font-family); color: var(--vscode-textLink-foreground); cursor: pointer; min-width: 0; }
+#opbar button.link:hover { text-decoration: underline; background: none; }
+#opbar button.link:focus-visible { outline: 1px solid var(--vscode-focusBorder); }

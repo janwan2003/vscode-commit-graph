@@ -170,6 +170,37 @@ exports.run = async function run() {
     await until(() => panel.lastData.commits.filter((c) => c.kind === 'commit').length === 8, 10000, 'page size restored');
   });
 
+  await check('load more appends only the new rows, and the webview ends up with what a full reload sends', async () => {
+    const count = () => panel.lastData.commits.filter((c) => c.kind === 'commit').length;
+    const ping = async (n) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.loaded === n && panel.lastPong; }, 10000, `webview has ${n} rows`);
+    const kinds = [];
+    const post0 = panel.post.bind(panel);
+    panel.post = (m) => { if (m && (m.type === 'data' || m.type === 'append')) kinds.push(m.type + ':' + m.commits.length); return post0(m); };
+    try {
+      await vscode.workspace.getConfiguration('mergeline').update('initialCommits', 3, vscode.ConfigurationTarget.Workspace);
+      await until(() => count() < 8, 10000, 'small page');
+      // Fill the webview's per-data caches (reachability, editable line) while pages are still arriving.
+      panel.lastPong = null; await panel.ping(); await until(() => panel.lastPong, 10000, 'first pong');
+      // The webview asks for more by itself while the list is shorter than the view; ask once more in case it stopped.
+      await until(async () => { if (count() < 8) await panel.testMessage({ type: 'loadMore' }); return count() === 8; }, 15000, 'all pages loaded');
+      const appends = kinds.filter((k) => k.startsWith('append'));
+      assert.ok(appends.length >= 1, 'pages after the first arrive as appends: ' + kinds.join(' '));
+      assert.equal(panel.lastSent.kind, 'append', 'the last page was an append: ' + kinds.join(' '));
+      const a = await ping(panel.lastData.commits.length);
+      await panel.refresh(true);
+      assert.equal(panel.lastSent.kind, 'data', 'a refresh sends everything');
+      const b = await ping(panel.lastData.commits.length);
+      assert.equal(a.packedJson, b.packedJson, 'appended rows equal the full layout');
+      assert.equal(a.moreText, b.moreText);
+      assert.equal(a.reachN, b.reachN, 'commits reachable from HEAD (dimming) recomputed after the append');
+      assert.equal(a.editableN, b.editableN, 'editable line recomputed after the append');
+    } finally {
+      panel.post = post0;
+      await vscode.workspace.getConfiguration('mergeline').update('initialCommits', undefined, vscode.ConfigurationTarget.Workspace);
+    }
+    await until(() => count() === 8 && !panel.lastData.hasMore, 10000, 'page size restored');
+  });
+
   await check('commit order: topology keeps a branch together, saved as a setting', async () => {
     await panel.testMessage({ type: 'order', order: 'topo' });
     assert.equal(vscode.workspace.getConfiguration('mergeline').get('commitOrder'), 'topo');
@@ -359,7 +390,7 @@ exports.run = async function run() {
         await panel.testPost({ type: 'reveal', sha: s });
         return (await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === s && panel.lastPong; }, 10000, 'pong')).editMenu;
       };
-      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Move commit up (newer)', 'Move commit down (older)', 'Squash into parent', 'Stop at this commit to change it…', 'Drop commit…']);
+      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Move commit up (newer)', 'Move commit down (older)', 'Squash into parent', 'Stop at this commit to change it…', 'Create fixup commit for this', 'Drop commit…']);
       const merge = panel.lastData.commits.find((c) => c.parents.length > 1 && c.kind === 'commit');
       assert.deepEqual(await editMenu(merge.sha), [], 'no edit items on a merge');
       // Reword an older commit; uncommitted changes survive (autostash).
@@ -465,6 +496,12 @@ exports.run = async function run() {
       const p3 = await pong((p) => /Merging/.test(p.opbar), 'merge bar');
       assert.match(p3.opbar, /Merging move-side into main.*1 conflicted file/);
       assert.ok(!/Skip/.test(p3.opbar), 'no Skip for a merge');
+      // The conflicted file is listed by name; a real click on it opens VS Code's merge editor for it.
+      assert.match(p3.opbar, /conflicted file:\s*m\.txt/);
+      panel.testPost({ type: 'click', selector: '#opbar .op-file' });
+      const tab = await until(() => { const t = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((x) => x.input instanceof vscode.TabInputTextMerge); return t; }, 15000, 'merge editor tab');
+      assert.equal(fs.realpathSync(tab.input.result.fsPath), fs.realpathSync(root + '/m.txt'));
+      await vscode.window.tabGroups.close(tab);
       await act({ action: 'opAbort' });
       assert.ok(!fs.existsSync(root + '/.git/MERGE_HEAD'));
       assert.equal(git('rev-parse', 'HEAD'), beforeMove);
@@ -492,6 +529,37 @@ exports.run = async function run() {
       assert.equal(panel.lastData.op, null);
       assert.deepEqual(git('log', '-2', '--format=%s').split('\n'), ['Stop S2', 'Stop S1']);
       assert.equal(git('show', 'HEAD~1:stop1.txt'), 'one, changed');
+    });
+
+    await check('fixup commit from the commit menu (stages tracked changes when nothing is staged), then squash fixups into their targets', async () => {
+      const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+      wf('fx1.txt', 'one\n'); git('add', '-A'); git('commit', '-q', '-m', 'Fix F1');
+      wf('fx2.txt', 'two\n'); git('add', '-A'); git('commit', '-q', '-m', 'Fix F2');
+      await panel.refresh(true);
+      const f1 = git('rev-parse', 'HEAD~1');
+      const menuOf = async (s) => {
+        await panel.testPost({ type: 'reveal', sha: s });
+        return (await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === s && panel.lastPong; }, 10000, 'pong')).editMenu;
+      };
+      assert.ok((await menuOf(f1)).includes('Create fixup commit for this'));
+      assert.ok(!(await menuOf(f1)).some((l) => /fixup commits? into/.test(l)), 'no squash-fixups item before there is one');
+      // Nothing staged, nothing changed: refused, no commit.
+      const before = git('rev-parse', 'HEAD');
+      await act({ action: 'createFixup', sha: f1, subject: 'Fix F1', current: 'main' });
+      assert.equal(git('rev-parse', 'HEAD'), before, 'no fixup without changes');
+      // An unstaged change to a tracked file plus an untracked file: the (stubbed) dialog stages tracked changes only.
+      wf('fx1.txt', 'one, fixed\n'); wf('fx-untracked.txt', 'keep me out\n');
+      await act({ action: 'createFixup', sha: f1, subject: 'Fix F1', current: 'main' });
+      assert.equal(git('log', '-1', '--format=%s'), 'fixup! Fix F1');
+      assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').split('\n'), ['fx1.txt']);
+      await panel.refresh(true);
+      assert.ok((await menuOf(f1)).includes('Squash 1 fixup commit into its target…'));
+      await act({ action: 'autosquash', current: 'main' });
+      assert.deepEqual(git('log', '-3', '--format=%s').split('\n').slice(0, 2), ['Fix F2', 'Fix F1']);
+      assert.equal(git('show', 'HEAD~1:fx1.txt'), 'one, fixed');
+      assert.equal(fs.readFileSync(root + '/fx-untracked.txt', 'utf8'), 'keep me out\n', 'untracked file left alone');
+      fs.rmSync(root + '/fx-untracked.txt');
+      await panel.refresh(true);
     });
 
     await check('drag a commit: move it after another, squash it into another; branch checklist; dim other commits', async () => {

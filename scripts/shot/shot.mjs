@@ -36,7 +36,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
     if (${process.env.OPBAR === '1'}) {
       const c = P.data.commits.filter((x) => x.kind === 'commit');
       const onto = (P.data.refs.find((r) => r.type === 'head' && r.name !== P.data.branch) || {}).sha || c[6].sha;
-      P.data.op = { kind: 'rebase', branch: P.data.branch, onto, step: 2, total: 5, stopped: c[3].sha, stoppedSubject: c[3].subject, conflicts: ['src/app.ts', 'README.md'] };
+      P.data.op = { kind: 'rebase', branch: P.data.branch, onto, step: 2, total: 5, stopped: c[3].sha, stoppedSubject: c[3].subject, conflicts: ['src/app.ts', 'README.md', 'src/search/index.ts', 'package.json', 'docs/guide.md'] };
     }
     window.postMessage(P.data, '*');
     setTimeout(() => {

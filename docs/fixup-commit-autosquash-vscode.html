@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git commit --fixup and --autosquash in VS Code: fix an earlier commit | Mergeline</title>
+<meta name="description" content="Fix an earlier commit with git commit --fixup, amend! and squash! commits, then fold them in with rebase -i --autosquash. Config, pushed commits, undo.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/fixup-commit-autosquash-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git commit --fixup and --autosquash in VS Code: fix an earlier commit">
+<meta property="og:description" content="Record a fix for an older commit now and fold it in later: --fixup, --fixup=amend:, --fixup=reword:, --squash, rebase --autosquash, and force-with-lease.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/fixup-commit-autosquash-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>git commit --fixup and --autosquash: fix an earlier commit</h1>
+    <p>You are three commits further on and notice that an older commit has a bug, a missing file or a bad message. Rather than stopping to rebase right now, you can record the correction as a <em>fixup commit</em> that names its target, keep working, and fold every such commit into place later with one rebase. This guide covers the four kinds of these commits, the <code>--autosquash</code> rebase that applies them, the config that makes it the default, what to do if the branch is already pushed, and how to undo it.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What a fixup commit is</a></li>
+        <li><a href="#create">Create one: <code>git commit --fixup</code></a></li>
+        <li><a href="#kinds">fixup!, squash! and amend!</a></li>
+        <li><a href="#autosquash">Fold them in: <code>rebase -i --autosquash</code></a></li>
+        <li><a href="#config">Make it the default: <code>rebase.autoSquash</code></a></li>
+        <li><a href="#pushed">Commits you already pushed</a></li>
+        <li><a href="#undo">Undo an autosquash</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Record staged changes as a fix for an older commit</td><td><code>git commit --fixup=&lt;commit&gt;</code></td></tr>
+          <tr><td>Same, staging changes to tracked files first</td><td><code>git add -u</code>, then <code>git commit --fixup=&lt;commit&gt;</code></td></tr>
+          <tr><td>Fix the content <em>and</em> replace the message</td><td><code>git commit --fixup=amend:&lt;commit&gt;</code></td></tr>
+          <tr><td>Replace only the message</td><td><code>git commit --fixup=reword:&lt;commit&gt;</code></td></tr>
+          <tr><td>Add changes and append to the message</td><td><code>git commit --squash=&lt;commit&gt;</code></td></tr>
+          <tr><td>Fold all of them into their targets</td><td><code>git rebase -i --autosquash &lt;oldest target&gt;^</code></td></tr>
+          <tr><td>Same, with no editor and uncommitted work kept</td><td><code>GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash --autostash &lt;base&gt;</code></td></tr>
+          <tr><td>Always autosquash in <code>rebase -i</code></td><td><code>git config --global rebase.autoSquash true</code></td></tr>
+          <tr><td>Push the rewritten branch</td><td><code>git push --force-with-lease</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="what">What a fixup commit is</h2>
+    <p>A fixup commit is an ordinary commit whose subject line starts with <code>fixup!</code> followed by the subject of the commit it corrects, for example <code>fixup! Add b</code>. Nothing special happens when you make it: it sits on top of your branch like any other commit. The prefix only matters later, when a rebase with <code>--autosquash</code> reads it, moves the commit to just below its target in the todo list, and marks it to be melded in. The result is the history you would have had if the original commit had been right the first time.</p>
+    <p>This works well on a feature branch before review or before merging, when you want clean, self-contained commits but do not want to break your flow every time you spot a mistake.</p>
+
+    <h2 id="create">Create one: <code>git commit --fixup</code></h2>
+    <p>Stage the correction, then name the commit it belongs to by hash (or any other reference git accepts, such as <code>HEAD~2</code>):</p>
+<pre><span class="k">git log --oneline</span>
+<span class="o">6b59a1f Add c
+ce4b2a6 Add b
+085debd Add a</span>
+<span class="k">git add -u</span>
+<span class="k">git commit --fixup=</span>ce4b2a6
+<span class="k">git log -1 --format=%s</span>
+<span class="o">fixup! Add b</span></pre>
+    <p>No editor opens; the message is generated for you. <code>--fixup</code> commits only what is staged. With nothing staged it stops with <code>nothing to commit, working tree clean</code>, and with changes that are only in your working files it stops with <code>no changes added to commit</code>. <code>git add -u</code> stages every change to files git already tracks (new files are left alone), or <code>git commit -a --fixup=&lt;commit&gt;</code> does both steps at once.</p>
+
+    <h2 id="kinds">fixup!, squash! and amend!</h2>
+    <p>Git has three more variations. They differ in what happens to the target&rsquo;s message, and in what the autosquash rebase writes into the todo list:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Create with</th><th scope="col">Subject</th><th scope="col">Todo command</th><th scope="col">Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>--fixup=&lt;c&gt;</code></td><td><code>fixup! &lt;subject&gt;</code></td><td><code>fixup</code></td><td>The changes go into the target; the target&rsquo;s message stays as it is.</td></tr>
+          <tr><td><code>--squash=&lt;c&gt;</code></td><td><code>squash! &lt;subject&gt;</code></td><td><code>squash</code></td><td>The changes go into the target, and the new commit&rsquo;s message is added to the target&rsquo;s. Add a body with <code>-m</code> or in the editor.</td></tr>
+          <tr><td><code>--fixup=amend:&lt;c&gt;</code></td><td><code>amend! &lt;subject&gt;</code></td><td><code>fixup -C</code></td><td>The changes go into the target, and the message you write replaces the target&rsquo;s.</td></tr>
+          <tr><td><code>--fixup=reword:&lt;c&gt;</code></td><td><code>amend! &lt;subject&gt;</code></td><td><code>fixup -C</code></td><td>Only the target&rsquo;s message changes. The commit is empty, even if you have staged changes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Both <code>amend:</code> and <code>reword:</code> open the editor with <code>amend! &lt;subject&gt;</code> on the first line; leave that line alone and write the new message below it. They cannot be combined with <code>-m</code> (git stops with <code>options '-m' and '--fixup:amend' cannot be used together</code>). With <code>reword:</code>, anything you had staged is still staged afterwards, so it is not lost. If you only want to fix the message of the <em>newest</em> commit, <code>git commit --amend</code> is simpler; the <a href="edit-commit-message-vscode.html">edit a commit message guide</a> covers both.</p>
+
+    <h2 id="autosquash">Fold them in: <code>git rebase -i --autosquash</code></h2>
+    <p>When you are ready, rebase from the parent of the <strong>oldest</strong> commit that has a fixup aimed at it. Here the oldest target is <code>Add a</code>, which is the first commit of the repository, so <code>--root</code> takes the place of a base:</p>
+<pre><span class="k">git log --oneline</span>
+<span class="o">98af330 Unrelated later commit
+eb5c37e amend! Add c
+b901680 amend! Add a
+c1e87df squash! Add b
+6fffe0e fixup! Add b
+6b59a1f Add c
+ce4b2a6 Add b
+085debd Add a</span>
+<span class="k">git rebase -i --autosquash --root</span>     <span class="c"># if the oldest target is not the first commit: &lt;target&gt;^</span></pre>
+    <p>The todo list opens already rearranged. Each <code>fixup!</code>, <code>squash!</code> and <code>amend!</code> commit has been moved under its target and given the matching command:</p>
+<pre>pick 085debd # Add a
+<span class="k">fixup -C</span> b901680 # amend! Add a
+pick ce4b2a6 # Add b
+<span class="k">fixup</span> 6fffe0e # fixup! Add b
+<span class="k">squash</span> c1e87df # squash! Add b
+pick 6b59a1f # Add c
+<span class="k">fixup -C</span> eb5c37e # amend! Add c # empty
+pick 98af330 # Unrelated later commit</pre>
+    <p>Usually you just save and close. The result has four commits: <code>Add a</code> with its new message, <code>Add b</code> with both fixes and the squash note appended to its message, <code>Add c</code> with its new message, and the unrelated commit unchanged.</p>
+    <p>Pick the base carefully. A target has to be <em>inside</em> the rebase to receive its fixup. Running the same rebase from <code>HEAD~7</code> (which is <code>Add a</code> itself) leaves <code>amend! Add a</code> as a plain <code>pick</code>, so it stays in your history as a separate commit. Git matches a fixup to its target by subject, or by hash if what follows <code>fixup!</code> is a hash, so two commits with the same subject can confuse it; check the todo list before saving.</p>
+    <p>Two flags make it hands-free:</p>
+<pre>GIT_SEQUENCE_EDITOR=: <span class="k">git rebase -i --autosquash --autostash</span> &lt;oldest target&gt;^</pre>
+    <ul>
+      <li><code>GIT_SEQUENCE_EDITOR=:</code> accepts the todo list without opening it (<code>:</code> is a shell command that does nothing). This is bash and zsh syntax.</li>
+      <li><code>--autostash</code> stashes uncommitted changes before the rebase and puts them back afterwards. Without it, the rebase refuses to start on a dirty working tree.</li>
+    </ul>
+    <p>A <code>squash</code> step still opens your editor so you can combine the two messages. To keep the message git prepares without editing it, add <code>GIT_EDITOR=true</code> as well; the <code>squash!</code> subject line itself is dropped and its body is kept. If a step conflicts, the rebase stops like any other: see <a href="rebase-conflict-continue-abort-vscode.html">continue, skip or abort a stopped rebase</a>. The <a href="interactive-rebase-vscode.html#editor">interactive rebase guide</a> shows how to get the todo list in a VS Code tab instead of Vim.</p>
+
+    <h2 id="config">Make it the default: <code>rebase.autoSquash</code></h2>
+<pre><span class="k">git config --global rebase.autoSquash</span> true</pre>
+    <p>With this set, every <code>git rebase -i</code> rearranges fixup commits without needing the flag, and <code>--no-autosquash</code> turns it off for one run. In the git version tested here (2.53), the setting did not affect a plain <code>git rebase &lt;base&gt;</code> without <code>-i</code>; that rebase left the fixup commits as they were. Passing <code>--autosquash</code> explicitly to a non-interactive rebase did fold them in. Older git versions may behave differently, so check <code>git rebase --help</code> for yours.</p>
+
+    <h2 id="pushed">Commits you already pushed</h2>
+    <p>Folding fixups in rewrites every commit from the oldest target onward, so they all get new hashes. If the branch was already pushed, a normal push is refused:</p>
+<pre><span class="k">git push</span>
+<span class="o"> ! [rejected]        main -> main (non-fast-forward)</span>
+<span class="k">git push --force-with-lease</span>
+<span class="o"> + 98af330...0358be4 main -> main (forced update)</span></pre>
+    <p><code>--force-with-lease</code> overwrites the remote branch only if it still points where your last fetch saw it, so it will not silently throw away commits someone else pushed in the meantime. To see beforehand whether a commit is already on a remote branch, run <code>git branch -r --contains &lt;commit&gt;</code>; any output means it has been pushed. Do not rewrite a shared branch such as <code>main</code> that others have pulled; there, leave the fix as an ordinary commit.</p>
+
+    <h2 id="undo">Undo an autosquash</h2>
+    <p>A rebase records where your branch was before it started in <code>ORIG_HEAD</code>, so right after it finishes you can go back:</p>
+<pre><span class="k">git reset --hard ORIG_HEAD</span></pre>
+    <p><code>--hard</code> overwrites uncommitted changes, so commit or stash them first. If you have since run another reset, rebase or merge, <code>ORIG_HEAD</code> has moved on; find the old position in <code>git reflog</code> instead, as the <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a> explains.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>From Mergeline 0.10 you can create fixup commits and fold them in from the graph, picking the target by clicking it instead of copying a hash.</p>
+      <ol class="steps">
+        <li><strong>Stage the fix</strong> in the Source Control view as usual (or skip this step and let Mergeline stage for you).</li>
+        <li><strong>Create the fixup.</strong> Right-click the commit you are correcting and choose <strong>Create fixup commit for this</strong>. It is offered on commits of the checked-out branch&rsquo;s own line. Mergeline runs <code>git commit --fixup=&lt;that commit&gt;</code> with your staged changes; if nothing is staged, it offers to stage all changes to tracked files first (<code>git add -u</code>). The new <code>fixup!</code> commit appears at the top of the graph.</li>
+        <li><strong>Fold them in.</strong> When the checked-out branch has <code>fixup!</code>, <code>squash!</code> or <code>amend!</code> commits, the right-click menu of a commit on that branch shows <strong>Squash N fixup commits into their targets&hellip;</strong> (<em>into its target</em> when there is only one). It runs <code>git rebase -i --autosquash --autostash</code> from the parent of the oldest target, without opening an editor, so the base is chosen for you. It warns first if the commits are already on a remote branch.</li>
+        <li><strong>Check, then push or undo.</strong> Mergeline offers <strong>Undo</strong> after the squash. If the branch was already pushed, push it with <code>git push --force-with-lease</code> as above.</li>
+      </ol>
+      <p>If a fixup conflicts with a commit between it and its target, the rebase stops and the bar above the graph shows it, with Continue, Skip and Abort; see <a href="rebase-conflict-continue-abort-vscode.html#mergeline">the conflicts guide</a>. Related: <a href="squash-commits-vscode.html">squash commits</a>, <a href="edit-commit-message-vscode.html">edit a commit message</a> and <a href="interactive-rebase-vscode.html">interactive rebase</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html" aria-current="page">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolve git merge conflicts in VS Code: markers, merge editor, ours and theirs | Mergeline</title>
+<meta name="description" content="Resolve git merge conflicts in VS Code: read the markers, Accept Current or Incoming, the 3-way merge editor, ours vs theirs, then stage and continue.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/resolve-merge-conflicts-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Resolve git merge conflicts in VS Code: markers, merge editor, ours and theirs">
+<meta property="og:description" content="Find the conflicted files, read the markers, resolve inline or in the 3-way merge editor, take one side with --ours or --theirs, stage, and continue or abort.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/resolve-merge-conflicts-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Resolve git merge conflicts in VS Code</h1>
+    <p>A merge conflict means two branches changed the same lines, and git will not guess which version you want. It writes both into the file, stops, and leaves the decision to you. This guide shows how to find the conflicted files, read the markers, resolve them with VS Code&rsquo;s inline buttons or its three-way merge editor, take one side of a whole file from the command line, and finish or cancel the merge. The same steps apply when a rebase, cherry-pick or revert stops on a conflict.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#find">Find the conflicted files</a></li>
+        <li><a href="#markers">Read the conflict markers</a></li>
+        <li><a href="#inline">Resolve inline in VS Code</a></li>
+        <li><a href="#mergeeditor">The 3-way merge editor</a></li>
+        <li><a href="#sides">Take one side: <code>--ours</code> and <code>--theirs</code></a></li>
+        <li><a href="#rebase">Ours and theirs flip during a rebase</a></li>
+        <li><a href="#finish">Stage, then continue or abort</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>List only the conflicted files</td><td><code>git diff --name-only --diff-filter=U</code></td></tr>
+          <tr><td>Keep my branch&rsquo;s version of a file (in a merge)</td><td><code>git checkout --ours &lt;file&gt;</code>, then <code>git add &lt;file&gt;</code></td></tr>
+          <tr><td>Keep the other branch&rsquo;s version (in a merge)</td><td><code>git checkout --theirs &lt;file&gt;</code>, then <code>git add &lt;file&gt;</code></td></tr>
+          <tr><td>Start a file over with the markers back</td><td><code>git checkout -m &lt;file&gt;</code></td></tr>
+          <tr><td>Also see the original lines in the markers</td><td><code>git config --global merge.conflictStyle zdiff3</code></td></tr>
+          <tr><td>Mark a file as resolved</td><td><code>git add &lt;file&gt;</code></td></tr>
+          <tr><td>Finish the merge</td><td><code>git merge --continue</code> (or <code>git commit</code>)</td></tr>
+          <tr><td>Cancel the merge</td><td><code>git merge --abort</code></td></tr>
+          <tr><td>Finish a rebase step instead</td><td><code>git rebase --continue</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="find">Find the conflicted files</h2>
+<pre><span class="k">git merge</span> feature
+<span class="o">Auto-merging config.yml
+CONFLICT (content): Merge conflict in config.yml
+Auto-merging notes.txt
+CONFLICT (content): Merge conflict in notes.txt
+Automatic merge failed; fix conflicts and then commit the result.</span></pre>
+    <p>Files git could combine on its own are already staged. The rest are <em>unmerged</em>. <code>git status</code> lists them under <em>Unmerged paths</em> as <code>both modified</code> (or <code>deleted by them</code> and similar when one side deleted the file). For just the names, which is handy in scripts or with many files:</p>
+<pre><span class="k">git diff --name-only --diff-filter=U</span>
+<span class="o">config.yml
+notes.txt</span></pre>
+    <p>In VS Code the same files appear in the Source Control view in a group called <strong>Merge Changes</strong>.</p>
+
+    <h2 id="markers">Read the conflict markers</h2>
+    <p>Inside each conflicted file, git marks every block it could not combine:</p>
+<pre>title: Report
+<span class="k">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</span>
+color: red
+<span class="k">=======</span>
+color: green
+<span class="k">&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature</span>
+size: 10</pre>
+    <p>The part between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code> and <code>=======</code> is what your checked-out branch has. The part down to <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature</code> is what the branch you are merging in has. Lines outside the markers merged cleanly. To resolve, edit the block into the text you want (one side, the other, or a mix) and delete all three marker lines.</p>
+    <p>Often you cannot decide without knowing what the line was <em>before</em> either branch changed it. Set the <code>zdiff3</code> style and git adds that original between <code>|||||||</code> and <code>=======</code>:</p>
+<pre><span class="k">git config --global merge.conflictStyle</span> zdiff3
+<span class="o">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+color: red
+||||||| 824d4dd
+color: blue
+=======
+color: green
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature</span></pre>
+    <p>Now it is clear that both sides changed <code>blue</code>, each to something different. The setting affects conflicts from then on. For a file that is already conflicted, <code>git checkout --conflict=zdiff3 &lt;file&gt;</code> rewrites its markers in this style (labelled <code>ours</code>, <code>base</code> and <code>theirs</code>), discarding any edits you made to it. <code>diff3</code> is the older variant of the same idea.</p>
+
+    <h2 id="inline">Resolve inline in VS Code</h2>
+    <p>Open a conflicted file from <strong>Merge Changes</strong> and VS Code colours the two sides and puts a row of actions above each block:</p>
+    <ul>
+      <li><strong>Accept Current Change</strong> keeps the <code>HEAD</code> side.</li>
+      <li><strong>Accept Incoming Change</strong> keeps the side being merged in.</li>
+      <li><strong>Accept Both Changes</strong> keeps both, one after the other.</li>
+      <li><strong>Compare Changes</strong> opens the two sides as a diff.</li>
+    </ul>
+    <p>Each one rewrites the block and removes its markers. For a file with many blocks, the Command Palette has <strong>Merge Conflict: Accept All Current</strong>, <strong>Accept All Incoming</strong> and <strong>Accept All Both</strong>, and <strong>Next Conflict</strong> / <strong>Previous Conflict</strong> to move between blocks. You can always ignore the buttons and edit the text by hand instead.</p>
+
+    <h2 id="mergeeditor">The 3-way merge editor</h2>
+    <p>When a conflicted file is open, a <strong>Resolve in Merge Editor</strong> button appears in the editor. It opens a view with the two sides, labelled <strong>Incoming</strong> and <strong>Current</strong>, next to each other and the <strong>Result</strong> below. Each conflict in the side panes has actions to accept that side, and <strong>Accept Combination</strong> takes both. You can also type in the Result pane directly.</p>
+    <p>When you are done, click <strong>Complete Merge</strong>. VS Code saves the result, stages the file (the same as <code>git add</code>) and switches to the Source Control view. If the file still has conflicts you have not handled, it asks first. To open conflicted files in the merge editor straight away, turn on the setting <code>git.mergeEditor</code> (it is off by default).</p>
+
+    <h2 id="sides">Take one side for a whole file: <code>--ours</code> and <code>--theirs</code></h2>
+    <p>Sometimes one version of a file is simply right, for example a generated lock file you will regenerate anyway. Instead of handling every block:</p>
+<pre><span class="k">git checkout --ours</span> notes.txt      <span class="c"># the version on the branch you are on</span>
+<span class="k">git checkout --theirs</span> notes.txt    <span class="c"># the version from the branch being merged in</span>
+<span class="k">git add</span> notes.txt</pre>
+    <p><code>git restore --ours</code> and <code>git restore --theirs</code> do the same. Either way the file stays unmerged until you <code>git add</code> it, so you can look before committing to the choice. Only take a whole side when you are sure: any change the other side made to that file is dropped.</p>
+    <p>Git keeps all three versions of a conflicted file while it is unmerged, and you can print any of them: <code>git show :1:&lt;file&gt;</code> is the common ancestor, <code>:2:</code> is ours and <code>:3:</code> is theirs. If a resolution went wrong, <code>git checkout -m &lt;file&gt;</code> puts the conflict markers back so you can start that file again. It works even after you have staged the file, as long as the merge has not been committed yet. Once staged, <code>--ours</code> and <code>--theirs</code> no longer change the file, so use <code>checkout -m</code> first.</p>
+
+    <h2 id="rebase">Ours and theirs flip during a rebase</h2>
+    <p>A rebase replays your commits on top of the other branch. So while it runs, <code>HEAD</code> is the other branch (plus whichever of your commits have been replayed so far), and the commit being applied is yours. Everything that means &ldquo;my side&rdquo; in a merge means the opposite here:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Name</th><th scope="col">In <code>git merge feature</code> (on <code>main</code>)</th><th scope="col">In <code>git rebase main</code> (on <code>feature</code>)</th></tr></thead>
+        <tbody>
+          <tr><td><code>--ours</code>, top of the markers, VS Code&rsquo;s &ldquo;Current&rdquo;</td><td><code>main</code>, the branch you are on</td><td><code>main</code>, the branch you are rebasing onto</td></tr>
+          <tr><td><code>--theirs</code>, bottom of the markers, VS Code&rsquo;s &ldquo;Incoming&rdquo;</td><td><code>feature</code>, the branch merged in</td><td>Your own commit on <code>feature</code> being replayed</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The marker line shows which commit is being replayed, for example <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; 853bf79 (Use green)</code>. So to keep your own version of a file during a rebase, run <code>git checkout --theirs &lt;file&gt;</code>. A cherry-pick and a revert behave like a merge here: ours is your current branch, and theirs is the change being applied.</p>
+
+    <h2 id="finish">Stage, then continue or abort</h2>
+    <p>Saving a file does not tell git anything. Staging it does: <code>git add &lt;file&gt;</code>, or the <strong>+</strong> next to it in Source Control. Search for <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> before you stage, because git will accept a file that still contains markers. When <code>git diff --name-only --diff-filter=U</code> prints nothing, finish:</p>
+<pre><span class="k">git merge --continue</span>      <span class="c"># or git commit; both create the merge commit</span>
+<span class="k">git merge --abort</span>         <span class="c"># or give up and go back to before the merge</span></pre>
+    <p>If any file is still unmerged, both refuse with <code>Committing is not possible because you have unmerged files.</code> <code>git merge --continue</code> opens your editor with a prepared message (<code>Merge branch 'feature'</code>); prefix the command with <code>GIT_EDITOR=true</code> to accept it without the editor. <code>git merge --abort</code> restores your branch and files to how they were before the merge; untracked files are left alone. In VS Code, the Commit button in Source Control finishes the merge, and <strong>Git: Abort Merge</strong> in the Command Palette cancels it.</p>
+    <p>For a rebase, the commands are <code>git rebase --continue</code> and <code>git rebase --abort</code>, and there is also <code>--skip</code>; a rebase can stop again at a later commit. During a rebase the Source Control commit button reads <strong>Continue</strong>. The <a href="rebase-conflict-continue-abort-vscode.html">guide to a stopped rebase, merge or cherry-pick</a> covers continue, skip and abort for every operation, how to avoid the editor, empty commits, and undoing a finished one with <code>ORIG_HEAD</code>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>Mergeline shows a bar above the graph whenever a merge, rebase, cherry-pick or revert has stopped, whether you started it from the graph or from a terminal, for example <em>Merging feature into main</em> or <em>Rebasing &hellip; step 2 of 3</em>.</p>
+      <ol class="steps">
+        <li><strong>See the files.</strong> From Mergeline 0.10 the bar lists the conflicted files, so you do not need <code>git status</code>.</li>
+        <li><strong>Open one.</strong> Click a file name and it opens in VS Code&rsquo;s merge editor (or as a plain file, with the inline actions, if the merge editor cannot open it). Resolve it as described above; <strong>Complete Merge</strong> stages it. The <strong>Source Control</strong> button in the bar opens the full list there.</li>
+        <li><strong>Continue.</strong> When every file is resolved and staged, click <strong>Continue</strong> in the bar. For a rebase that stops again at a later commit, the bar moves on to that step.</li>
+        <li><strong>Or skip or abort.</strong> <strong>Skip</strong> leaves out the commit that stopped (not shown for merges). <strong>Abort</strong> cancels the whole operation and puts everything back.</li>
+      </ol>
+      <figure class="shot"><img src="screenshot-rebase.png" width="1280" height="800" loading="lazy" alt="Mergeline's bar above the commit graph: Rebasing main onto feature/dark-mode, step 2 of 5, stopped at a commit, 5 conflicted files (three listed by name, each opening the merge editor), with Continue, Skip, Abort and Source Control buttons."><figcaption>A rebase stopped on a conflict, as shown above the graph.</figcaption></figure>
+      <p>What each button runs, and what it checks first, is in <a href="rebase-conflict-continue-abort-vscode.html#mergeline">the stopped-rebase guide</a>. To avoid conflicts in the first place, see <a href="git-rebase-vs-merge.html">rebase vs merge</a>; to bring in a single commit, <a href="cherry-pick-commit-vscode.html">cherry-pick</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html" aria-current="page">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

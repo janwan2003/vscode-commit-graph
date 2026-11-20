@@ -20,7 +20,9 @@ export type RewriteOp =
    */
   | { kind: 'place'; sha: string; target: string; fold: boolean }
   /** Squash the commits from `from` (oldest) to `to` (newest), inclusive, into one with `message`. */
-  | { kind: 'squash'; from: string; to: string; message: string };
+  | { kind: 'squash'; from: string; to: string; message: string }
+  /** Fold every fixup!/squash!/amend! commit into its target (git's --autosquash); `sha` is the oldest target. */
+  | { kind: 'autosquash'; sha: string };
 
 export interface RewritePlan {
   /** Rebase base, or null for --root. */
@@ -189,7 +191,12 @@ export async function runRewrite(cwd: string, op0: RewriteOp, plan: RewritePlan,
   let done = false;
   try {
     // Reword of HEAD itself needs no rebase.
-    if (op.kind === 'reword' && op.sha === plan.head) {
+    if (op.kind === 'autosquash') {
+      // Git's own --autosquash orders the todo; the sequence editor accepts it unchanged.
+      await git(cwd, ['rebase', '-i', '--autosquash', '--autostash', ...(plan.base ? [plan.base] : ['--root'])], {
+        env: { GIT_SEQUENCE_EDITOR: 'true', GIT_EDITOR: 'true' },
+      });
+    } else if (op.kind === 'reword' && op.sha === plan.head) {
       await git(cwd, ['commit', '--amend', '--only', '--allow-empty', '--no-verify', '--cleanup=verbatim', '-F', msgFile]);
     } else {
       writeFileSync(todo, buildTodo(op, plan.commits, msgFile).join('\n') + '\n');
@@ -203,4 +210,43 @@ export async function runRewrite(cwd: string, op0: RewriteOp, plan: RewritePlan,
     rmSync(todo, { force: true });
     if (done) rmSync(msgFile, { force: true });
   }
+}
+
+export interface Fixup {
+  sha: string;
+  kind: 'fixup' | 'squash' | 'amend';
+  subject: string;
+  /** The commit it folds into. */
+  target: string;
+}
+
+/**
+ * fixup!/squash!/amend! commits on the checked-out branch's own line (HEAD back to the first
+ * merge) and the commit each one folds into, matched the way `git rebase --autosquash` does:
+ * the text after the prefixes is an older commit's exact subject, else a hash of one, else the
+ * start of one's subject. Commits without a target on that line are left out.
+ */
+export async function findFixups(cwd: string, limit = 2000): Promise<Fixup[]> {
+  const out = await git(cwd, ['log', '--first-parent', `-n${limit}`, '--format=%H%x00%P%x00%s', 'HEAD']);
+  const line: { sha: string; subject: string }[] = [];
+  for (const row of out.split('\n')) {
+    if (!row) continue;
+    const [sha, parents, subject] = row.split('\0');
+    line.push({ sha, subject });
+    if (parents.split(' ').length > 1) break; // a merge: nothing older can be rewritten linearly
+  }
+  const res: Fixup[] = [];
+  for (let i = 0; i < line.length; i++) {
+    const m = /^(fixup|squash|amend)! /.exec(line[i].subject);
+    if (!m) continue;
+    let rest = line[i].subject.slice(m[0].length);
+    while (/^(fixup|squash|amend)! /.test(rest)) rest = rest.replace(/^(fixup|squash|amend)! /, '');
+    const older = line.slice(i + 1);
+    const t =
+      older.find((c) => c.subject === rest) ??
+      (!rest.includes(' ') && /^[0-9a-f]{4,40}$/i.test(rest) ? older.find((c) => c.sha.startsWith(rest.toLowerCase())) : undefined) ??
+      older.find((c) => c.subject.startsWith(rest));
+    if (t) res.push({ sha: line[i].sha, kind: m[1] as Fixup['kind'], subject: line[i].subject, target: t.sha });
+  }
+  return res;
 }

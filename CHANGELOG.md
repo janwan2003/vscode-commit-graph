@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0 (2026-11-20)
+
+- **Fixup commits.** Right-click a commit on the checked-out branch → **Create fixup commit for this** turns your staged changes into a `fixup!` commit for it (`git commit --fixup`). If nothing is staged it offers to stage your changes to tracked files first (`git add -u`; new files are left out). When the branch has `fixup!`, `squash!` or `amend!` commits, the commit menu offers **Squash N fixup commits into their targets…**: one `git rebase --autosquash` from the parent of the oldest target, with no editor, the usual autostash, a warning when the commits are already pushed, and Undo.
+- **Conflicted files are listed in the bar.** When a rebase, merge, cherry-pick or revert stops on a conflict, the bar above the graph now names the conflicted files (the first three, then **+N more ▾**). Click one to open it in VS Code's 3-way merge editor (the plain file if the merge editor can't open it).
+- **Faster "Load more" in big repositories.** Loading the next page used to lay out and re-send every commit already shown; now only the new commits are laid out and sent, as long as nothing else changed. On git.git, scrolling down to 5,000 commits in pages of 500 now sends 2.0 MB to the graph instead of 11.9 MB.
+- Fixed: after loading more commits, the newly loaded ones could be dimmed by `mergeline.dimOtherCommits` or miss the edit items even when they were on the checked-out branch.
+
 ## 0.9.0 (2026-11-20)
 
 - **Review a commit file by file.** Above a commit's changed files (or a comparison of two commits, or a branch's changes since it split off) there is now a **Review** button; right-click a commit → **Review changes file by file** does the same. Each file gets a check box and the header counts "N of M reviewed". **Next unreviewed** opens the next file's diff in VS Code's diff editor, and opening any file's diff ticks it. Click a check box (or right-click → Mark as not reviewed) to change it. Progress is kept per commit or comparison in the workspace, so you can close VS Code and carry on later; **End review** forgets it. The 200 most recent reviews are kept. Uncommitted changes have no review mode, since they keep changing.

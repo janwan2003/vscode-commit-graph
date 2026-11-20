@@ -36,7 +36,7 @@
 <main id="content">
   <div class="wrap">
     <section class="hero">
-      <span class="tagline">Free and open source (MIT) &middot; v0.9</span>
+      <span class="tagline">Free and open source (MIT) &middot; v0.10</span>
       <h1>Your whole repository as one graph, with the git actions where you need them</h1>
       <p class="lead">Mergeline draws every branch, merge, tag and stash of your repository as an interactive commit graph inside VS Code, VSCodium, Cursor and Windsurf. Right-click a commit or a branch to check it out, merge it, rebase onto it, cherry-pick it, revert it or reset to it. Click a commit to see what changed and open any file in the editor&rsquo;s own diff view. There is no account, no paid tier and no telemetry.</p>
       <div class="cta">
@@ -63,7 +63,8 @@
         <div class="card"><h3>Commit order: date or topology</h3><p>Sort by commit date, author date or topology from the toolbar or the <code>mergeline.commitOrder</code> setting. Topology order keeps each branch&rsquo;s commits together, which means fewer crossing lines on busy repositories.</p></div>
         <div class="card"><h3>Compare any two commits <span class="plus">not built in</span></h3><p><kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to list every file that differs between the two, and open each diff. Or right-click a commit for <strong>Compare with working tree</strong>, or a branch to compare it with the current one, or to see only what it changed since it split off (what a merge would bring in).</p></div>
         <div class="card"><h3>Edit history from the graph <span class="plus">not built in</span></h3><p>Right-click a commit on your branch to <strong>edit its message</strong> (subject and body), <strong>move it up or down</strong>, <strong>squash it into its parent</strong> or <strong>drop it</strong>, or Ctrl/Cmd-click a second commit to squash the range into one. No editor or terminal opens, uncommitted changes are stashed and restored, pushed commits get a warning first, and every change has an <strong>Undo</strong>. <a href="screenshot-edit.png">See it</a>.</p></div>
-        <div class="card"><h3>Review file by file, manage remotes <span class="plus">new in 0.9</span></h3><p>Click <strong>Review</strong> on a commit, a comparison or a branch&rsquo;s changes to get a check mark per file, an <em>N of M reviewed</em> count and a <strong>Next unreviewed</strong> button; progress survives a restart. <strong>Remotes&hellip;</strong> lists your remotes to add, fetch and prune, change a URL, rename or remove. <a href="code-review-commits-vscode.html">Review guide</a> &middot; <a href="manage-git-remotes-vscode.html">Remotes guide</a>.</p></div>
+        <div class="card"><h3>Fixup commits, conflicted files <span class="plus">new in 0.10</span></h3><p>Right-click a commit on your branch and choose <strong>Create fixup commit for this</strong> to turn your staged changes into a <code>fixup!</code> commit, then <strong>Squash fixup commits into their targets</strong> folds them all in with one autosquash rebase, no editor. A stopped rebase or merge now lists its conflicted files in the bar; click one to open the merge editor. <a href="fixup-commit-autosquash-vscode.html">Fixup guide</a> &middot; <a href="resolve-merge-conflicts-vscode.html">Merge conflicts guide</a>.</p></div>
+        <div class="card"><h3>Review file by file, manage remotes <span class="plus">0.9</span></h3><p>Click <strong>Review</strong> on a commit, a comparison or a branch&rsquo;s changes to get a check mark per file, an <em>N of M reviewed</em> count and a <strong>Next unreviewed</strong> button; progress survives a restart. <strong>Remotes&hellip;</strong> lists your remotes to add, fetch and prune, change a URL, rename or remove. <a href="code-review-commits-vscode.html">Review guide</a> &middot; <a href="manage-git-remotes-vscode.html">Remotes guide</a>.</p></div>
         <div class="card"><h3>Drag a commit <span class="plus">new in 0.8</span></h3><p>Drag a commit from another branch onto your current branch to <strong>cherry-pick</strong> it. Drag a commit on your branch onto another one to <strong>squash it into that commit</strong> or <strong>move it right after it</strong>. Branch menus also gain <strong>Create pull request on GitHub</strong> (GitLab, Bitbucket). <a href="cherry-pick-commit-vscode.html">Cherry-pick guide</a> &middot; <a href="create-pull-request-vscode.html">Pull request guide</a>.</p></div>
         <div class="card"><h3>Stopped rebase? The graph says so</h3><p>When a rebase, merge, cherry-pick or revert stops on a conflict, from the graph or from a terminal, a bar above the graph shows the step, the commit it stopped at and the conflicted files, with <strong>Continue</strong>, <strong>Skip</strong>, <strong>Abort</strong> and <strong>Source Control</strong>. Continue never opens an editor. <a href="rebase-conflict-continue-abort-vscode.html">Guide</a>.</p></div>
         <div class="card"><h3>Drag and drop branches</h3><p>Drag a branch badge onto another branch or any commit, then pick: merge it there, rebase it onto it, move the branch to that commit, or compare the two. Nothing runs until you choose from the menu, and rebases and moves ask first. <a href="screenshot-drag.png">See it</a>.</p></div>
@@ -94,11 +95,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>mergeline-0.9.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>mergeline-0.10.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, VSCodium, Cursor or Windsurf open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and choose the file. From a terminal you can instead run one of:
-<pre>code --install-extension mergeline-0.9.0.vsix
-codium --install-extension mergeline-0.9.0.vsix
-cursor --install-extension mergeline-0.9.0.vsix</pre></li>
+<pre>code --install-extension mergeline-0.10.0.vsix
+codium --install-extension mergeline-0.10.0.vsix
+cursor --install-extension mergeline-0.10.0.vsix</pre></li>
         <li><strong>Open a folder that is a git repository</strong> and trust it when the editor asks (Mergeline runs git commands, so it is disabled in Restricted Mode). Then open the graph in any of three ways: the <strong>Mergeline</strong> button in the Source Control view&rsquo;s title bar, the Mergeline button in the status bar, or the command <strong>Mergeline: Show Commit Graph</strong>.</li>
       </ol>
       <p class="small">Requires VS Code 1.85 or newer (or an editor built on it) and git installed on your machine. Mergeline also works in remote windows such as Remote SSH and WSL; git has to be installed on the remote side.</p>
@@ -113,6 +114,7 @@ cursor --install-extension mergeline-0.9.0.vsix</pre></li>
         <div class="card"><h3><a href="compare-branches-commits-vscode.html">Compare branches and commits</a></h3><p><code>git diff</code> with two dots or three, file and commit lists, one file across branches, and comparing in the editor.</p></div>
         <div class="card"><h3><a href="git-rebase-vs-merge.html">Rebase or merge?</a></h3><p>What each does to your history, when to pick which, and how to recover from either.</p></div>
         <div class="card"><h3><a href="squash-commits-vscode.html">Squash commits</a></h3><p>Interactive rebase, <code>reset --soft</code>, <code>merge --squash</code>, fixup commits, and undoing a squash.</p></div>
+        <div class="card"><h3><a href="fixup-commit-autosquash-vscode.html">Fixup commits and <code>--autosquash</code></a></h3><p>Record a fix for an older commit now, fold it in later: <code>fixup!</code>, <code>squash!</code>, <code>amend!</code> and the autosquash rebase.</p></div>
         <div class="card"><h3><a href="edit-commit-message-vscode.html">Edit a commit message</a></h3><p>Amend the last commit, reword an older one, push the change safely, and undo it.</p></div>
         <div class="card"><h3><a href="drop-commit-vscode.html">Delete (drop) a commit</a></h3><p>Drop or revert, <code>rebase -i</code> with <code>drop</code>, <code>reset</code> for the latest commits, and conflicts.</p></div>
         <div class="card"><h3><a href="reorder-commits-vscode.html">Reorder commits</a></h3><p>Move lines in <code>rebase -i</code>, what happens to pushed commits, conflicts, the cherry-pick route, and undo.</p></div>
@@ -122,6 +124,7 @@ cursor --install-extension mergeline-0.9.0.vsix</pre></li>
         <div class="card"><h3><a href="manage-git-remotes-vscode.html">Manage git remotes</a></h3><p>Add, rename, change the URL of and remove remotes, prune deleted branches, and what each does to your branches.</p></div>
         <div class="card"><h3><a href="filter-git-graph-by-branch.html">Show only some branches</a></h3><p><code>git log</code> with chosen branches, globs and exclusions, <code>--first-parent</code>, and the graph view in VS Code.</p></div>
         <div class="card"><h3><a href="interactive-rebase-vscode.html">Interactive rebase in VS Code</a></h3><p>The todo list and its commands, using VS Code as the editor, <code>--autostash</code>, <code>--autosquash</code>, and what is safe to rebase.</p></div>
+        <div class="card"><h3><a href="resolve-merge-conflicts-vscode.html">Resolve merge conflicts in VS Code</a></h3><p>Conflict markers, Accept Current or Incoming, the 3-way merge editor, <code>--ours</code> and <code>--theirs</code>, then continue or abort.</p></div>
         <div class="card"><h3><a href="rebase-conflict-continue-abort-vscode.html">Rebase or merge stopped with conflicts</a></h3><p>What is in progress, resolving in VS Code, continue, skip or abort, and avoiding the editor on continue.</p></div>
         <div class="card"><h3><a href="git-worktree-vscode.html">Git worktrees in VS Code</a></h3><p>Work on two branches at once: create, open, list and remove worktrees, and fix &ldquo;already checked out&rdquo;.</p></div>
         <div class="card"><h3><a href="undo-git-reset-cherry-pick-revert.html">Undo in git: reset, revert, cherry-pick, reflog</a></h3><p>Soft, mixed and hard resets, safe reverts, copying commits, and getting lost work back.</p></div>
@@ -181,8 +184,10 @@ cursor --install-extension mergeline-0.9.0.vsix</pre></li>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
       <a href="edit-commit-message-vscode.html">Edit a commit message</a>
       <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
       <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
       <a href="reorder-commits-vscode.html">Reorder commits</a>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>

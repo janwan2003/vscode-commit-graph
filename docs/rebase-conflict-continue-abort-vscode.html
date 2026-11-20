@@ -90,7 +90,7 @@ You are currently rebasing branch 'feature' on '0fd66d2'.
     <h2 id="resolve">Resolve the conflicts in VS Code</h2>
     <p>Conflicted files appear in the Source Control view under <strong>Merge Changes</strong>. Open one and you see git&rsquo;s conflict markers: your side between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> and <code>=======</code>, the other side down to <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>. Above each block VS Code offers <strong>Accept Current Change</strong>, <strong>Accept Incoming Change</strong> and <strong>Accept Both Changes</strong>, or you can edit the text by hand. For a three-pane view, click <strong>Resolve in Merge Editor</strong>; the setting <code>git.mergeEditor</code> (off by default) opens conflicted files in it directly.</p>
     <p>During a rebase the sides are the opposite of what you might expect. &ldquo;Current&rdquo; (<code>HEAD</code>) is the branch you are rebasing <em>onto</em>, and &ldquo;incoming&rdquo; is your own commit being replayed. The marker line <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; d8d10ab (Feature edits b)</code> names that commit.</p>
-    <p>When a file looks right and has no markers left, stage it with the <strong>+</strong> button in Source Control or <code>git add &lt;file&gt;</code>. Staging is how git learns the conflict is resolved; saving the file is not enough. A file deleted on one side is resolved with <code>git add</code> (keep it) or <code>git rm</code> (delete it).</p>
+    <p>When a file looks right and has no markers left, stage it with the <strong>+</strong> button in Source Control or <code>git add &lt;file&gt;</code>. Staging is how git learns the conflict is resolved; saving the file is not enough. A file deleted on one side is resolved with <code>git add</code> (keep it) or <code>git rm</code> (delete it). The <a href="resolve-merge-conflicts-vscode.html">merge conflicts guide</a> covers the markers, the merge editor and <code>--ours</code>/<code>--theirs</code> in more depth.</p>
 
     <h2 id="commands">Continue, skip or abort</h2>
     <div class="table-wrap">
@@ -135,7 +135,7 @@ You are currently rebasing branch 'feature' on '0fd66d2'.
         <li><strong>Continue.</strong> <strong>Continue</strong> runs the matching <code>--continue</code>. It refuses while files are still unmerged (&ldquo;resolve and stage them first&rdquo;), asks again if a staged file still contains <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> conflict markers, and it never opens an editor: the commit message git prepared is kept. If the next commit conflicts too, the bar moves on to that step.</li>
         <li><strong>Or skip or abort.</strong> <strong>Skip</strong> leaves out the commit that stopped (not shown for merges, which have no skip). <strong>Abort</strong> runs the matching <code>--abort</code> and puts everything back. Both ask first.</li>
       </ol>
-      <figure class="shot"><img src="screenshot-rebase.png" width="1280" height="800" loading="lazy" alt="Mergeline's bar above the commit graph: Rebasing main onto feature/dark-mode, step 2 of 5, stopped at a commit, 2 conflicted files, with Continue, Skip, Abort and Source Control buttons."><figcaption>A rebase stopped on a conflict, as shown above the graph.</figcaption></figure>
+      <figure class="shot"><img src="screenshot-rebase.png" width="1280" height="800" loading="lazy" alt="Mergeline's bar above the commit graph: Rebasing main onto feature/dark-mode, step 2 of 5, stopped at a commit, 5 conflicted files (three listed by name, each opening the merge editor), with Continue, Skip, Abort and Source Control buttons."><figcaption>A rebase stopped on a conflict, as shown above the graph.</figcaption></figure>
       <p>Edits made from the graph (<a href="edit-commit-message-vscode.html">editing a message</a>, <a href="reorder-commits-vscode.html">moving</a>, <a href="squash-commits-vscode.html">squashing</a> or <a href="drop-commit-vscode.html">dropping</a> a commit) stop in this same bar if a commit conflicts. See also <a href="interactive-rebase-vscode.html">interactive rebase</a> and <a href="git-rebase-vs-merge.html">rebase vs merge</a>.</p>
       <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
       <div class="cta">
@@ -161,8 +161,10 @@ You are currently rebasing branch 'feature' on '0fd66d2'.
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
       <a href="edit-commit-message-vscode.html">Edit a commit message</a>
       <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
       <a href="rebase-conflict-continue-abort-vscode.html" aria-current="page">Rebase conflicts</a>
       <a href="reorder-commits-vscode.html">Reorder commits</a>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>

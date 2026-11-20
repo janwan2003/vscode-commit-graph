@@ -278,6 +278,14 @@ test('packed rows decode to exactly the full rows (fixture, pages, random DAGs)'
     });
     const lay = layout(commits);
     assert.deepEqual(norm(unpackAll(lay)), norm(lay.rows), `trial ${trial}`);
+    // Load more lays out only the new page with the carried state: the packed rows the webview
+    // ends up with (old page + appended page) and the width equal one full layout.
+    const st = newLayoutState();
+    const cut = 1 + Math.floor(rnd() * (n - 1));
+    const p1 = layout(commits.slice(0, cut), st);
+    const p2 = layout(commits.slice(cut), st);
+    assert.deepEqual([...p1.packed, ...p2.packed], lay.packed, `trial ${trial} split at ${cut}`);
+    assert.equal(p2.width, lay.width, `trial ${trial} width`);
   }
 });
 

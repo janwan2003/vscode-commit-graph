@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { planRewrite, runRewrite, buildTodo, rewordMessage, squashMessage, shQuote, RewriteError } from '../src/core/rewrite';
+import { planRewrite, runRewrite, buildTodo, rewordMessage, squashMessage, shQuote, findFixups, RewriteError } from '../src/core/rewrite';
 
 const env = { ...process.env, GIT_AUTHOR_NAME: 'Ada', GIT_AUTHOR_EMAIL: 'ada@example.com', GIT_COMMITTER_NAME: 'Ada', GIT_COMMITTER_EMAIL: 'ada@example.com' };
 const sh = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8', env }).trim();
@@ -184,6 +184,43 @@ test('place: drag a commit onto another to move it there or fold it in', async (
     const side = sh(d, 'rev-parse', 'HEAD');
     sh(d, 'checkout', '-q', 'main');
     await assert.rejects(planRewrite(d, { kind: 'place', sha: side, target: sh(d, 'rev-parse', 'HEAD'), fold: true }), RewriteError);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('findFixups matches targets like --autosquash (subject, hash, subject prefix, nested) and autosquash folds them in', async () => {
+  const { d, sha } = repo();
+  try {
+    const fix = (file: string, text: string, msg: string) => {
+      writeFileSync(join(d, file), text);
+      sh(d, 'add', '-A');
+      sh(d, 'commit', '-q', '-m', msg);
+      return sh(d, 'rev-parse', 'HEAD');
+    };
+    const a = fix('2.txt', 'two fixed\n', 'fixup! two'); // exact subject
+    const b = fix('1.txt', 'one fixed\n', `fixup! ${sha.one.slice(0, 7)}`); // hash prefix
+    const c = fix('4.txt', 'four fixed\n', 'fixup! fixup! fou'); // nested prefixes, subject prefix
+    fix('5.txt', 'five\n', 'fixup! no such commit'); // no target: left out
+    const found = await findFixups(d);
+    assert.deepEqual(found.map((f) => [f.sha, f.target]), [[c, sha.four], [b, sha.one], [a, sha.two]]);
+    // Oldest target is "one" (the root): the rebase runs with --root.
+    const plan = await planRewrite(d, { kind: 'autosquash', sha: sha.one });
+    assert.equal(plan.base, null);
+    writeFileSync(join(d, 'dirty.txt'), 'uncommitted\n');
+    sh(d, 'add', 'dirty.txt');
+    await runRewrite(d, { kind: 'autosquash', sha: sha.one }, plan);
+    assert.deepEqual(subjects(d), ['fixup! no such commit', 'four', 'three', 'two', 'one']);
+    assert.equal(sh(d, 'show', 'HEAD~4:1.txt'), 'one fixed', 'the hash-addressed fixup went into "one"');
+    assert.equal(sh(d, 'show', 'HEAD~3:2.txt'), 'two fixed');
+    assert.equal(sh(d, 'show', 'HEAD~1:4.txt'), 'four fixed');
+    assert.equal(readFileSync(join(d, 'dirty.txt'), 'utf8'), 'uncommitted\n', 'autostash restored the staged file');
+    // A merge ends the line: fixups behind it are not offered.
+    sh(d, 'checkout', '-q', '-b', 'side', 'HEAD~4');
+    fix('s.txt', 's\n', 'side');
+    sh(d, 'checkout', '-q', 'main');
+    sh(d, 'merge', '-q', '--no-ff', '--no-edit', 'side');
+    assert.deepEqual(await findFixups(d), []);
   } finally {
     rmSync(d, { recursive: true, force: true });
   }
