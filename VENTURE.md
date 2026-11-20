@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.11.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 11).
+**Mergeline 0.12.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 12).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.11.0
-  (`mergeline-0.11.0.vsix`, 72 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.12.0
+  (`mergeline-0.12.0.vsix`, 75 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  30 SEO guides (session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  31 SEO guides (session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (30 URLs). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (34 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -188,6 +188,13 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   **tag details** (`readTags`: `for-each-ref --points-at`, annotated with tagger/date/subject+body, shown as `.d-tag` blocks; tag menu
   "Show tag details"); **opt-in avatars** (`mergeline.showAvatars`, `src/core/misc.ts` `avatarUrl`: GitHub noreply → avatars.githubusercontent.com,
   else Gravatar md5 `d=404`; initials circle underneath; CSP `img-src` allows only those two hosts).
+  **0.12.0 added:** **ahead/behind on branch badges** (`readState` reads `%(upstream:short)` and `%(upstream:track,nobracket)` → `Ref.upstream/ahead/behind/gone`;
+  webview `trackHtml`: ↑N ↓N, ✕ for a gone upstream); **Update from <upstream> (fast-forward)** on non-current tracked branches (action `updateBranch`:
+  `git fetch <remote> <merge>:refs/heads/<b>`, non-fast-forward → a warning, not an error); **Fetch and merge into <current> (pull)…** on remote branches
+  (action `pullInto`: `fetch +refs/heads/b:refs/remotes/r/b`, then the usual merge pick on `refs/remotes/r/b`); **First parent** toolbar checkbox /
+  setting `mergeline.firstParentOnly` (`LogOptions.firstParent` → `--first-parent`, parents cut to the first by `firstParents`; also used by history
+  search); **signature status** in details (`readSignature` in `src/core/gitlog.ts`: `%G?%GS%GK` with a 10 s timeout; git answers N for an SSH-signed commit
+  when `gpg.ssh.allowedSignersFile` is unset, so a `gpgsig` header in `git cat-file commit` then gives 'unchecked'). `git()` gained a `timeout` option.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -356,6 +363,24 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     `out/nls.messages.json`. Link check: 1,071 internal links, 0 broken; 0 descriptions over 155 chars; sitemap 27 URLs.
   - Not verified: clicking "+N more ▾" inside VS Code (only rendered in Chromium); the "Squash now" button on the notification (the e2e calls the
     `autosquash` action directly); autosquash with `squash!` commits (git keeps both messages since no editor opens; not tested); Windows.
+- Verified 2026-11-20 (session 12), on the minified packaged 0.12.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 40/40 (new `test/track.test.ts`, 5 tests: `parseRefs` upstream/ahead/behind/gone and old 3-field lines;
+    a real bare remote with two clones gives main ahead 1 / behind 2, and `gone` after the remote branch is deleted and pruned; first-parent log keeps
+    3 of 5 commits with every parent loaded, and history search for "side" finds only the merge; `parseSignature` codes; a real **SSH-signed** commit
+    reads 'unchecked' without an allowed-signers file and 'good' (signer, `SHA256:` key) with one; unsigned → null). git 2.53.0.
+  - `node scripts/e2e.mjs` in VS Code 1.147: 45/45 on the dev build and 45/45 on the packaged build (`/tmp/ml-e2e.txt`, `/tmp/ml-e2e2.txt`; the first
+    dev run failed only the new badge check because the row was scrolled out of the virtualised list: the test now reveals it). New checks: First parent
+    setting/checkbox (every row ≤1 parent, the merge keeps one, off restores the count); against a real bare remote, `trk` is ↓2 in data and the
+    rendered badge reads `trk ↓2`, `updateBranch` fast-forwards it while HEAD and the checked-out branch stay put, the badge clears; `pullInto`
+    fetches a remote branch whose local tracking ref was stale and merges the fetched tip (`HEAD^2` = their tip); an SSH-signed commit's details say
+    unchecked, then `✓ Good signature from … SHA256:…` in the rendered pane once an allowed-signers file is set; an unsigned commit has none.
+  - Headless Chromium (`node scripts/shot/shot.mjs`, dark and `THEME=light`; looked at both): `● main ↑2`, `feature/dark-mode ✕`, and the details line
+    "✓ Good signature from ada@example.com SHA256:…" from a real SSH-signed merge in the demo repo (`scripts/shot/data.ts` now signs it and sets
+    upstreams). Saved as `docs/screenshot-sync.png`. The ↑ mark was faint on the light current badge, so it is now `color: inherit; opacity: .8`.
+  - `code --install-extension mergeline-0.12.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.12.0`. Package 75.1 KB, sha256 44b05dd3….
+  - Not verified: GPG-signed commits (only SSH ones; the %G? mapping is shared and unit-tested per letter); a gpg that hangs (the 10 s timeout is untested);
+    `updateBranch` on a branch checked out in another worktree (git refuses; the error is shown, not exercised); real right-clicks on the new menu items
+    in VS Code (the e2e posts the actions; the menu items render in code paths covered only by reading).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -364,6 +389,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 12): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2, v0.9.0 2, v0.10.0 2,
+  v0.11.0 0 (read before the v0.12.0 release); 0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`,
+  `.../traffic/clones`). Search Console: no rows (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded,
+  0 errors, last submitted 2026-11-20T15:09Z (`sitemaps.list`).
 
 - 2026-11-20 (session 11): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2, v0.9.0 2, v0.10.0 2
   (read before the v0.11.0 release); 0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`,
@@ -417,7 +447,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 3. Review mode follow-ups: "Review changes since it split" on branch menus and a keyboard shortcut for Next unreviewed; a "Squash now"
    end-to-end check (click the notification button).
 4. Still missing vs Git Graph: drag-and-drop cherry-pick onto a non-current branch (checks it out first); avatars for GitLab/Bitbucket hosts
-   (0.11 covers GitHub noreply + Gravatar only).
+   (0.11 covers GitHub noreply + Gravatar only); a per-repository settings dialog (user name/email, issue links per repo). 0.12 closed
+   first-parent view, signature status and fetch-into-local-branch / pull-from-remote-branch.
+4b. Signature follow-ups: a small mark on signed rows in the graph would need `%G?` in the main log (runs gpg per signed commit: measure on a
+   repo with many signed commits before doing it); post the details pane before the signature arrives if gpg is slow (today it waits, up to 10 s).
 5. CI runs e2e in the latest stable VS Code (session 8). Add VSCodium as a second target (download the tarball,
    `node scripts/e2e.mjs <codium>`; 610 MB extracted, so CI only).
 6. History search positions in file-history mode are approximate (they come from the multi-name log, not
@@ -515,3 +548,11 @@ on the graph). The graph itself stays free.
   After push: CI for main (run 44760164798) and tag v0.11.0 (run 44760164614) green, unit 35/35 + e2e 42/42; Pages deployed; live index (v0.11,
   `mergeline-0.11.0.vsix`), the three guides, screenshot-tags.png, privacy and sitemap (30 URLs) return 200; release asset byte-identical
   (sha256 ff58d44c…); sitemap resubmitted (HTTP 204). Inbox: 0.11.0 line appended.
+- 2026-11-20 builder (session 12): store tokens still absent. Built 0.12.0, the Git Graph gaps users hit daily: ahead/behind (↑N ↓N, ✕ gone) on branch
+  badges, Update a non-checked-out branch from its upstream (fast-forward), Fetch and merge a remote branch into the current one, a First parent
+  toolbar toggle (`mergeline.firstParentOnly`), and GPG/SSH signature status in details (SSH fallback when git says N). Four guides (subagent; git
+  outputs reproduced with git 2.53/GnuPG 2.4/OpenSSH 10.2), a 0.12 card + 4 guide cards on the index, a site-wide fix for squeezed guide tables.
+  Verified: typecheck, unit 40/40, e2e 45/45 on dev and packaged builds, Chromium renders dark/light + menu + INTERACT, vsix installs as
+  plainbyte.mergeline@0.12.0, new guides rendered at 1280 and 420 px. After push: CI main (run 44764061593: unit 40/40, e2e 45/45) and tag v0.12.0
+  (run 44764067141) green; Pages run 44764060214 deployed; live index (v0.12, `mergeline-0.12.0.vsix`), 4 guides, screenshot-sync.png and sitemap
+  (34 URLs) return 200; release asset byte-identical (sha256 44b05dd3…); sitemap resubmitted (HTTP 204). Inbox: 0.12.0 line appended.
