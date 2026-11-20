@@ -307,7 +307,7 @@ exports.run = async function run() {
         await panel.testPost({ type: 'reveal', sha: s });
         return (await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === s && panel.lastPong; }, 10000, 'pong')).editMenu;
       };
-      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Squash into parent', 'Drop commit…']);
+      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Move commit up (newer)', 'Move commit down (older)', 'Squash into parent', 'Drop commit…']);
       const merge = panel.lastData.commits.find((c) => c.parents.length > 1 && c.kind === 'commit');
       assert.deepEqual(await editMenu(merge.sha), [], 'no edit items on a merge');
       // Reword an older commit; uncommitted changes survive (autostash).
@@ -345,6 +345,80 @@ exports.run = async function run() {
       assert.equal(git('rev-parse', 'HEAD'), parent);
       assert.equal(git('status', '--porcelain', '--untracked-files=no'), 'M README.md');
       wf('README.md', readme0); fs.rmSync(root + '/edit-untracked.txt');
+      await panel.refresh(true);
+    });
+
+    await check('message editor, move up/down, and a stopped rebase/merge in the bar: continue, skip, abort', async () => {
+      const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+      const commit = (msg) => { git('add', '-A'); git('commit', '-q', '-m', msg); };
+      wf('m.txt', '0\n'); commit('Move M0');
+      wf('m.txt', '1\n'); commit('Move M1');
+      wf('m.txt', '2\n'); commit('Move M2');
+      wf('n.txt', 'n\n'); commit('Move M3');
+      await panel.refresh(true);
+      const sha = (s) => panel.lastData.commits.find((c) => c.subject === s).sha;
+      const pong = async (pred, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && pred(panel.lastPong) && panel.lastPong; }, 10000, what);
+      const start = git('rev-parse', 'HEAD');
+      // The message editor opens in the webview with the subject and body split.
+      git('commit', '--amend', '-q', '-m', 'Move M3', '-m', 'Body line one.\nBody line two.');
+      await panel.refresh(true);
+      await panel.testMessage({ type: 'getMessage', sha: sha('Move M3') });
+      const p1 = await pong((p) => p.dialog, 'dialog');
+      assert.deepEqual(p1.dialog, { title: 'Edit message of ' + sha('Move M3').slice(0, 8), subject: 'Move M3', body: 'Body line one.\nBody line two.' });
+      // Saving sends the whole message: subject and body both change (an older commit, so a rebase).
+      await act({ action: 'reword', sha: sha('Move M2'), subject: 'Move M2', fullMessage: 'Move M2 (edited)\n\nWhy: a multi-line\nbody.\n\n' });
+      assert.equal(git('log', '-1', '--format=%B', 'HEAD~1'), 'Move M2 (edited)\n\nWhy: a multi-line\nbody.');
+      assert.equal(git('log', '-1', '--format=%B', 'HEAD'), 'Move M3\n\nBody line one.\nBody line two.');
+      await panel.refresh(true);
+      // Move M3 (only n.txt) down below M2, then back up: no conflicts.
+      await act({ action: 'moveCommit', sha: sha('Move M3'), dir: 'older' });
+      assert.deepEqual(git('log', '-3', '--format=%s').split('\n'), ['Move M2 (edited)', 'Move M3', 'Move M1']);
+      await panel.refresh(true);
+      await act({ action: 'moveCommit', sha: sha('Move M3'), dir: 'newer' });
+      assert.deepEqual(git('log', '-3', '--format=%s').split('\n'), ['Move M3', 'Move M2 (edited)', 'Move M1']);
+      await panel.refresh(true);
+      // Move M2 below M1: both edit m.txt, so the rebase stops. The bar shows it, edit items hide.
+      const beforeMove = git('rev-parse', 'HEAD');
+      await act({ action: 'moveCommit', sha: sha('Move M2 (edited)'), dir: 'older' });
+      await panel.refresh(true);
+      assert.equal(panel.lastData.op.kind, 'rebase');
+      assert.deepEqual(panel.lastData.op.conflicts, ['m.txt']);
+      let p2 = await pong((p) => p.opbar, 'opbar');
+      assert.match(p2.opbar, /Rebasing main onto .* step 1 of 3, stopped at .*Move M2 \(edited\).*1 conflicted file/);
+      assert.match(p2.opbar, /Continue.*Skip.*Abort.*Source Control/);
+      // Continue is refused while m.txt is unmerged.
+      await act({ action: 'opContinue' });
+      assert.ok(fs.existsSync(root + '/.git/rebase-merge'), 'still rebasing');
+      // Resolve, continue: the next commit (M1) conflicts too, and the bar moves to step 2.
+      wf('m.txt', '2\n'); git('add', 'm.txt');
+      await act({ action: 'opContinue' });
+      await panel.refresh(true);
+      p2 = await pong((p) => /step 2 of 3/.test(p.opbar), 'opbar step 2');
+      assert.match(p2.opbar, /Move M1/);
+      assert.deepEqual(p2.editMenu, [], 'no edit items while a rebase is in progress');
+      // Skip M1: the rest applies and the rebase ends.
+      await act({ action: 'opSkip' });
+      await panel.refresh(true);
+      assert.equal(panel.lastData.op, null);
+      assert.ok(!fs.existsSync(root + '/.git/rebase-merge'));
+      assert.deepEqual(git('log', '-3', '--format=%s').split('\n'), ['Move M3', 'Move M2 (edited)', 'Move M0']);
+      await pong((p) => p.opbar === '', 'bar gone');
+      // A merge started in a terminal shows too; Abort puts it back.
+      git('reset', '-q', '--hard', beforeMove);
+      git('checkout', '-q', '-b', 'move-side', sha('Move M0'));
+      wf('m.txt', 'side\n'); commit('Move side');
+      git('checkout', '-q', 'main');
+      try { git('merge', '--no-edit', 'move-side'); } catch {}
+      await panel.refresh(true);
+      const p3 = await pong((p) => /Merging/.test(p.opbar), 'merge bar');
+      assert.match(p3.opbar, /Merging move-side into main.*1 conflicted file/);
+      assert.ok(!/Skip/.test(p3.opbar), 'no Skip for a merge');
+      await act({ action: 'opAbort' });
+      assert.ok(!fs.existsSync(root + '/.git/MERGE_HEAD'));
+      assert.equal(git('rev-parse', 'HEAD'), beforeMove);
+      // Leave the repo as it was for the later checks.
+      git('reset', '-q', '--hard', start);
+      git('branch', '-q', '-D', 'move-side');
       await panel.refresh(true);
     });
 

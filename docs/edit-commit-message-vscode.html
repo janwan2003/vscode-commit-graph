@@ -120,12 +120,12 @@ a118b82 HEAD@{3}: rebase (reword): Fix date parsing in log view
       <p>From Mergeline 0.6 you can reword any commit on your current branch from the graph, without counting commits or editing a todo list.</p>
       <ol class="steps">
         <li><strong>Right-click the commit</strong> and choose <strong>Edit commit message&hellip;</strong>. The item appears only for commits reachable from <code>HEAD</code>, that is, on the branch you have checked out.</li>
-        <li><strong>Type the new subject line</strong> in the input box, which starts with the current one. The rest of the message (the body) is kept as it is.</li>
+        <li><strong>Edit the message</strong> in the editor that opens over the graph: a subject field and a body field, filled with the current message. Change either or both, then press <strong>Save message</strong> (or Ctrl/Cmd+Enter); Esc cancels. Since 0.7 the body can be edited too; 0.6 changed only the subject line.</li>
         <li><strong>Mergeline rewrites the branch</strong> by running a non-interactive <code>git rebase -i</code> with <code>--autostash</code>, so uncommitted changes are stashed and restored for you. If the commit is already on a remote-tracking branch, it warns you first: you will need to force-push afterwards. It refuses if there is a merge commit between the commit and <code>HEAD</code>; use an interactive rebase in a terminal for those.</li>
         <li><strong>Changed your mind?</strong> The notification that appears when it finishes has an <strong>Undo</strong> button, which runs <code>git reset --keep</code> to the previous <code>HEAD</code>.</li>
-        <li><strong>If a later commit conflicts</strong> while being replayed, the rebase stops and the notification offers <strong>Open Source Control</strong> to resolve it, or <strong>Abort rebase</strong>, which runs <code>git rebase --abort</code>.</li>
+        <li><strong>If a later commit conflicts</strong> while being replayed, the rebase stops and a bar above the graph shows where, with <strong>Continue</strong>, <strong>Skip</strong>, <strong>Abort</strong> and <strong>Source Control</strong> buttons (see <a href="rebase-conflict-continue-abort-vscode.html">rebase conflicts</a>).</li>
       </ol>
-      <p>The same menu has <strong>Squash into parent</strong> and <strong>Drop commit&hellip;</strong>; see <a href="squash-commits-vscode.html">squashing commits</a> and <a href="drop-commit-vscode.html">dropping a commit</a>.</p>
+      <p>The same menu has <strong>Move commit up / down</strong> (see <a href="reorder-commits-vscode.html">reordering commits</a>), <strong>Squash into parent</strong> and <strong>Drop commit&hellip;</strong>; see <a href="squash-commits-vscode.html">squashing commits</a> and <a href="drop-commit-vscode.html">dropping a commit</a>.</p>
     </section>
   </div>
 </main>
@@ -147,6 +147,9 @@ a118b82 HEAD@{3}: rebase (reword): Fix date parsing in log view
       <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="edit-commit-message-vscode.html" aria-current="page">Edit a commit message</a>
       <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>

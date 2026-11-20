@@ -36,7 +36,7 @@ export interface FileChange {
 }
 
 export class GitError extends Error {
-  constructor(message: string, public stderr: string, public args: string[]) {
+  constructor(message: string, public stderr: string, public args: string[], public stdout = '') {
     super(message);
   }
 }
@@ -50,7 +50,7 @@ export function git(cwd: string, args: string[], opts: { maxBuffer?: number; inp
       (err, stdout, stderr) => {
         if (err) {
           const msg = (stderr || err.message).trim();
-          reject(new GitError(msg, stderr, args));
+          reject(new GitError(msg, stderr, args, stdout));
         } else resolve(stdout);
       },
     );

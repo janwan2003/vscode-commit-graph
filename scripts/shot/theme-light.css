@@ -1,4 +1,5 @@
-:root{--vscode-font-family:system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;
+:root{--vscode-button-background:#005fb8;--vscode-button-foreground:#ffffff;--vscode-button-hoverBackground:#0258a8;--vscode-editorWidget-background:#f8f8f8;--vscode-editorWarning-foreground:#bf8803;--vscode-errorForeground:#f85149;
+--vscode-font-family:system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;
 --vscode-foreground:#3b3b3b;--vscode-editor-background:#ffffff;--vscode-sideBar-background:#f8f8f8;--vscode-descriptionForeground:#717171;
 --vscode-button-secondaryBackground:#e5e5e5;--vscode-button-secondaryForeground:#3b3b3b;--vscode-input-background:#ffffff;--vscode-input-foreground:#3b3b3b;--vscode-input-border:#cecece;
 --vscode-panel-border:#e5e5e5;--vscode-focusBorder:#005fb8;--vscode-textLink-foreground:#005fb8;--vscode-list-hoverBackground:#f2f2f2;--vscode-list-activeSelectionBackground:#e8e8e8;--vscode-list-activeSelectionForeground:#000000;

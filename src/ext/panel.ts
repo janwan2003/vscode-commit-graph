@@ -8,6 +8,7 @@ import { layout } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
+import { readOperation, OpState } from '../core/progress';
 import { webRepo, commitUrl, issueUrl, branchUrl, Forge } from '../core/remote';
 import { git } from '../core/gitlog';
 
@@ -31,7 +32,7 @@ export class GraphPanel implements vscode.Disposable {
   lastPong: any;
   lastDetails: any;
   lastHistory: any;
-  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[] } | undefined;
+  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[]; op: OpState | null } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
     if (GraphPanel.current) {
@@ -176,7 +177,7 @@ export class GraphPanel implements vscode.Disposable {
     const opts = this.logOptions(order);
     let names: string[] = [];
     let raw = 0;
-    const [commits0, state, stashes, unc, wts] = await Promise.all([
+    const [commits0, state, stashes, unc, wts, op] = await Promise.all([
       fileMode
         ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
             names = h.names;
@@ -188,6 +189,7 @@ export class GraphPanel implements vscode.Disposable {
       showStash ? readStashes(root) : Promise.resolve([]),
       showUnc ? readStatusCount(root) : Promise.resolve(0),
       readWorktrees(root),
+      readOperation(root).catch((): OpState | null => null),
     ]);
     // Other working trees of this repository (git worktree), shown as badges on the commit each has checked out.
     const real = (p: string) => {
@@ -206,11 +208,11 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const sig = JSON.stringify([root, state, unc, this.filter, order, this.max, worktrees, commits.map((c) => c.sha)]);
+    const sig = JSON.stringify([root, state, unc, this.filter, order, this.max, worktrees, op, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
     const lay = layout(commits);
-    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees };
+    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees, op };
     this.post({
       type: 'data',
       repo: root,
@@ -227,6 +229,7 @@ export class GraphPanel implements vscode.Disposable {
       order,
       web,
       worktrees,
+      op,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
     });
   }
@@ -322,6 +325,17 @@ export class GraphPanel implements vscode.Disposable {
       case 'details':
         await this.details(m.sha, m.compare, !!m.base);
         break;
+      case 'getMessage': {
+        // Full message for the webview's "Edit commit message" editor.
+        if (!this.repo || typeof m.sha !== 'string' || !/^[0-9a-f]{4,64}$/i.test(m.sha)) return;
+        try {
+          const message = (await git(this.repo, ['show', '-s', '--format=%B', m.sha])).replace(/\s+$/, '');
+          this.post({ type: 'message', sha: m.sha, message });
+        } catch (e) {
+          vscode.window.showErrorMessage(`Mergeline: could not read the message: ${String((e as Error)?.message ?? e)}`);
+        }
+        break;
+      }
       case 'openFile':
         await this.openFile(m);
         break;

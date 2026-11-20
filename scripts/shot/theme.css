@@ -1,4 +1,5 @@
-:root{--vscode-font-family:system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;
+:root{--vscode-button-background:#0078d4;--vscode-button-foreground:#ffffff;--vscode-button-hoverBackground:#026ec1;--vscode-editorWidget-background:#202020;--vscode-editorWarning-foreground:#cca700;--vscode-errorForeground:#f85149;
+--vscode-font-family:system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;
 --vscode-foreground:#cccccc;--vscode-editor-background:#1f1f1f;--vscode-sideBar-background:#181818;--vscode-descriptionForeground:#9d9d9d;
 --vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#cccccc;--vscode-input-background:#313131;--vscode-input-foreground:#cccccc;--vscode-input-border:#3c3c3c;
 --vscode-panel-border:#2b2b2b;--vscode-focusBorder:#0078d4;--vscode-textLink-foreground:#4daafc;--vscode-list-hoverBackground:#2a2d2e;--vscode-list-activeSelectionBackground:#04395e;--vscode-list-activeSelectionForeground:#ffffff;

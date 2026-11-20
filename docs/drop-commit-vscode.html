@@ -122,7 +122,7 @@ f16153e HEAD@{4}: commit: Add export button</span>
         <li><strong>Right-click the commit</strong> and choose <strong>Drop commit&hellip;</strong>. The item appears only for commits reachable from <code>HEAD</code>, that is, on the branch you have checked out. The commit is removed and the later commits are replayed on top of its parent.</li>
         <li><strong>Mergeline checks first.</strong> It runs a non-interactive <code>git rebase -i</code> with <code>--autostash</code>, so uncommitted changes are stashed and restored. It warns you if the commit is already on a remote-tracking branch, because you will need to force-push (and on a shared branch, revert is usually the better choice). It refuses if there is a merge commit between the commit and <code>HEAD</code>; use an interactive rebase in a terminal for those.</li>
         <li><strong>Undo in one click.</strong> When it finishes, the notification offers <strong>Undo</strong>, which runs <code>git reset --keep</code> to the previous <code>HEAD</code>.</li>
-        <li><strong>If a later commit conflicts,</strong> the rebase stops and the notification offers <strong>Open Source Control</strong>, where you resolve the conflict (then <code>git rebase --continue</code> finishes the job), or <strong>Abort rebase</strong>, which runs <code>git rebase --abort</code>.</li>
+        <li><strong>If a later commit conflicts,</strong> the rebase stops and a bar above the graph shows where (since 0.7). Resolve the conflict in Source Control, stage it, and press <strong>Continue</strong> in the bar, or <strong>Abort</strong> to put the branch back; see <a href="rebase-conflict-continue-abort-vscode.html">rebase conflicts</a>.</li>
         <li><strong>Want revert instead?</strong> Right-click the commit and choose <strong>Revert</strong>; it works on any commit, pushed or not.</li>
       </ol>
       <p>The same menu has <strong>Edit commit message&hellip;</strong> and <strong>Squash into parent</strong>; see <a href="edit-commit-message-vscode.html">editing a commit message</a> and <a href="squash-commits-vscode.html">squashing commits</a>.</p>
@@ -147,6 +147,9 @@ f16153e HEAD@{4}: commit: Add export button</span>
       <a href="squash-commits-vscode.html">Squash commits</a>
       <a href="edit-commit-message-vscode.html">Edit a commit message</a>
       <a href="drop-commit-vscode.html" aria-current="page">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>

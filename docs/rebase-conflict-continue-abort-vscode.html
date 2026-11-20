@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rebase, merge or cherry-pick stopped with conflicts in VS Code: continue, skip or abort | Mergeline</title>
+<meta name="description" content="A rebase, merge, cherry-pick or revert stopped with conflicts. Find out what is in progress, resolve the files in VS Code, then continue, skip or abort, and get back if it went wrong.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/rebase-conflict-continue-abort-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Rebase, merge or cherry-pick stopped with conflicts in VS Code: continue, skip or abort">
+<meta property="og:description" content="What is in progress, resolving conflicts in VS Code, --continue, --skip and --abort for each command, avoiding the editor, empty commits, and ORIG_HEAD.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/rebase-conflict-continue-abort-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Rebase, merge or cherry-pick stopped with conflicts: continue, skip or abort</h1>
+    <p>A rebase, merge, cherry-pick or revert that hits a conflict does not fail and go away. It stops halfway and waits for you, and until you finish or cancel it, the repository is in an in-between state. This guide shows how to tell which operation is waiting, how to resolve the files in VS Code, which command moves it on, and how to get back if the result is not what you wanted.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What is in progress?</a></li>
+        <li><a href="#resolve">Resolve the conflicts in VS Code</a></li>
+        <li><a href="#commands">Continue, skip or abort</a></li>
+        <li><a href="#editor">Why continue opens an editor</a></li>
+        <li><a href="#empty">&ldquo;No changes&rdquo; and empty commits</a></li>
+        <li><a href="#undo">Getting back after a bad finish</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>See what is in progress and which files conflict</td><td><code>git status</code></td></tr>
+          <tr><td>Mark a file as resolved</td><td><code>git add &lt;file&gt;</code></td></tr>
+          <tr><td>Carry on after resolving</td><td><code>git rebase --continue</code> (or <code>merge</code>, <code>cherry-pick</code>, <code>revert</code>)</td></tr>
+          <tr><td>Carry on without an editor opening</td><td><code>GIT_EDITOR=true git rebase --continue</code></td></tr>
+          <tr><td>Leave out the commit that conflicts</td><td><code>git rebase --skip</code> or <code>git cherry-pick --skip</code></td></tr>
+          <tr><td>Cancel and go back to where I started</td><td><code>git rebase --abort</code> (or <code>merge</code>, <code>cherry-pick</code>, <code>revert</code>)</td></tr>
+          <tr><td>Undo a rebase or merge that already finished</td><td><code>git reset --keep ORIG_HEAD</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="what">What is in progress?</h2>
+    <p><code>git status</code> says it in its first lines, together with the commands that apply:</p>
+<pre><span class="k">git status</span>
+<span class="o">interactive rebase in progress; onto 0fd66d2
+...
+You are currently rebasing branch 'feature' on '0fd66d2'.
+  (fix conflicts and then run "git rebase --continue")
+...
+	both modified:   f.txt</span></pre>
+    <p>A plain <code>git rebase</code> also reports itself as &ldquo;interactive rebase in progress&rdquo;; that is just how the default rebase backend is labelled. Git keeps the state in files inside <code>.git</code>, which is how editors and tools (Mergeline included) detect it. In a linked worktree <code>.git</code> is a file, not a folder; <code>git rev-parse --git-path rebase-merge</code> prints the real location.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">If this exists in <code>.git</code></th><th scope="col">This is in progress</th></tr></thead>
+        <tbody>
+          <tr><td><code>rebase-merge/</code></td><td>A rebase, plain or <code>-i</code>. <code>msgnum</code> and <code>end</code> inside it hold the current step and the total.</td></tr>
+          <tr><td><code>rebase-apply/</code></td><td>A rebase with <code>--apply</code>, or <code>git am</code></td></tr>
+          <tr><td><code>MERGE_HEAD</code></td><td>A merge</td></tr>
+          <tr><td><code>CHERRY_PICK_HEAD</code></td><td>A cherry-pick (a <code>sequencer/</code> folder too if you picked several commits)</td></tr>
+          <tr><td><code>REVERT_HEAD</code></td><td>A revert</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="resolve">Resolve the conflicts in VS Code</h2>
+    <p>Conflicted files appear in the Source Control view under <strong>Merge Changes</strong>. Open one and you see git&rsquo;s conflict markers: your side between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> and <code>=======</code>, the other side down to <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>. Above each block VS Code offers <strong>Accept Current Change</strong>, <strong>Accept Incoming Change</strong> and <strong>Accept Both Changes</strong>, or you can edit the text by hand. For a three-pane view, click <strong>Resolve in Merge Editor</strong>; the setting <code>git.mergeEditor</code> (off by default) opens conflicted files in it directly.</p>
+    <p>During a rebase the sides are the opposite of what you might expect. &ldquo;Current&rdquo; (<code>HEAD</code>) is the branch you are rebasing <em>onto</em>, and &ldquo;incoming&rdquo; is your own commit being replayed. The marker line <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; d8d10ab (Feature edits b)</code> names that commit.</p>
+    <p>When a file looks right and has no markers left, stage it with the <strong>+</strong> button in Source Control or <code>git add &lt;file&gt;</code>. Staging is how git learns the conflict is resolved; saving the file is not enough. A file deleted on one side is resolved with <code>git add</code> (keep it) or <code>git rm</code> (delete it).</p>
+
+    <h2 id="commands">Continue, skip or abort</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Operation</th><th scope="col">Continue</th><th scope="col">Skip this commit</th><th scope="col">Abort</th></tr></thead>
+        <tbody>
+          <tr><td>Rebase</td><td><code>git rebase --continue</code></td><td><code>git rebase --skip</code></td><td><code>git rebase --abort</code></td></tr>
+          <tr><td>Merge</td><td><code>git merge --continue</code> or <code>git commit</code></td><td>(none)</td><td><code>git merge --abort</code></td></tr>
+          <tr><td>Cherry-pick</td><td><code>git cherry-pick --continue</code></td><td><code>git cherry-pick --skip</code></td><td><code>git cherry-pick --abort</code></td></tr>
+          <tr><td>Revert</td><td><code>git revert --continue</code></td><td><code>git revert --skip</code></td><td><code>git revert --abort</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Continue</strong> commits your resolution and moves to the next commit, if there is one. It refuses while any file is still unmerged (<code>f.txt: needs merge</code>). <strong>Skip</strong> leaves the current commit out entirely and moves on, so its changes are gone from the result. A merge is a single step, so it has nothing to skip. <strong>Abort</strong> puts the branch, the index and your files back as they were before the operation started. A rebase can stop several times, once for each commit that conflicts.</p>
+
+    <h2 id="editor">Why continue opens an editor, and how to avoid it</h2>
+    <p>After a conflict, git assumes you may want to say something about the resolution, so it opens the commit message in your editor. <code>git rebase --continue</code> and <code>git merge --continue</code> always do this; <code>cherry-pick --continue</code> and <code>revert --continue</code> do it when run in a terminal. If the editor is Vim, type <code>:wq</code> to accept the message. To skip the editor and keep the message git prepared:</p>
+<pre>GIT_EDITOR=true <span class="k">git rebase --continue</span>        <span class="c"># bash, zsh</span>
+<span class="k">git -c core.editor=true rebase --continue</span>    <span class="c"># any shell</span></pre>
+    <p><code>true</code> is a command that does nothing and succeeds, so git takes the message unchanged. If a <code>GIT_EDITOR</code> variable is already set in your environment, it wins over <code>core.editor</code> and the second form has no effect. To get the message in a VS Code tab instead, see <a href="interactive-rebase-vscode.html#editor">setting the editor</a>.</p>
+
+    <h2 id="empty">&ldquo;No changes&rdquo; and empty commits</h2>
+    <p>Sometimes the right resolution is to keep what is already there, so the commit being applied ends up changing nothing. What happens next depends on the command:</p>
+    <ul>
+      <li><strong>Rebase</strong> (the default backend, plain or <code>-i</code>) drops the now-empty commit and carries on; that is the default of its <code>--empty=drop</code> option.</li>
+      <li><strong>Rebase with <code>--apply</code></strong>, and <code>git am</code>, stop with <code>No changes - did you forget to use 'git add'?</code> If you did stage everything, run <code>git rebase --skip</code>.</li>
+      <li><strong>Cherry-pick</strong> stops with <code>The previous cherry-pick is now empty, possibly due to conflict resolution.</code> Run <code>git cherry-pick --skip</code> to leave it out, or <code>git commit --allow-empty</code> to keep an empty commit as a record.</li>
+      <li><strong>Revert</strong> stops with <code>nothing to commit, working tree clean</code>; the same two ways out apply, with <code>git revert --skip</code>.</li>
+    </ul>
+
+    <h2 id="undo">Getting back after a bad finish</h2>
+    <p>If you finished but resolved something wrongly, the old state is still there. A rebase and a merge both save the previous tip of your branch in <code>ORIG_HEAD</code>:</p>
+<pre><span class="k">git reset --keep ORIG_HEAD</span></pre>
+    <p><code>--keep</code> refuses rather than overwrite uncommitted changes. A cherry-pick or revert does not set <code>ORIG_HEAD</code>; it adds one commit per picked commit, so <code>git reset --keep HEAD~1</code> removes the last one. <code>ORIG_HEAD</code> is overwritten by the next reset, rebase or merge. After that, run <code>git reflog</code>: the entry just below <code>rebase (start)</code> is your branch before the rebase, and <code>git reset --keep &lt;that hash&gt;</code> puts it back. The <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a> covers the reflog and reset modes in more detail.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>From Mergeline 0.7 the graph tells you when an operation is waiting, whether you started it from the graph or from a terminal.</p>
+      <ol class="steps">
+        <li><strong>Read the bar.</strong> While a rebase, merge, cherry-pick or revert is in progress, a bar at the top of the graph says what it is and where it stopped, for example <em>Rebasing main onto feature/x &mdash; step 2 of 4, stopped at 1a2b3c4 &ldquo;Add export&rdquo; &middot; 2 conflicted files</em>. Click the hash to select that commit in the graph.</li>
+        <li><strong>Resolve.</strong> Click <strong>Source Control</strong> in the bar to open the conflicted files, resolve them as described above, and stage them.</li>
+        <li><strong>Continue.</strong> <strong>Continue</strong> runs the matching <code>--continue</code>. It refuses while files are still unmerged (&ldquo;resolve and stage them first&rdquo;), asks again if a staged file still contains <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> conflict markers, and it never opens an editor: the commit message git prepared is kept. If the next commit conflicts too, the bar moves on to that step.</li>
+        <li><strong>Or skip or abort.</strong> <strong>Skip</strong> leaves out the commit that stopped (not shown for merges, which have no skip). <strong>Abort</strong> runs the matching <code>--abort</code> and puts everything back. Both ask first.</li>
+      </ol>
+      <figure class="shot"><img src="screenshot-rebase.png" width="1280" height="800" loading="lazy" alt="Mergeline's bar above the commit graph: Rebasing main onto feature/dark-mode, step 2 of 5, stopped at a commit, 2 conflicted files, with Continue, Skip, Abort and Source Control buttons."><figcaption>A rebase stopped on a conflict, as shown above the graph.</figcaption></figure>
+      <p>Edits made from the graph (<a href="edit-commit-message-vscode.html">editing a message</a>, <a href="reorder-commits-vscode.html">moving</a>, <a href="squash-commits-vscode.html">squashing</a> or <a href="drop-commit-vscode.html">dropping</a> a commit) stop in this same bar if a commit conflicts. See also <a href="interactive-rebase-vscode.html">interactive rebase</a> and <a href="git-rebase-vs-merge.html">rebase vs merge</a>.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html" aria-current="page">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

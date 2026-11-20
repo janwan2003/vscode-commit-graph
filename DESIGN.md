@@ -41,6 +41,11 @@ Mergeline must have everything below. Items marked **+** are missing from the bu
     A sha is never awaited by two lanes: if a parent is already awaited, the node's line joins that lane (or, when that lane is to the
     right, it folds into the node's lane). This is what keeps topic-branch histories such as git.git narrow. Each row records top-half and bottom-half segments
     (from column → to column, colour), which is everything the renderer needs.
+  - `rewrite.ts`: edit history on the checked-out branch (reword, move up/down, fixup, squash a range, drop) as a `git rebase -i` whose todo
+    Mergeline writes itself (`GIT_SEQUENCE_EDITOR="cp <todo>"`), with `--autostash`; it refuses merges in the range.
+  - `progress.ts`: what is in progress, read from the git dir (`rebase-merge/` with `msgnum`/`end`/`stopped-sha`, `rebase-apply/`, `MERGE_HEAD`,
+    `CHERRY_PICK_HEAD`, `REVERT_HEAD`; `REBASE_HEAD` is not used because git leaves it behind after a rebase ends), unmerged paths, and
+    leftover conflict markers (`git diff --cached --check`). Continue runs with `GIT_EDITOR=true` so git keeps its prepared message.
 - `src/ext/`: the extension host side.
   - `extension.ts`: commands, status bar, SCM title button, repo discovery via the `vscode.git` API, falling back to `git rev-parse`.
   - `panel.ts`: the webview panel and its message protocol.

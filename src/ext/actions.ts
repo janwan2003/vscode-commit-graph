@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { git, GitError } from '../core/gitlog';
 import { planRewrite, runRewrite, rewordMessage, squashMessage, RewriteError, RewriteOp, RewritePlan } from '../core/rewrite';
+import { readOperation, unmerged, leftoverMarkers, opArgs, opNames, NO_EDITOR, OpKind } from '../core/progress';
 import { GitApiRepo } from './repos';
 
 export interface ActionMsg {
@@ -18,7 +19,9 @@ export interface ActionMsg {
   current?: string | null; // current branch
   target?: string; // drag and drop: the branch (or commit) dropped on
   path?: string; // worktree path
-  message?: string; // tests: skip the input box
+  message?: string; // reword/squash: the new subject (skips the input box)
+  fullMessage?: string; // reword: the whole new message, from the webview's editor
+  dir?: 'older' | 'newer'; // moveCommit
 }
 
 export interface ActionCtx {
@@ -179,7 +182,12 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
     case 'dropCommit':
     case 'fixupCommit':
     case 'squashRange':
+    case 'moveCommit':
       return rewrite(ctx, m);
+    case 'opContinue':
+    case 'opSkip':
+    case 'opAbort':
+      return goOn(ctx, m.action === 'opContinue' ? 'continue' : m.action === 'opSkip' ? 'skip' : 'abort', !!m.message);
     case 'undoRewrite': {
       // Put the branch back where it was before a rewrite, keeping uncommitted changes.
       const now = (await git(ctx.root, ['rev-parse', 'HEAD'])).trim();
@@ -384,6 +392,7 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
     m.action === 'reword' ? { kind: 'reword', sha, subject: '' }
     : m.action === 'dropCommit' ? { kind: 'drop', sha }
     : m.action === 'fixupCommit' ? { kind: 'fixup', sha }
+    : m.action === 'moveCommit' ? { kind: 'move', sha, dir: m.dir === 'newer' ? 'newer' : 'older' }
     : { kind: 'squash', from: sha, to: m.target ?? '', message: '' };
   let plan: RewritePlan;
   try {
@@ -401,12 +410,25 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
   let message: string | undefined;
   let title: string, done: string;
   if (op.kind === 'reword') {
-    const subject = m.message ?? (await vscode.window.showInputBox({ prompt: `New subject line for ${short(sha)} (the rest of the message is kept)`, value: m.subject ?? '', validateInput: (v) => (v.trim() ? undefined : 'Enter a subject') }));
-    if (!subject || subject === m.subject) return false;
-    op.subject = subject;
+    if (m.fullMessage !== undefined) {
+      // From the webview's message editor: the whole message, as typed.
+      message = m.fullMessage.replace(/\s+$/, '') + '\n';
+      if (!message.trim()) return false;
+      const old = await git(ctx.root, ['show', '-s', '--format=%B', sha]);
+      if (old.replace(/\s+$/, '') + '\n' === message) return false;
+      op.subject = message.split('\n')[0];
+    } else {
+      const subject = m.message ?? (await vscode.window.showInputBox({ prompt: `New subject line for ${short(sha)} (the rest of the message is kept)`, value: m.subject ?? '', validateInput: (v) => (v.trim() ? undefined : 'Enter a subject') }));
+      if (!subject || subject === m.subject) return false;
+      op.subject = subject;
+      message = await rewordMessage(ctx.root, sha, subject);
+    }
     if ((plan.first !== plan.head || plan.pushed.length) && !(await confirm(`Change the message of ${short(sha)}?`, common, 'Edit message'))) return false;
-    message = await rewordMessage(ctx.root, sha, subject);
     [title, done] = [`Edit message of ${short(sha)}`, `Edited the message of ${short(sha)}`];
+  } else if (op.kind === 'move') {
+    const word = op.dir === 'older' ? 'down (before its parent)' : 'up (after the next commit)';
+    if (!(await confirm(`Move ${label} ${word}?`, `The two commits swap places. If both change the same lines, git stops with a conflict that you resolve or abort. ${common}`, 'Move commit'))) return false;
+    [title, done] = [`Move ${short(sha)}`, `Moved ${short(sha)} ${op.dir === 'older' ? 'down' : 'up'}`];
   } else if (op.kind === 'drop') {
     if (!(await confirm(`Drop ${label}?`, `Its changes are removed from ${branch}, and later commits are replayed without it. ${common}`, 'Drop commit'))) return false;
     [title, done] = [`Drop ${short(sha)}`, `Dropped ${short(sha)}`];
@@ -431,7 +453,7 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
   } catch (e) {
     const msg = e instanceof GitError ? e.message : String((e as Error)?.message ?? e);
     if (/CONFLICT|could not apply|Resolve all conflicts/i.test(msg)) {
-      vscode.window.showWarningMessage(`${title}: a later commit conflicts. Resolve the conflicts in Source Control and continue the rebase, or abort it.`, 'Open Source Control', 'Abort rebase').then((pick) => {
+      vscode.window.showWarningMessage(`${title}: a commit conflicts. Resolve the conflicts, stage the files, then press Continue in the bar above the graph (or abort).`, 'Open Source Control', 'Abort rebase').then((pick) => {
         if (pick === 'Open Source Control') vscode.commands.executeCommand('workbench.view.scm');
         else if (pick === 'Abort rebase') run(ctx, ['rebase', '--abort'], 'Abort rebase');
       });
@@ -446,4 +468,49 @@ async function pickParent(parents: string[]): Promise<string | undefined> {
     { placeHolder: 'This is a merge commit. Which parent is the mainline?' },
   );
   return p?.n;
+}
+
+/**
+ * Continue, skip or abort the rebase/merge/cherry-pick/revert/am that is in progress.
+ * Continue never opens an editor (git keeps the message it prepared) and refuses while
+ * files are unmerged; staged files that still hold conflict markers need a second yes.
+ * `force` (tests) skips the confirmations.
+ */
+async function goOn(ctx: ActionCtx, what: 'continue' | 'skip' | 'abort', force = false): Promise<boolean> {
+  const op = await readOperation(ctx.root);
+  if (!op) {
+    vscode.window.showInformationMessage('Mergeline: nothing is in progress any more.');
+    return true;
+  }
+  const name = opNames[op.kind];
+  if (what === 'skip' && op.kind === 'merge') return false;
+  if (what === 'continue') {
+    const u = await unmerged(ctx.root);
+    if (u.length) {
+      const pick = await vscode.window.showWarningMessage(
+        `${plural(u.length, 'file')} still ${u.length === 1 ? 'has' : 'have'} conflicts: ${u.slice(0, 3).join(', ')}${u.length > 3 ? '…' : ''}. Resolve and stage ${u.length === 1 ? 'it' : 'them'} first.`,
+        'Open Source Control',
+      );
+      if (pick) vscode.commands.executeCommand('workbench.view.scm');
+      return false;
+    }
+    const marked = await leftoverMarkers(ctx.root);
+    if (marked.length && !force && !(await confirm(`${plural(marked.length, 'staged file')} still contain${marked.length === 1 ? 's' : ''} conflict markers.`, `${marked.slice(0, 5).join('\n')}\n\nContinuing commits them with the <<<<<<< / >>>>>>> lines in.`, 'Continue anyway'))) return false;
+  }
+  if (what === 'abort' && !force) {
+    // rebase/cherry-pick/revert/am --abort all return to where the operation started (also undoing commits it already made).
+    const back = op.kind === 'merge' ? 'The merge is undone and the branch stays where it was' : `${op.branch ?? 'The branch'} goes back to where it was before the ${name} started, including any commits it already made`;
+    if (!(await confirm(`Abort the ${name}?`, `${back}. Conflict resolutions you made for it are lost.`, `Abort ${op.kind === 'am' ? 'am' : name}`))) return false;
+  }
+  if (what === 'skip' && !force && !(await confirm(`Skip ${op.stopped ? short(op.stopped) + (op.stoppedSubject ? ` "${op.stoppedSubject.slice(0, 60)}"` : '') : 'this commit'}?`, `Its changes are left out and the ${name} goes on with the next commit.`, 'Skip commit'))) return false;
+  const verb = what[0].toUpperCase() + what.slice(1);
+  try {
+    await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${verb} ${name}` }, () => git(ctx.root, opArgs(op.kind as OpKind, what), { env: NO_EDITOR }));
+  } catch (e) {
+    const msg = e instanceof GitError ? e.message : String((e as Error)?.message ?? e);
+    // Stopping again on the next commit is normal: the bar shows the new step.
+    if (/CONFLICT|could not apply|conflict/i.test(msg)) vscode.window.showWarningMessage(`Mergeline: the ${name} stopped again on a conflict. Resolve it, stage the files, then Continue.`);
+    else vscode.window.showErrorMessage(`${verb} ${name} failed: ${msg.split('\n').slice(0, 6).join(' ')}`);
+  }
+  return true;
 }

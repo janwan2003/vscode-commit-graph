@@ -51,6 +51,7 @@
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
     <button id="refresh" title="Refresh">Refresh</button>
   </div>
+  <div id="opbar" hidden role="status"></div>
   <div id="pathbar" hidden></div>
   <div id="main">
     <div id="header" class="row hdr" title="Drag a column edge to resize it (double-click: reset). Right-click to show or hide columns."><div class="c-graph">Graph<span class="rz" data-col="graph"></span></div><div class="c-desc">Description</div><div class="c-date">Date<span class="rz" data-col="date"></span></div><div class="c-author">Author<span class="rz" data-col="author"></span></div><div class="c-hash">Commit<span class="rz" data-col="hash"></span></div></div>
@@ -59,7 +60,14 @@
   </div>
   <div id="split" hidden title="Drag to resize the details pane (double-click: reset)"></div>
   <div id="details" hidden></div>
-  <div id="menu" hidden role="menu"></div>`;
+  <div id="menu" hidden role="menu"></div>
+  <div id="dlg" hidden role="dialog" aria-modal="true" aria-labelledby="dlg-t"><form id="dlg-f">
+    <div id="dlg-t"></div>
+    <label for="dlg-s">Subject</label><input id="dlg-s" type="text" spellcheck="true" autocomplete="off">
+    <label for="dlg-b">Body <span class="hint">(optional)</span></label><textarea id="dlg-b" rows="9" spellcheck="true"></textarea>
+    <div id="dlg-n" class="hint"></div>
+    <div class="dlg-btns"><span class="hint">Ctrl/Cmd+Enter to save, Esc to cancel</span><button type="button" id="dlg-c" class="secondary">Cancel</button><button type="submit" id="dlg-ok">Save message</button></div>
+  </form></div>`;
 
   const scroller = $('#scroller');
   const rowsEl = $('#rows');
@@ -75,6 +83,12 @@
   $('#order').addEventListener('change', (e) => vscode.postMessage({ type: 'order', order: e.target.value }));
   $('#pathbar').addEventListener('click', (e) => {
     if (e.target.closest('#clearpath')) vscode.postMessage({ type: 'filter', branch: $('#branch').value, remotes: $('#remotes').checked, path: '' });
+  });
+  $('#opbar').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-op]');
+    if (!b) return;
+    if (b.dataset.op === 'scm') vscode.postMessage({ type: 'action', action: 'openScm' });
+    else action({ action: b.dataset.op });
   });
   $('#refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
   $('#fetch').addEventListener('click', () => vscode.postMessage({ type: 'action', action: 'fetch' }));
@@ -110,10 +124,11 @@
       case 'data': setData(m); break;
       case 'details': showDetails(m); break;
       case 'history': gotHistory(m); break;
+      case 'message': openMessageEditor(m.sha, m.message); break;
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [] }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -158,6 +173,7 @@
     $('#remotes').checked = m.filter.remotes;
     if (m.order) $('#order').value = m.order;
     $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
+    renderOpBar(m.op);
     const pb = $('#pathbar');
     if (m.filter.path) {
       pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code>${m.names && m.names.length > 1 ? `<span class="pb-n" title="${esc(m.names.slice(1).join('\n'))}">also as ${m.names.slice(1, 3).map((n) => `<code>${esc(n)}</code>`).join(', ')}${m.names.length > 3 ? ` +${m.names.length - 3}` : ''}</span>` : ''}<span class="pb-n">${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
@@ -637,8 +653,9 @@
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#find').focus(); $('#find').select(); return; }
+    if (!$('#dlg').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } return; }
     if (e.key === 'Escape') { if (!menu.hidden) hideMenu(); else if (!detailsEl.hidden) closeDetails(); return; }
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     const page = Math.max(1, Math.floor(scroller.clientHeight / ROW) - 1);
     const MOVE = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page };
     if ((e.key in MOVE || e.key === 'Home' || e.key === 'End') && data && data.commits.length) {
@@ -739,20 +756,96 @@
     return a > b ? { from: selected, to: compareSha, n: a - b + 1 } : { from: compareSha, to: selected, n: b - a + 1 };
   }
   function editItems(c, base) {
+    if (data.op) return []; // finish or abort what is in progress first (see the bar)
     const set = editableSet();
     if (!set.has(c.sha)) return [];
     const cur = data.branch ? `“${data.branch}”` : 'HEAD';
     const rng = squashRange();
     const items = [];
     if (rng && (c.sha === rng.from || c.sha === rng.to)) items.push([`Squash ${rng.n} commits into one…`, { action: 'squashRange', sha: rng.from, target: rng.to, current: data.branch }]);
+    // Folding into or moving below a merge parent is refused by the planner; grey it out here.
+    const par = c.parents.length && indexBySha.has(c.parents[0]) ? data.commits[indexBySha.get(c.parents[0])] : null;
+    const below = !c.parents.length || (par && par.parents.length > 1) ? 'disabled' : '';
     items.push(
-      ['Edit commit message…', { ...base, action: 'reword' }],
-      ['Squash into parent', { ...base, action: 'fixupCommit' }, c.parents.length ? '' : 'disabled'],
+      ['Edit commit message…', () => vscode.postMessage({ type: 'getMessage', sha: c.sha })],
+      ['Move commit up (newer)', { ...base, action: 'moveCommit', dir: 'newer' }, c.sha === data.head ? 'disabled' : ''],
+      ['Move commit down (older)', { ...base, action: 'moveCommit', dir: 'older' }, below],
+      ['Squash into parent', { ...base, action: 'fixupCommit' }, below],
       ['Drop commit…', { ...base, action: 'dropCommit' }, 'danger'],
       null,
     );
     return items;
   }
+
+  // ---------- operation in progress (rebase, merge, cherry-pick, revert, am) ----------
+  function renderOpBar(op) {
+    const bar = $('#opbar');
+    if (!op) { bar.hidden = true; bar.innerHTML = ''; return; }
+    const sh = (s) => (s ? s.slice(0, 8) : '');
+    const ref = (sha) => { const r = sha && (refsBySha.get(sha) || []).find((x) => x.type === 'head' || x.type === 'remote'); return r ? r.name : sh(sha); };
+    let what;
+    if (op.kind === 'rebase') what = `Rebasing <b>${esc(op.branch || 'HEAD')}</b>${op.onto ? ` onto <code>${esc(ref(op.onto))}</code>` : ''}`;
+    else if (op.kind === 'merge') what = `Merging <code>${esc(ref(op.onto))}</code> into <b>${esc(data && data.branch ? data.branch : 'HEAD')}</b>`;
+    else if (op.kind === 'cherry-pick') what = 'Cherry-picking';
+    else if (op.kind === 'revert') what = 'Reverting';
+    else what = 'Applying patches (git am)';
+    const step = op.step && op.total ? ` — step ${op.step} of ${op.total}` : '';
+    const at = op.stopped ? `${op.kind === 'rebase' ? ', stopped at' : ''} <code class="op-sha" data-sha="${esc(op.stopped)}" title="Show this commit">${sh(op.stopped)}</code>${op.stoppedSubject ? ` “${esc(op.stoppedSubject.slice(0, 80))}”` : ''}` : '';
+    const n = op.conflicts.length;
+    const conf = n ? `<span class="op-conf" title="${esc(op.conflicts.join('\n'))}">${n} conflicted file${n === 1 ? '' : 's'}</span>` : `<span class="op-ok">no conflicts left</span>`;
+    bar.innerHTML = `<span class="op-icon" aria-hidden="true">⚠</span><span class="op-what">${what}${step}${at}</span>${conf}<span class="grow"></span>`
+      + `<button data-op="opContinue" title="${n ? 'Resolve and stage the conflicted files first' : 'Go on (keeps the prepared commit message; no editor opens)'}"${n ? ' class="secondary"' : ''}>Continue</button>`
+      + (op.kind !== 'merge' ? `<button data-op="opSkip" class="secondary" title="Leave this commit out and go on">Skip</button>` : '')
+      + `<button data-op="opAbort" class="secondary" title="Stop and put everything back as it was before">Abort</button>`
+      + `<button data-op="scm" class="secondary" title="Open the Source Control view to resolve and stage">Source Control</button>`;
+    bar.hidden = false;
+  }
+  $('#opbar').addEventListener('click', (e) => {
+    const c = e.target.closest('.op-sha');
+    if (c && indexBySha.has(c.dataset.sha)) select(c.dataset.sha, true);
+  });
+
+  // ---------- commit message editor (Edit commit message…) ----------
+  let dlgSha = null, dlgOrig = '';
+  function openMessageEditor(sha, message) {
+    const nl = message.indexOf('\n');
+    const subject = nl < 0 ? message : message.slice(0, nl);
+    const body = nl < 0 ? '' : message.slice(nl + 1).replace(/^\n/, '');
+    dlgSha = sha;
+    dlgOrig = message;
+    $('#dlg-t').textContent = `Edit message of ${sha.slice(0, 8)}`;
+    $('#dlg-s').value = subject;
+    $('#dlg-b').value = body;
+    $('#dlg').hidden = false;
+    updateDlg();
+    $('#dlg-s').focus();
+    $('#dlg-s').select();
+  }
+  function dlgMessage() {
+    const subject = $('#dlg-s').value.trim();
+    const body = $('#dlg-b').value.replace(/\s+$/, '').replace(/^\s*\n/, '');
+    return body ? `${subject}\n\n${body}` : subject;
+  }
+  function updateDlg() {
+    const len = $('#dlg-s').value.trim().length;
+    $('#dlg-n').textContent = !len ? 'Enter a subject.' : len > 72 ? `Subject is ${len} characters; many tools cut it at 50–72.` : '';
+    $('#dlg-ok').disabled = !len || dlgMessage() === dlgOrig.replace(/\s+$/, '');
+  }
+  function closeDialog() { $('#dlg').hidden = true; dlgSha = null; scroller.focus(); }
+  $('#dlg-s').addEventListener('input', updateDlg);
+  $('#dlg-b').addEventListener('input', updateDlg);
+  $('#dlg-c').addEventListener('click', closeDialog);
+  $('#dlg').addEventListener('mousedown', (e) => { if (e.target.id === 'dlg') closeDialog(); });
+  $('#dlg-f').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('#dlg-f').requestSubmit(); }
+  });
+  $('#dlg-f').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if ($('#dlg-ok').disabled || !dlgSha) return;
+    const c = indexBySha.has(dlgSha) ? data.commits[indexBySha.get(dlgSha)] : null;
+    action({ action: 'reword', sha: dlgSha, subject: c ? c.subject : '', current: data.branch, fullMessage: dlgMessage() });
+    closeDialog();
+  });
 
   /** Show the changes between commit `a` and `b` (UNC = working tree) in the details pane. */
   function compare(a, b, base, la, lb) {

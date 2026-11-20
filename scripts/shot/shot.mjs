@@ -31,6 +31,12 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
   if (m.type === 'ready') {
     window.postMessage({ type: 'settings', settings: { dateFormat: 'relative' } }, '*');
     window.postMessage({ type: 'repos', repos: [{ root: '/work/acme-app', name: 'acme-app' }], repo: '/work/acme-app' }, '*');
+    // OPBAR=1: pretend a rebase stopped on a conflict (the bar above the graph).
+    if (${process.env.OPBAR === '1'}) {
+      const c = P.data.commits.filter((x) => x.kind === 'commit');
+      const onto = (P.data.refs.find((r) => r.type === 'head' && r.name !== P.data.branch) || {}).sha || c[6].sha;
+      P.data.op = { kind: 'rebase', branch: P.data.branch, onto, step: 2, total: 5, stopped: c[3].sha, stoppedSubject: c[3].subject, conflicts: ['src/app.ts', 'README.md'] };
+    }
     window.postMessage(P.data, '*');
     setTimeout(() => {
       if (P.details) {
@@ -51,6 +57,14 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
         ev(document, 'mousemove', d.left + 8, d.top + 8);
         ev(document.elementFromPoint(d.left + 8, d.top + 8), 'mouseup', d.left + 8, d.top + 8);
       }, 140);
+      // DIALOG=1: the commit message editor, open. DIALOG=2: edit it and save; the posted message goes in the title.
+      if (${!!process.env.DIALOG}) setTimeout(() => window.postMessage({ type: 'message', sha: P.data.head, message: P.data.commits.find((c) => c.sha === P.data.head).subject + '\\n\\nThe dark palette now follows the editor theme.\\nFixes #128.' }, '*'), 100);
+      if (${process.env.DIALOG === '2'}) setTimeout(() => {
+        window.__onPost = (m) => { if (m.type === 'action') window.__posted = m; };
+        const s = document.querySelector('#dlg-s'); s.value = 'New subject'; s.dispatchEvent(new Event('input'));
+        document.querySelector('#dlg-ok').click();
+        setTimeout(() => { document.title += ' posted=' + JSON.stringify(window.__posted || null) + ' dlgHidden=' + document.querySelector('#dlg').hidden; }, 50);
+      }, 300);
       if (!${INTERACT}) setTimeout(() => { document.title = 'rows=' + document.querySelectorAll('#rows .row').length + ' badges=' + document.querySelectorAll('.badge').length + ' files=' + document.querySelectorAll('.file').length + ' paths=' + document.querySelectorAll('#rows svg path').length; }, 200);
     }, 50);
   }

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive rebase in VS Code (git rebase -i without the terminal editor) | Mergeline</title>
+<meta name="description" content="How git rebase -i works: the todo list and its commands (pick, reword, edit, squash, fixup, drop, exec), editing it in VS Code instead of Vim, --autostash, --autosquash, --rebase-merges, and staying safe.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/interactive-rebase-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Interactive rebase in VS Code (git rebase -i without the terminal editor)">
+<meta property="og:description" content="The todo list and its commands, code --wait as the git editor, --autostash, --autosquash, --rebase-merges, and which commits are safe to rewrite.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/interactive-rebase-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Interactive rebase in VS Code, without the terminal editor</h1>
+    <p><code>git rebase -i</code> is git&rsquo;s tool for cleaning up a branch before others see it: fix a message, merge a fix into the commit it fixes, drop a mistake, change the order. It hands you a short plain-text plan, one line per commit, and carries it out when you save. This guide explains that plan and its commands, how to edit it in VS Code instead of Vim, the options worth knowing, and when not to rebase at all.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#todo">The todo list</a></li>
+        <li><a href="#commands">The commands</a></li>
+        <li><a href="#editor">Edit it in VS Code</a></li>
+        <li><a href="#options"><code>--autostash</code>, <code>--autosquash</code>, <code>--rebase-merges</code></a></li>
+        <li><a href="#safety">Which commits are safe to rebase</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Rework the last 5 commits</td><td><code>git rebase -i HEAD~5</code></td></tr>
+          <tr><td>Rework everything since my branch left <code>main</code></td><td><code>git rebase -i $(git merge-base main HEAD)</code></td></tr>
+          <tr><td>Edit the todo list in a VS Code tab</td><td><code>git config --global core.editor "code --wait"</code></td></tr>
+          <tr><td>Rebase with uncommitted changes</td><td>add <code>--autostash</code></td></tr>
+          <tr><td>Fold <code>fixup!</code> commits in automatically</td><td>add <code>--autosquash</code></td></tr>
+          <tr><td>Run the tests after every commit</td><td>add <code>--exec "npm test"</code></td></tr>
+          <tr><td>Stop and put everything back</td><td><code>git rebase --abort</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="todo">The todo list</h2>
+    <p>Give <code>git rebase -i</code> the commit just <em>below</em> the oldest one you want to change. Git opens a file named <code>git-rebase-todo</code> listing the commits after it, <strong>oldest first</strong>:</p>
+<pre>pick cee752e # A: add two
+pick 485fdce # B: add b
+pick 5974a6f # C: add three
+
+<span class="c"># Rebase 3c2e146..5974a6f onto 3c2e146 (3 commands)
+# ...
+# These lines can be re-ordered; they are executed from top to bottom.</span></pre>
+    <p>Each line is a command and a commit. Change the commands, move or delete lines, save and close the file, and git works through the list from the top. Lines starting with <code>#</code> are ignored, and an empty list cancels the rebase. Commits above the first line you changed keep their hashes; every commit after it is recreated with a new one.</p>
+    <p><code>git rebase -i main</code> also works, but it moves your branch onto the tip of <code>main</code> at the same time if <code>main</code> has new commits. The <code>merge-base</code> form in the table above keeps the branch where it is. To include the very first commit of the repository, use <code>git rebase -i --root</code>.</p>
+
+    <h2 id="commands">The commands</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">Guide</th></tr></thead>
+        <tbody>
+          <tr><td><code>pick</code> (<code>p</code>)</td><td>Keep the commit as it is.</td><td></td></tr>
+          <tr><td><code>reword</code> (<code>r</code>)</td><td>Keep the changes, stop to edit the message.</td><td><a href="edit-commit-message-vscode.html">Edit a message</a></td></tr>
+          <tr><td><code>edit</code> (<code>e</code>)</td><td>Apply the commit, then stop so you can change it.</td><td></td></tr>
+          <tr><td><code>squash</code> (<code>s</code>)</td><td>Combine with the commit above and edit the joined message.</td><td><a href="squash-commits-vscode.html">Squash</a></td></tr>
+          <tr><td><code>fixup</code> (<code>f</code>)</td><td>Combine with the commit above and keep only that commit&rsquo;s message.</td><td><a href="squash-commits-vscode.html#fixup">Fixups</a></td></tr>
+          <tr><td><code>drop</code> (<code>d</code>)</td><td>Remove the commit. Deleting the line does the same.</td><td><a href="drop-commit-vscode.html">Drop</a></td></tr>
+          <tr><td><code>exec</code> (<code>x</code>)</td><td>Run a shell command at this point; a failure stops the rebase.</td><td></td></tr>
+          <tr><td>(move a line)</td><td>Change the order of commits.</td><td><a href="reorder-commits-vscode.html">Reorder</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>At an <code>edit</code> stop git says <code>You can amend the commit now</code> and suggests <code>git commit --amend</code>. Change files, <code>git add</code> them, amend, then <code>git rebase --continue</code>. To split the commit in two instead, run <code>git reset HEAD~1</code> there, commit the pieces separately, and continue. <code>break</code> (<code>b</code>) pauses at that point without changing anything. The list git shows also mentions <code>label</code>, <code>reset</code>, <code>merge</code> and <code>update-ref</code>; you will mostly see these with <code>--rebase-merges</code>.</p>
+    <p>Whenever the rebase stops, for an <code>edit</code>, a failed <code>exec</code> or a conflict, <code>git status</code> shows where it is and <code>git rebase --abort</code> puts the branch back as it was. The <a href="rebase-conflict-continue-abort-vscode.html">conflict guide</a> covers continue, skip and abort.</p>
+
+    <h2 id="editor">Edit it in VS Code</h2>
+    <p>Git opens the todo list, and every commit message it asks for, in its configured editor, which is often Vim. To get them as VS Code tabs, make VS Code the editor and tell it to wait until you close the tab:</p>
+<pre><span class="k">git config --global core.editor</span> "code --wait"        <span class="c"># the todo list and commit messages</span>
+<span class="k">git config --global sequence.editor</span> "code --wait"    <span class="c"># only the todo list</span>
+GIT_SEQUENCE_EDITOR="code --wait" <span class="k">git rebase -i HEAD~3</span>   <span class="c"># this once (bash, zsh)</span></pre>
+    <p>Edit the <code>git-rebase-todo</code> tab, save it, and <em>close</em> it; the rebase goes on when the tab closes. The <code>GIT_SEQUENCE_EDITOR</code> variable takes precedence over <code>sequence.editor</code>, which takes precedence over the normal editor. Without <code>--wait</code>, <code>code</code> returns at once and git sees an unchanged list.</p>
+    <p>VS Code also has a setting, <code>git.terminalGitEditor</code> (off by default), that makes it the git editor for git commands run in its integrated terminal; restart the terminal after turning it on.</p>
+
+    <h2 id="options">Useful options</h2>
+    <p><strong><code>--autostash</code>.</strong> Rebase refuses to start while you have uncommitted changes (<code>cannot rebase: You have unstaged changes</code>). With <code>--autostash</code> git stashes them, rebases, and restores them. If restoring them conflicts, git says <code>Your changes are safe in the stash</code> and leaves them in <code>git stash list</code>. Make it the default with <code>git config --global rebase.autoStash true</code>.</p>
+    <p><strong><code>--autosquash</code>.</strong> Record a fix aimed at an earlier commit with <code>git commit --fixup=&lt;commit&gt;</code>. Its subject starts with <code>fixup!</code>, and <code>--autosquash</code> moves it under its target and marks it <code>fixup</code> in the todo list for you:</p>
+<pre><span class="k">git commit --fixup=</span>485fdce
+<span class="k">git rebase -i --autosquash</span> HEAD~4
+<span class="o">pick cee752e # A: add two
+pick 485fdce # B: add b
+fixup 59e6123 # fixup! B: add b
+pick 5974a6f # C: add three</span></pre>
+    <p><strong><code>--exec &lt;command&gt;</code></strong> adds an <code>exec</code> line after every commit, a cheap way to check that each commit on its own still builds or passes its tests.</p>
+    <p><strong><code>--rebase-merges</code>.</strong> By default a rebase flattens merges: the commits from both sides are replayed in a straight line and the merge commit disappears. With <code>--rebase-merges</code> the todo list gains <code>label</code>, <code>reset</code> and <code>merge</code> lines that rebuild the same shape. Leave those lines alone unless you mean to change the structure.</p>
+
+    <h2 id="safety">Which commits are safe to rebase</h2>
+    <p>Rebasing creates new commits and leaves the old ones behind. On commits that only you have, that costs nothing. On commits already pushed to a branch others use, it splits history: their copies still have the old commits. Rebase what you have not pushed, or your own feature branch before review, and update the remote with <code>git push --force-with-lease</code>. Leave shared branches such as <code>main</code> alone and use <code>git revert</code> there instead. Right after a rebase finishes, <code>git reset --keep ORIG_HEAD</code> undoes it; after that, look in the reflog (see the <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a>).</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>For the common edits you do not need the todo list at all. From Mergeline 0.7, right-click a commit on the checked-out branch (commits following first parents from <code>HEAD</code>, back to the first merge commit):</p>
+      <ol class="steps">
+        <li><strong>Pick the edit.</strong> <strong>Edit commit message&hellip;</strong> opens a dialog with the subject and the full body. <strong>Move commit up (newer)</strong> and <strong>Move commit down (older)</strong> swap it with its neighbour. <strong>Squash into parent</strong> and <strong>Drop commit&hellip;</strong> do what they say. Ctrl/Cmd-click a second commit for <strong>Squash N commits into one&hellip;</strong>. Merge commits and commits not on the current branch are refused with a reason.</li>
+        <li><strong>Mergeline runs <code>git rebase -i</code> for you</strong> with a todo list it writes itself, so no editor opens, and with <code>--autostash</code>, so uncommitted changes are kept. It warns first when the commit is already on a remote-tracking branch, since you would need to force-push.</li>
+        <li><strong>Undo, or finish a stopped rebase.</strong> When it finishes, the notification offers <strong>Undo</strong> (<code>git reset --keep</code> to where the branch was). If a commit conflicts, a bar at the top of the graph offers Continue, Skip, Abort and Source Control; it also appears for a rebase you started in a terminal.</li>
+        <li><strong>For anything else,</strong> such as <code>edit</code>, <code>exec</code> or several changes in one go, right-click the commit below the oldest one to change and choose <strong>Interactive rebase from here (terminal)</strong>. Mergeline opens a terminal and runs <code>git rebase -i</code> on that commit, using the editor you set up above.</li>
+      </ol>
+      <figure class="shot"><img src="screenshot-edit.png" width="1280" height="800" alt="Mergeline's commit graph in VS Code with the context menu open on a commit. The menu has groups for creating a branch or tag and checking out, cherry-pick and revert, merge, rebase, interactive rebase from here and reset, then a group with Edit commit message, Move commit up (newer), Move commit down (older), Squash into parent and Drop commit (the two that would fold into or move below a merge commit are greyed out), followed by compare, worktree and copy items."><figcaption>The commit context menu, with the history-editing group in the middle.</figcaption></figure>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html" aria-current="page">Interactive rebase</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

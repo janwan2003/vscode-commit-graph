@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reorder commits in git and VS Code | Mergeline</title>
+<meta name="description" content="Change the order of commits on a git branch: move lines in git rebase -i, what happens to the hashes, conflicts when commits touch the same lines, the cherry-pick alternative, and how to undo.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/reorder-commits-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="How to reorder commits in git and VS Code">
+<meta property="og:description" content="Move lines in the rebase todo list, force-push safely, handle conflicts, rebuild with cherry-pick, and undo with ORIG_HEAD or the reflog.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/reorder-commits-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>How to reorder commits in git and VS Code</h1>
+    <p>Commit order matters more than it seems. A reviewer reads a branch top to bottom, a refactor reads better before the feature that needs it, and two commits you want to squash have to sit next to each other first. Git can change the order of commits on your branch by replaying them in a new sequence. This guide shows how, what it does to the commits, why it sometimes conflicts, and how to put things back.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#rebase">Reorder with <code>git rebase -i</code></a></li>
+        <li><a href="#hashes">What changes, and pushed commits</a></li>
+        <li><a href="#conflicts">When the moved commits conflict</a></li>
+        <li><a href="#cherry-pick">The alternative: <code>cherry-pick</code> onto a new branch</a></li>
+        <li><a href="#undo">Undo a reorder</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Reorder the last 3 commits</td><td><code>git rebase -i HEAD~3</code>, then move lines</td></tr>
+          <tr><td>The same, with uncommitted changes in the way</td><td><code>git rebase -i --autostash HEAD~3</code></td></tr>
+          <tr><td>Build a new branch with the commits in my order</td><td><code>git switch -c new &lt;base&gt;</code>, then <code>git cherry-pick &lt;c1&gt; &lt;c2&gt; &hellip;</code></td></tr>
+          <tr><td>Check that only the order changed</td><td><code>git diff ORIG_HEAD HEAD</code> (no output)</td></tr>
+          <tr><td>Stop a reorder that conflicts</td><td><code>git rebase --abort</code></td></tr>
+          <tr><td>Update the remote after reordering pushed commits</td><td><code>git push --force-with-lease</code></td></tr>
+          <tr><td>Undo the reorder</td><td><code>git reset --keep ORIG_HEAD</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="rebase">Reorder with <code>git rebase -i</code></h2>
+    <p>Start an interactive rebase from the commit just below the oldest one you want to move. For the newest three:</p>
+<pre><span class="k">git log --oneline -4</span>
+<span class="o">5974a6f C: add three
+485fdce B: add b
+cee752e A: add two
+3c2e146 Base</span>
+<span class="k">git rebase -i HEAD~3</span></pre>
+    <p>The todo list lists the commits <strong>oldest first</strong>, the reverse of <code>git log</code>. Git applies them from top to bottom, so to reorder commits you reorder lines. Cut and paste them, keeping the word <code>pick</code> at the start:</p>
+<pre>pick cee752e # A: add two
+pick 5974a6f # C: add three
+pick 485fdce # B: add b</pre>
+    <p>Save and close. Git replays the commits in the new order and the branch now ends with <code>B</code>. Leave a line out and that commit is dropped, so move lines rather than retyping them. If the editor is Vim and you would rather use VS Code, see <a href="interactive-rebase-vscode.html#editor">setting the editor</a>. Rebase refuses to start with uncommitted changes (<code>cannot rebase: You have unstaged changes</code>); <code>--autostash</code> stashes them and puts them back afterwards.</p>
+
+    <h2 id="hashes">What changes, and pushed commits</h2>
+    <p>A commit&rsquo;s hash depends on its parent, so every commit from the first moved line onward gets a new hash. Lines above it that you left alone keep their hashes: in the example, <code>A</code> is still <code>cee752e</code>. Messages, authors and author dates are kept; the committer date becomes now.</p>
+    <p>If you only changed the order and nothing conflicted, the final files are identical. <code>git diff ORIG_HEAD HEAD</code> prints nothing, which is a quick way to confirm it.</p>
+    <p>If the commits were already pushed, the remote still has the old order and a plain push is rejected. Push with <code>git push --force-with-lease</code>, which refuses if someone else pushed to the branch in the meantime. Do not reorder commits on a shared branch such as <code>main</code>: everyone who pulled the old order would have to reconcile it with the new one.</p>
+
+    <h2 id="conflicts">When the moved commits conflict</h2>
+    <p>Each commit is stored as a snapshot, but git replays it as a change to its parent. When two commits touch the same lines, or lines right next to each other, swapping them means applying a change to text that does not look the way it did when the change was made. Git then stops:</p>
+<pre><span class="o">CONFLICT (content): Merge conflict in a.txt
+error: could not apply 5974a6f... C: add three</span></pre>
+    <p>Here <code>C</code> appended a line after the one <code>A</code> added, so <code>C</code> cannot go first without help. Resolve the file as it should look at this point in the new order, <code>git add</code> it and run <code>git rebase --continue</code>. Expect to resolve the same spot again when the other commit is applied. If that is more work than the new order is worth, <code>git rebase --abort</code> restores the branch exactly. The <a href="rebase-conflict-continue-abort-vscode.html">conflict guide</a> walks through continue, skip and abort in detail.</p>
+    <p>Commits that change different files, or distant parts of the same file, reorder without any conflict.</p>
+
+    <h2 id="cherry-pick">The alternative: <code>cherry-pick</code> onto a new branch</h2>
+    <p>If you would rather not touch the original branch until the result is right, build a new one. Start from the commit below the ones you want to move and pick them in the order you want; <code>cherry-pick</code> applies them in the order you list them:</p>
+<pre><span class="k">git switch -c reordered</span> cee752e
+<span class="k">git cherry-pick</span> 5974a6f 485fdce
+<span class="k">git diff</span> main reordered            <span class="c"># no output: same content, new order</span></pre>
+    <p>Conflicts stop the cherry-pick the same way and are resolved with <code>git cherry-pick --continue</code>. When you are happy, point your branch at the new commits from the <code>reordered</code> branch with <code>git branch -f main reordered</code>, then <code>git switch main</code>. The old branch is untouched until that last step, so giving up just means deleting <code>reordered</code>.</p>
+
+    <h2 id="undo">Undo a reorder</h2>
+    <p>Right after a rebase finishes, <code>ORIG_HEAD</code> points at the branch as it was before the rebase started (we checked this with git 2.53, for both a plain and an interactive rebase):</p>
+<pre><span class="k">git reset --keep ORIG_HEAD</span></pre>
+    <p><code>--keep</code> refuses rather than overwrite uncommitted changes. <code>ORIG_HEAD</code> is replaced by the next reset, rebase or merge, so if you have done anything since, find the old tip in <code>git reflog</code>: it is the entry just below <code>rebase (start)</code>. The <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a> explains the reflog. If you already force-pushed the new order, reset and force-push again.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>From Mergeline 0.7 you can move a commit one step at a time from the graph, without a todo list.</p>
+      <ol class="steps">
+        <li><strong>Right-click a commit</strong> on the checked-out branch and choose <strong>Move commit up (newer)</strong> or <strong>Move commit down (older)</strong>. The commit swaps places with its neighbour. The menu items work on commits of the current branch (following first parents from <code>HEAD</code> back to the first merge commit); merge commits and commits on other branches are refused with a reason. To move a commit further, repeat.</li>
+        <li><strong>Mergeline runs the rebase for you.</strong> It writes the todo list itself and runs <code>git rebase -i</code> with <code>--autostash</code>, so no editor opens and uncommitted changes are kept. It warns first if the commit is already on a remote-tracking branch, because you would need to force-push.</li>
+        <li><strong>If the two commits conflict,</strong> the rebase stops and a bar at the top of the graph shows it, with <strong>Continue</strong>, <strong>Skip</strong>, <strong>Abort</strong> and <strong>Source Control</strong>. Resolve and stage the files, then press Continue, or press Abort to put the branch back.</li>
+        <li><strong>Undo in one click.</strong> When the move finishes, the notification offers <strong>Undo</strong>, which puts the branch back with <code>git reset --keep</code>.</li>
+      </ol>
+      <p>The same menu can <a href="edit-commit-message-vscode.html">edit a commit message</a>, <a href="squash-commits-vscode.html">squash</a> or <a href="drop-commit-vscode.html">drop</a> a commit. For several moves at once, use <a href="interactive-rebase-vscode.html">an interactive rebase</a>.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html" aria-current="page">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

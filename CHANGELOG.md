@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 (2026-11-20)
+
+- **Rebase, merge, cherry-pick or revert in progress? The graph says so.** When one of them has stopped (usually on a conflict), whether Mergeline started it or you did in a terminal, a bar above the graph shows what is happening: for example "Rebasing main onto feature/x — step 2 of 5, stopped at 1a2b3c4 “subject” · 2 conflicted files". Its buttons **Continue**, **Skip** (not for merges), **Abort** and **Source Control** do the obvious thing. Continue never opens an editor (git keeps the message it prepared), refuses while files are still unmerged, and asks again if a staged file still contains conflict markers. Abort and Skip ask first. `git am` is recognised too.
+- **Edit the whole commit message.** **Edit commit message…** now opens an editor in the graph with the subject and the body, so you can rewrite both (Ctrl/Cmd+Enter saves, Esc cancels). It warns when the subject is longer than 72 characters.
+- **Move a commit up or down.** Right-click a commit on the checked-out branch: **Move commit up (newer)** or **Move commit down (older)** swaps it with its neighbour, with the same safety as the other edits (autostash, pushed-commit warning, Undo). If the two commits change the same lines, the rebase stops and the new bar takes you through it.
+- While something is in progress, the edit-history items are hidden (finish or abort it first).
+
 ## 0.6.0 (2026-11-20)
 
 - **Edit history from the graph.** Right-click a commit on the checked-out branch: **Edit commit message…** (change the subject line; the rest of the message is kept), **Squash into parent** (the two become one commit with the parent's message) or **Drop commit…** (later commits are replayed without it). Ctrl/Cmd-click a second commit on the branch, then right-click either one, or use the link in the details pane, to **Squash N commits into one** with a new subject; the old subjects are listed in its body. Mergeline writes the rebase plan itself, so no editor or terminal opens, and `--autostash` keeps your uncommitted changes. It refuses when a merge commit is in the way, warns before rewriting commits that are already on a remote branch, and every change offers **Undo** (`git reset --keep` to where the branch was). If a later commit conflicts, the notification offers Open Source Control or Abort rebase.
