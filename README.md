@@ -19,7 +19,11 @@ account, has no paid tier and sends no telemetry.
 - **Table**: graph, description, date, author and hash columns, with a header that stays visible when you scroll. Drag a column edge to resize it (double-click resets it), and right-click the header to hide or show columns. Your layout is kept across sessions.
 - **Fast**: only visible rows are rendered. The first 500 commits load at once and more load as you scroll. On a 100,000-commit repository the first page is ready in about 0.35 s.
 - **Details**: click a commit to see its full message, author, committer, parents and changed files with +/− counts and renames. Click a file to open it in VS Code's diff editor. Right-click a file to open it, open it as it was at that commit, compare that version with your working copy, show its history, reveal it in the Explorer or copy its path. Links in commit messages are clickable, and so are `#123` issue references and the **Open on GitHub** link (also GitLab and Bitbucket) when your remote is hosted there. Drag the bar above the pane to resize it.
-- **Compare**: Ctrl/Cmd-click a second commit to see every file that changed between the two. Right-click a commit → **Compare with working tree**, or a branch → **Compare with** the current branch.
+- **Compare**: Ctrl/Cmd-click a second commit to see every file that changed between the two. Right-click a commit → **Compare with working tree**, or a branch → **Compare with** the current branch, or **Changes since it split from** the current branch (three-dot diff from the merge base: what a merge would bring in).
+- **Drag and drop**: drag a branch badge onto another branch or a commit to merge it there, rebase it onto it, move the branch to that commit, or compare the two. Nothing runs until you pick an item from the menu that opens on drop, and rebases and moves ask first.
+![Dragging the feature/dark-mode branch onto main opens a menu: merge, rebase, move, compare, or see the changes since they split](docs/screenshot-drag.png)
+
+- **Worktrees**: other worktrees show as a ⧉ badge on the commit they have checked out. Create one from a branch or commit, open it in a new window, or remove it, from the right-click menus.
 - **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches. **All history** (or Enter when nothing loaded matches) searches every commit the graph can show, not just the loaded ones (`git log --grep` / `--author`, hash prefix, ref names), and loads as far as needed to show the match.
 - **File history**: right-click a file (Explorer, editor tab or editor) → **Show File History in Mergeline** to see only the commits that touched it, still drawn as a connected graph. Renamed or moved files are followed back through their old names (shown in the bar above the graph).
 - **Filter**: show one branch, or hide remote branches.
@@ -30,11 +34,13 @@ account, has no paid tier and sends no telemetry.
 
 | On | Actions |
 |---|---|
-| Commit | Create branch here · Add tag (lightweight or annotated) · Check out (detached) · Cherry-pick · Revert · Merge into current branch (fast-forward, `--no-ff` or `--squash`) · Rebase current branch onto it · Interactive rebase from here (in a terminal) · Reset current branch to it (soft, mixed or hard) · Compare with working tree · Open on GitHub/GitLab/Bitbucket · Copy hash or subject |
-| Branch | Check out · Merge · Rebase onto · Compare with current branch · Push (sets upstream) · Pull · Rename · Delete (asks before force-deleting an unmerged branch) · Copy name |
-| Remote branch | Check out as a local tracking branch · Merge · Rebase onto · Compare with current branch · Open on GitHub/GitLab/Bitbucket · Delete on remote · Copy name |
+| Commit | Create branch here · Add tag (lightweight or annotated) · Check out (detached) · Cherry-pick · Revert · Merge into current branch (fast-forward, `--no-ff` or `--squash`) · Rebase current branch onto it · Interactive rebase from here (in a terminal) · Reset current branch to it (soft, mixed or hard) · Compare with working tree · Create worktree here (detached) · Open on GitHub/GitLab/Bitbucket · Copy hash or subject |
+| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Rename · Delete (asks before force-deleting an unmerged branch) · Copy name |
+| Remote branch | Check out as a local tracking branch · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Open on GitHub/GitLab/Bitbucket · Delete on remote · Copy name |
 | Tag | Push · Merge · Delete locally or also on the remote · Copy name |
 | Stash | Apply · Pop · Create branch from stash · Drop |
+| Worktree badge | Open in new window · Copy path · Remove worktree (asks again before discarding uncommitted changes) · Prune missing worktrees |
+| Branch dropped on a branch or commit | Merge into it · Rebase onto it · Move the branch there (reset, if current) · Compare · Changes since they split |
 | File (details pane) | Open changes · Open file · Open file at this commit · Compare with working tree · Show file history · Reveal in Explorer · Copy relative or absolute path |
 | Uncommitted changes | Stash (including untracked files) · Open Source Control · Discard all |
 

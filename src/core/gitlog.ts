@@ -404,3 +404,60 @@ export async function readCommitInfo(cwd: string, sha: string): Promise<CommitIn
     message: f.slice(8).join(US).replace(/\s+$/, ''),
   };
 }
+
+export interface Worktree {
+  path: string;
+  head: string | null; // checked-out commit, null for a bare entry or an unborn branch
+  branch: string | null; // short branch name, null when detached
+  main: boolean; // the first entry: the main working tree (or the bare repository)
+  bare?: boolean;
+  locked?: boolean;
+  prunable?: boolean; // its directory is gone; `git worktree prune` removes it
+}
+
+/** Parse `git worktree list --porcelain -z`: attribute lines are NUL-terminated, entries end in an extra NUL. */
+export function parseWorktrees(out: string): Worktree[] {
+  const list: Worktree[] = [];
+  let cur: Worktree | null = null;
+  for (const line of out.split(/\0|\n/)) {
+    if (!line) {
+      cur = null;
+      continue;
+    }
+    const sp = line.indexOf(' ');
+    const key = sp < 0 ? line : line.slice(0, sp);
+    const val = sp < 0 ? '' : line.slice(sp + 1);
+    if (key === 'worktree') {
+      cur = { path: val, head: null, branch: null, main: list.length === 0 };
+      list.push(cur);
+    } else if (!cur) continue;
+    else if (key === 'HEAD') cur.head = /^0+$/.test(val) ? null : val;
+    else if (key === 'branch') cur.branch = val.startsWith('refs/heads/') ? val.slice(11) : val;
+    else if (key === 'bare') cur.bare = true;
+    else if (key === 'locked') cur.locked = true;
+    else if (key === 'prunable') cur.prunable = true;
+  }
+  return list;
+}
+
+export async function readWorktrees(cwd: string): Promise<Worktree[]> {
+  try {
+    return parseWorktrees(await git(cwd, ['worktree', 'list', '--porcelain', '-z']));
+  } catch {
+    try {
+      // git < 2.36 has no -z.
+      return parseWorktrees(await git(cwd, ['worktree', 'list', '--porcelain']));
+    } catch {
+      return [];
+    }
+  }
+}
+
+/** The best common ancestor of two commits, or null when they share no history. */
+export async function mergeBase(cwd: string, a: string, b: string): Promise<string | null> {
+  try {
+    return (await git(cwd, ['merge-base', a, b])).trim() || null;
+  } catch {
+    return null;
+  }
+}

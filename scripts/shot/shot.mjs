@@ -40,6 +40,15 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
       }
       setTimeout(() => { document.querySelector('#find').value = 'search'; document.querySelector('#find').dispatchEvent(new Event('input')); }, 60);
       if (${MENU}) setTimeout(() => { const b = document.querySelector('.badge.branch:not(.current)'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 12 })); }, 120);
+      // DROP=1: drag feature/dark-mode onto the current branch and leave the drop menu open.
+      if (${process.env.DROP === '1'}) setTimeout(() => {
+        const ev = (el, type, x, y) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }));
+        const s = [...document.querySelectorAll('#rows .badge.branch')].find((b) => b.dataset.ref === 'feature/dark-mode').getBoundingClientRect();
+        const d = document.querySelector('#rows .badge.branch.current').getBoundingClientRect();
+        ev(document.elementFromPoint(s.left + 8, s.top + 8), 'mousedown', s.left + 8, s.top + 8);
+        ev(document, 'mousemove', d.left + 8, d.top + 8);
+        ev(document.elementFromPoint(d.left + 8, d.top + 8), 'mouseup', d.left + 8, d.top + 8);
+      }, 140);
       if (!${INTERACT}) setTimeout(() => { document.title = 'rows=' + document.querySelectorAll('#rows .row').length + ' badges=' + document.querySelectorAll('.badge').length + ' files=' + document.querySelectorAll('.file').length + ' paths=' + document.querySelectorAll('#rows svg path').length; }, 200);
     }, 50);
   }

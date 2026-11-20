@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git worktrees in VS Code: work on two branches at once | Mergeline</title>
+<meta name="description" content="How to use git worktree: create a second working folder for another branch, list, open, move, remove and prune worktrees, open each one in VS Code, Cursor or VSCodium, and fix the common errors.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-worktree-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git worktrees in VS Code: work on two branches at once">
+<meta property="og:description" content="git worktree add, list, remove and prune, opening each worktree in its own editor window, and the errors you are likely to meet.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-worktree-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Git worktrees in VS Code: work on two branches at once</h1>
+    <p>A git worktree is a second (or third) working folder attached to the same repository, with a different branch checked out in each. You can leave a half-finished feature exactly as it is, open another branch in a folder next to it, and switch between them by switching windows. This guide covers the <code>git worktree</code> commands, how to open each worktree in VS Code, Cursor or VSCodium, and the errors you are likely to see.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What a worktree is, and when to use one</a></li>
+        <li><a href="#create">Create a worktree: <code>git worktree add</code></a></li>
+        <li><a href="#list">List and inspect worktrees</a></li>
+        <li><a href="#open">Open a worktree in VS Code, Cursor or VSCodium</a></li>
+        <li><a href="#remove">Remove, prune, lock and move</a></li>
+        <li><a href="#mergeline">Worktrees in Mergeline</a></li>
+        <li><a href="#errors">Common errors</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Check out an existing branch in a new folder</td><td><code>git worktree add ../repo-hotfix hotfix</code></td></tr>
+          <tr><td>Start a new branch from <code>main</code> in a new folder</td><td><code>git worktree add -b new-branch ../repo-new main</code></td></tr>
+          <tr><td>See every worktree and what it has checked out</td><td><code>git worktree list</code></td></tr>
+          <tr><td>Open a worktree in a new editor window</td><td><code>code ../repo-hotfix</code> (<code>cursor</code>, <code>codium</code>)</td></tr>
+          <tr><td>Delete a worktree when I am done</td><td><code>git worktree remove ../repo-hotfix</code></td></tr>
+          <tr><td>Forget worktrees whose folder I already deleted</td><td><code>git worktree prune</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="what">What a worktree is, and when to use one</h2>
+    <p>Every repository has one <em>main worktree</em>: the folder that contains <code>.git</code>. <code>git worktree add</code> creates <em>linked worktrees</em>: extra folders, each with its own checked-out files, its own staging area and its own <code>HEAD</code>, all backed by the same repository. A commit made in one is immediately visible in the others, because there is only one set of branches.</p>
+    <p>Typical uses:</p>
+    <ul>
+      <li><strong>Review a pull request while mid-feature.</strong> Check the PR branch out in a sibling folder, run it, then close the window. Your feature branch never moves.</li>
+      <li><strong>Run a long test suite or build on another branch</strong> while you keep editing this one.</li>
+      <li><strong>Ship a hotfix without stashing.</strong> Create a worktree for <code>main</code> or a release branch, fix, commit, push, remove it.</li>
+    </ul>
+    <p>Compared with <a href="git-stash-guide.html">git stash</a>, a worktree leaves your current changes alone: nothing is put away, so nothing has to be restored. Compared with a second <code>git clone</code>, a worktree shares the object store, so it does not download or store history twice. It also shares branches, tags, remote-tracking branches, stashes and the repository config. A branch created or fetched in one folder exists in all of them.</p>
+    <p>One rule follows from sharing branches: <strong>a branch can be checked out in only one worktree at a time.</strong> If two folders had the same branch checked out, a commit in one would silently move the branch under the other. Git refuses instead (see <a href="#errors">Common errors</a>). A detached <code>HEAD</code>, a checkout of a commit rather than a branch, has no such limit.</p>
+
+    <h2 id="create">Create a worktree: <code>git worktree add</code></h2>
+    <p>The form is <code>git worktree add &lt;path&gt; [&lt;branch or commit&gt;]</code>. The common cases:</p>
+<pre><span class="k">git worktree add</span> ../repo-hotfix hotfix                           <span class="c"># existing local branch</span>
+<span class="o">Preparing worktree (checking out 'hotfix')
+HEAD is now at 98c7cf6 Fix rounding in totals</span>
+<span class="k">git worktree add -b</span> new-branch ../repo-new main                  <span class="c"># new branch, starting at main</span>
+<span class="k">git worktree add --detach</span> ../repo-check 1a2b3c4                  <span class="c"># a commit, no branch</span>
+<span class="k">git worktree add --track -b</span> feature ../repo-feature origin/feature <span class="c"># a remote branch</span></pre>
+    <ul>
+      <li><strong>New branch:</strong> <code>-b</code> creates the branch at the commit you name (or at <code>HEAD</code>) and checks it out in the new folder.</li>
+      <li><strong>Detached:</strong> for building or testing an old release or tag without creating a branch.</li>
+      <li><strong>Remote branch:</strong> run <code>git fetch</code> first. <code>--track -b feature &lt;dir&gt; origin/feature</code> makes a local <code>feature</code> that tracks <code>origin/feature</code>, so <code>git pull</code> and <code>git push</code> work in the new folder without arguments. If no local <code>feature</code> exists yet and exactly one remote has that branch, <code>git worktree add ../repo-feature feature</code> does the same thing for you.</li>
+    </ul>
+    <p>Put worktrees <strong>next to</strong> the repository, not inside it, where they would show up as untracked files. A common convention is sibling folders named after the repository and the branch, such as <code>shop</code>, <code>shop-hotfix</code> and <code>shop-review</code>, so they sort together.</p>
+
+    <h2 id="list">List and inspect worktrees</h2>
+<pre><span class="k">git worktree list</span>
+<span class="o">/home/me/shop          4f8121c [main]
+/home/me/shop-check    1a2b3c4 (detached HEAD)
+/home/me/shop-hotfix   98c7cf6 [hotfix]
+/home/me/shop-review   d41e7a0 [feature] locked
+/home/me/shop-old      0c5b2e9 [spike] prunable</span></pre>
+    <p>Each line is a folder, the commit it has checked out and its branch. The first line is always the main worktree. Annotations:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Shown as</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>(detached HEAD)</code></td><td>The worktree has a commit checked out, not a branch. Commits made there belong to no branch until you create one.</td></tr>
+          <tr><td><code>locked</code></td><td>Someone ran <code>git worktree lock</code> on it, so <code>prune</code>, <code>move</code> and <code>remove</code> leave it alone.</td></tr>
+          <tr><td><code>prunable</code></td><td>Its folder is gone. Git still remembers it (and still treats its branch as checked out) until you run <code>git worktree prune</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>For scripts, <code>git worktree list --porcelain</code> prints one attribute per line (<code>worktree</code>, <code>HEAD</code>, <code>branch refs/heads/&hellip;</code> or <code>detached</code>, plus <code>locked</code> or <code>prunable</code> with a reason), with a blank line between worktrees. Add <code>-z</code> to separate with NUL characters for paths that contain newlines.</p>
+
+    <h2 id="open">Open a worktree in VS Code, Cursor or VSCodium</h2>
+    <p>A worktree is an ordinary folder, so you open it like any other project:</p>
+    <ul>
+      <li><strong>File &gt; Open Folder&hellip;</strong> and pick the worktree folder, or <strong>File &gt; New Window</strong> first to keep the current one open.</li>
+      <li>From a terminal: <code>code ../repo-hotfix</code> opens it in a new window. Use <code>cursor</code> in Cursor and <code>codium</code> in VSCodium. <code>-n</code> forces a new window and <code>-r</code> reuses the current one.</li>
+    </ul>
+    <p>Each window has its own Source Control view, showing that folder&rsquo;s branch, staged files and changes. Commit and push from the window of the worktree you are working in. If you prefer one window, add the worktree with <strong>File &gt; Add Folder to Workspace&hellip;</strong> (or <code>code -a ../repo-hotfix</code>): you get a multi-root workspace, and Source Control lists each folder as a separate repository. Recent versions of VS Code also list a repository&rsquo;s worktrees in the Source Control Repositories view.</p>
+    <p>Things that do not carry over: anything ignored by git. Each worktree needs its own <code>node_modules</code>, virtual environment, build output and untracked <code>.env</code> file, so expect to run your install step once in a new folder.</p>
+
+    <h2 id="remove">Remove, prune, lock and move</h2>
+<pre><span class="k">git worktree remove</span> ../repo-hotfix           <span class="c"># deletes the folder; the branch and its commits stay</span>
+<span class="k">git worktree remove --force</span> ../repo-hotfix   <span class="c"># also when it has uncommitted changes (they are lost)</span>
+<span class="k">git worktree prune</span>                          <span class="c"># forget worktrees whose folder was deleted by hand</span>
+<span class="k">git worktree lock --reason</span> "on USB drive" ../repo-usb
+<span class="k">git worktree unlock</span> ../repo-usb
+<span class="k">git worktree move</span> ../repo-hotfix ../shop-hotfix</pre>
+    <ul>
+      <li><strong>remove</strong> only works on a clean worktree. <code>--force</code> deletes modified and untracked files with the folder, and there is no undo for changes that were never committed. The main worktree cannot be removed.</li>
+      <li><strong>prune</strong> is for folders you deleted by hand. Until you prune, their branch still counts as checked out. <code>git worktree prune -n -v</code> shows what it would remove. <code>git gc</code> also prunes stale records on its own after a while.</li>
+      <li><strong>lock</strong> is for worktrees on a removable drive or network share that is not always mounted: it stops <code>prune</code> from discarding them while the drive is away.</li>
+      <li><strong>move</strong> relocates a linked worktree and updates git&rsquo;s records. Moving the folder by hand breaks the link; <code>git worktree repair</code> fixes it.</li>
+    </ul>
+
+    <section class="in-app" id="mergeline">
+      <h2>Worktrees in Mergeline</h2>
+      <p>Since 0.5.0, Mergeline shows the repository&rsquo;s other worktrees in the graph and lets you create, open and remove them from the right-click menu. (<a href="./#install">Install Mergeline</a> if you do not have it yet.)</p>
+      <ol class="steps">
+        <li><strong>See them:</strong> every other worktree appears as a badge, <strong>&#x29C9;</strong> followed by its folder name, on the commit it has checked out. Hover it for the full path and branch. A worktree whose folder is gone shows a dashed, struck-through badge.</li>
+        <li><strong>Create one for a branch:</strong> right-click a local or remote branch badge and choose <strong>Check out in new worktree&hellip;</strong>. Mergeline asks for the folder, suggesting a sibling such as <code>shop-hotfix</code>. A remote branch becomes a local branch that tracks it (<code>git worktree add --track -b</code>), or uses the existing local branch of that name.</li>
+        <li><strong>Create one for a commit:</strong> right-click any commit and choose <strong>Create worktree here (detached)&hellip;</strong>, which runs <code>git worktree add --detach</code>. When it finishes, a notification offers to open the new folder in a new window.</li>
+        <li><strong>Use the badge:</strong> right-click a worktree badge for <strong>Open in new window</strong>, <strong>Copy path</strong> and <strong>Remove worktree&hellip;</strong>. Remove asks first; if the worktree has uncommitted changes, it asks again before running <code>git worktree remove --force</code>. On a badge whose folder is gone, choose <strong>Prune missing worktrees</strong>.</li>
+        <li><strong>Branches already in a worktree:</strong> a branch that another worktree has checked out offers <strong>Open its worktree in new window</strong> in place of <strong>Check out</strong>, so you go to where it is instead of hitting the &ldquo;already used by worktree&rdquo; error.</li>
+      </ol>
+    </section>
+
+    <h2 id="errors">Common errors</h2>
+    <p><strong><code>fatal: 'hotfix' is already used by worktree at '/home/me/shop-hotfix'</code></strong> (older git versions say <code>is already checked out at</code>). You tried to check out, with <code>git worktree add</code>, <code>git switch</code> or <code>git checkout</code>, a branch that another worktree has checked out. Fixes: work in that worktree instead (<code>git worktree list</code> shows where it is); switch that worktree to another branch; remove it if you are done with it; or, if the folder no longer exists, run <code>git worktree prune</code>. To only look at the code, <code>git worktree add --detach &lt;dir&gt; hotfix</code> checks out the same commit without the branch.</p>
+    <p><strong><code>fatal: '../repo-usb' is a missing but locked worktree</code></strong>. Git still has a locked record for that path, and its folder is not there. If the drive is simply unplugged, plug it in. If the worktree is really gone, run <code>git worktree unlock ../repo-usb</code> and then <code>git worktree prune</code>. The unlocked variant, <code>is a missing but already registered worktree</code>, needs only the prune.</p>
+    <p><strong><code>fatal: '../repo-hotfix' contains modified or untracked files, use --force to delete it</code></strong>. <code>git worktree remove</code> protects work you have not committed. Open the folder and commit, stash or discard the changes, or rerun with <code>--force</code> if you are sure you do not need them. A locked worktree needs unlocking first (or <code>--force</code> twice).</p>
+    <p><strong>Submodules.</strong> Git&rsquo;s own documentation describes multiple worktrees as experimental where submodules are involved and does not recommend multiple checkouts of a repository that has them. In practice, run <code>git submodule update --init</code> in each new worktree, and expect <code>git worktree move</code> to refuse with <code>working trees containing submodules cannot be moved or removed</code>; <code>remove</code> then needs <code>--force</code>.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Do worktrees use a lot of extra disk space?</summary>
+      <p>Only for the checked-out files, plus a small index. The history is stored once and shared, so a worktree is much smaller than a second clone, apart from ignored files such as dependencies and build output.</p>
+    </details>
+    <details>
+      <summary>Can two worktrees have the same branch checked out?</summary>
+      <p>No; see the rule above. Use a detached checkout of the same commit, or a second branch.</p>
+    </details>
+    <details>
+      <summary>Do stashes, hooks and config carry over?</summary>
+      <p>Yes. The stash list is shared, because it is stored in <code>refs/stash</code> and all <code>refs/</code> are shared; a stash made in one worktree can be applied in another. Hooks live in the shared <code>.git/hooks</code> folder by default, and the repository config is shared too. <code>HEAD</code>, the staging area and per-worktree refs such as an in-progress bisect are separate.</p>
+    </details>
+    <details>
+      <summary>What happens to my commits when I remove a worktree?</summary>
+      <p>Nothing. Branches and commits live in the shared repository and stay; only uncommitted changes in that folder are lost. Commits made on a detached <code>HEAD</code> need a branch first, or you will have to find them in the <a href="undo-git-reset-cherry-pick-revert.html">reflog</a>.</p>
+    </details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="git-worktree-vscode.html" aria-current="page">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

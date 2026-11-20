@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, countStatus, readStatusCount } from '../src/core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, countStatus, readStatusCount, parseWorktrees, readWorktrees, mergeBase } from '../src/core/gitlog';
 import { layout, newLayoutState, Row } from '../src/core/graph';
 import { webRepo, commitUrl, issueUrl, branchUrl } from '../src/core/remote';
 
@@ -356,4 +356,49 @@ test('webRepo turns remote URLs into forge web links, and ignores local or unkno
   assert.equal(commitUrl(bb, 'abc'), 'https://bitbucket.org/o/r/commits/abc');
   assert.equal(issueUrl(gl, '7'), 'https://gitlab.com/o/r/-/issues/7');
   assert.equal(branchUrl(gh, 'feature/a b'), 'https://github.com/o/r/tree/feature/a%20b');
+});
+
+test('worktrees: porcelain parsing (-z and newline forms) and a real linked worktree', async () => {
+  const H1 = 'a'.repeat(40), H2 = 'b'.repeat(40);
+  const z = `worktree /w/main\0HEAD ${H1}\0branch refs/heads/main\0\0worktree /w/feat x\0HEAD ${H2}\0detached\0locked reason here\0\0worktree /w/gone\0HEAD ${H1}\0branch refs/heads/old\0prunable gitdir file points to non-existent location\0\0`;
+  const nl = z.replace(/\0/g, '\n');
+  for (const out of [z, nl]) {
+    const w = parseWorktrees(out);
+    assert.deepEqual(w, [
+      { path: '/w/main', head: H1, branch: 'main', main: true },
+      { path: '/w/feat x', head: H2, branch: null, main: false, locked: true },
+      { path: '/w/gone', head: H1, branch: 'old', main: false, prunable: true },
+    ]);
+  }
+  assert.deepEqual(parseWorktrees('worktree /srv/r.git\0bare\0\0'), [{ path: '/srv/r.git', head: null, branch: null, main: true, bare: true }]);
+  assert.deepEqual(parseWorktrees(''), []);
+
+  const d = mkdtempSync(join(tmpdir(), 'mergeline-wt-'));
+  const linked = d + '-linked';
+  try {
+    sh(d, 'init', '-q', '-b', 'main');
+    sh(d, 'config', 'commit.gpgsign', 'false');
+    commit(d, 'a.txt', 'one');
+    const base = sh(d, 'rev-parse', 'HEAD').trim();
+    sh(d, 'branch', 'topic');
+    commit(d, 'a.txt', 'two');
+    sh(d, 'worktree', 'add', '-q', linked, 'topic');
+    commit(linked, 'b.txt', 'on topic');
+    const topic = sh(d, 'rev-parse', 'topic').trim();
+    const w = await readWorktrees(d);
+    assert.equal(w.length, 2);
+    assert.equal(w[0].main, true);
+    assert.equal(w[0].branch, 'main');
+    assert.equal(w[1].branch, 'topic');
+    assert.equal(w[1].head, topic);
+    // Same list from inside the linked worktree.
+    assert.deepEqual((await readWorktrees(linked)).map((x) => x.branch), ['main', 'topic']);
+    assert.equal(await mergeBase(d, 'main', 'topic'), base);
+    // Three-dot: changes on topic since it split from main are only b.txt.
+    assert.deepEqual((await readChanges(d, base, topic)).map((f) => f.path), ['b.txt']);
+    assert.equal(await mergeBase(d, 'main', 'nonexistent-ref'), null);
+  } finally {
+    rmSync(linked, { recursive: true, force: true });
+    rmSync(d, { recursive: true, force: true });
+  }
 });

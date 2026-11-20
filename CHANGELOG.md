@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (2026-11-20)
+
+- **Drag and drop branches.** Drag a branch badge (local or remote) onto another branch or onto any commit, and choose what to do: merge it into that branch (Mergeline checks the target out first if it is not current), rebase it onto that branch or commit (`git rebase <onto> <branch>`), move the branch there (`git branch -f`, or a reset when it is the current branch), compare the two, or see the changes since they split. The target row is highlighted while you drag, and nothing runs until you pick an item; rebases and moves ask first.
+- **Worktrees.** Other working trees of the repository (`git worktree`) show as a ⧉ badge on the commit each one has checked out. Right-click a branch → **Check out in new worktree…** (a remote branch becomes a local tracking branch), or a commit → **Create worktree here (detached)…**. Right-click a worktree badge to open it in a new window, copy its path or remove it (asks first, and asks again before discarding uncommitted changes there). A branch that is checked out in another worktree offers **Open its worktree in new window** instead of Check out. Badges of worktrees whose folder is gone offer **Prune missing worktrees**.
+- **Changes since a branch split off.** Branch menus gain **Changes since it split from “main”** (or whatever is current): the files changed on that branch since its merge base with the current branch (`git diff main...branch`), which is what merging it would bring in. The details pane names the merge base.
+
 ## 0.4.0 (2026-11-20)
 
 - **Resizable columns.** Drag the edge of a column header to resize the Graph, Date, Author or Commit column; double-click the edge to reset it. Right-click the header to hide or show columns. The layout is kept across sessions.

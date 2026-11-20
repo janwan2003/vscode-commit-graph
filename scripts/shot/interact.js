@@ -3,9 +3,10 @@
 (function () {
   const out = { posted: [] };
   const orig = window.__post;
-  window.__onPost = (m) => { if (m.type === 'layout' || m.type === 'fileAction' || m.type === 'details') out.posted.push(m); };
+  window.__onPost = (m) => { if (m.type === 'layout' || m.type === 'fileAction' || m.type === 'details' || m.type === 'action') out.posted.push(m); };
   const $ = (s) => document.querySelector(s);
   const ev = (el, type, x, y, extra) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, ...extra }));
+  const hideAll = () => document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
   const w = (k) => { const el = $('#header .c-' + k); return getComputedStyle(el).display === 'none' ? 0 : el.offsetWidth; };
   setTimeout(() => {
     try {
@@ -48,6 +49,39 @@
       ev(row.querySelector('.c-date'), 'contextmenu', rr.left, rr.top + 5);
       out.commitMenu = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent).filter((t) => /Compare|Open on/.test(t));
       [...document.querySelectorAll('#menu .mi')].find((m) => m.textContent === 'Compare with working tree').click();
+      // 8. Drag the feature/dark-mode badge onto the current branch's badge: drop menu.
+      hideAll();
+      const src = [...document.querySelectorAll('#rows .badge.branch')].find((b) => b.dataset.ref === 'feature/dark-mode');
+      const dst = document.querySelector('#rows .badge.branch.current');
+      const s0 = src.getBoundingClientRect(), d0 = dst.getBoundingClientRect();
+      const selBefore = document.querySelector('#rows .row.sel') && document.querySelector('#rows .row.sel').dataset.i;
+      ev(src, 'mousedown', s0.left + 8, s0.top + 8);
+      ev(document, 'mousemove', s0.left + 20, s0.top + 2);
+      out.dragGhost = !$('#ghost').hidden && $('#ghost').textContent;
+      ev(document, 'mousemove', d0.left + 8, d0.top + 8);
+      out.dropHighlight = !!document.querySelector('#rows .row.drop');
+      // Rows re-render during the drag, so target whatever is under the pointer now (as a real mouse does).
+      ev(document.elementFromPoint(d0.left + 8, d0.top + 8), 'mouseup', d0.left + 8, d0.top + 8);
+      ev(document.elementFromPoint(d0.left + 8, d0.top + 8), 'click', d0.left + 8, d0.top + 8);
+      out.menuOpen = !$('#menu').hidden;
+      out.dropMenu = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent);
+      out.selAfterDrop = (document.querySelector('#rows .row.sel') && document.querySelector('#rows .row.sel').dataset.i) === selBefore;
+      out.ghostHidden = $('#ghost').hidden && !document.querySelector('#rows .row.drop');
+      [...document.querySelectorAll('#menu .mi')].find((m) => m.textContent.startsWith('Rebase')).click();
+      // 9. Drop onto a plain commit row, then pick "Changes on … since it split from …".
+      const src2 = [...document.querySelectorAll('#rows .badge.branch')].find((b) => b.dataset.ref === 'feature/dark-mode');
+      const r1 = src2.getBoundingClientRect();
+      const plain = [...document.querySelectorAll('#rows .row')].find((x) => !x.querySelector('.badge') && !x.classList.contains('k-stash'));
+      const pr = plain.querySelector('.c-date').getBoundingClientRect();
+      ev(src2, 'mousedown', r1.left + 8, r1.top + 8);
+      ev(document, 'mousemove', pr.left + 10, pr.top + 8);
+      ev(document.elementFromPoint(pr.left + 10, pr.top + 8), 'mouseup', pr.left + 10, pr.top + 8);
+      out.dropMenu2 = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent);
+      [...document.querySelectorAll('#menu .mi')].find((m) => m.textContent.startsWith('Changes on')).click();
+      // 10. Worktree badge and its menu.
+      const wtb = document.querySelector('#rows .badge.wt');
+      out.wtBadge = wtb && wtb.textContent;
+      if (wtb) { const wr = wtb.getBoundingClientRect(); ev(wtb, 'contextmenu', wr.left + 5, wr.top + 5); out.wtMenu = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent); hideAll(); }
       // 7. Keyboard: End selects the last row.
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
       out.endSelected = !!document.querySelector('#rows .row.sel');

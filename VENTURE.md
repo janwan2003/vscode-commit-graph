@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.4.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`, checked 2026-11-20, session 4).
+**Mergeline 0.5.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 5).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.4.0
-  (`mergeline-0.4.0.vsix`, 43 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.5.0
+  (`mergeline-0.5.0.vsix`, 46 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  10 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
+  11 SEO guides (git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (13 URLs).
+  404 and sitemap (14 URLs).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -136,7 +136,13 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   (open, open at revision, compare with working copy, file history, reveal, copy paths), Compare with working
   tree (commit menu) and Compare with current branch (branch menus), forge links (`src/core/remote.ts`: remote
   URL → GitHub/GitLab/Bitbucket web base; Open on GitHub for commits and remote branches, `#123` and URLs in
-  messages are clickable; nothing is fetched), Page Up/Down and Home/End. Also fixed `scripts/make-fixture.mjs`, which
+  messages are clickable; nothing is fetched), Page Up/Down and Home/End.
+  **0.5.0 added:** drag and drop of a branch badge (local or remote) onto another branch or commit → menu: merge into it
+  (`mergeInto` checks the target out first when it is not current), rebase onto it (`git rebase <onto> <branch>`), move the branch
+  (`git branch -f`; reset when current), compare, changes since they split. Worktrees: `git worktree list --porcelain -z`
+  (`parseWorktrees` in `src/core/gitlog.ts`) → ⧉ badge per other worktree, branch/commit menus "Check out in new worktree…" /
+  "Create worktree here (detached)…", badge menu open in new window / copy path / remove (re-asks before `--force`) / prune.
+  Branch menus: "Changes since it split from <current>" (merge-base three-dot diff, `mergeBase()`). Also fixed `scripts/make-fixture.mjs`, which
   ran on import, so `node scripts/e2e.mjs <binary>` crashed (found by the VSCodium run).
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.

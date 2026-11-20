@@ -1,6 +1,7 @@
 // Git operations triggered from the graph. Each asks for what it needs, confirms
 // destructive steps with a modal dialog, runs git and reports errors.
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { git, GitError } from '../core/gitlog';
 import { GitApiRepo } from './repos';
 
@@ -14,6 +15,8 @@ export interface ActionMsg {
   remote?: string;
   stashRef?: string;
   current?: string | null; // current branch
+  target?: string; // drag and drop: the branch (or commit) dropped on
+  path?: string; // worktree path
 }
 
 export interface ActionCtx {
@@ -224,6 +227,75 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       if (!(await confirm(`Delete ${branch} on ${remote}?`, `This deletes the branch on the remote server for everyone (git push ${remote} --delete ${branch}).`, 'Delete on remote'))) return false;
       return run(ctx, ['push', remote, '--delete', branch], `Delete ${m.ref}`);
     }
+    // ---- drag and drop ----
+    case 'rebaseBranch': {
+      // Rebase branch `ref` onto `target` (a branch name or a commit).
+      const onto = m.target!;
+      const ontoL = onto.length === 40 ? short(onto) : onto;
+      const isCur = m.ref === m.current;
+      if (!(await confirm(`Rebase ${m.ref} onto ${ontoL}?`, `${isCur ? `Replays the commits of ${m.ref}` : `Checks out ${m.ref}, then replays its commits`} that are not on ${ontoL} on top of it. This rewrites their hashes.`, 'Rebase'))) return false;
+      return run(ctx, isCur ? ['rebase', onto] : ['rebase', onto, m.ref!], `Rebase ${m.ref} onto ${ontoL}`);
+    }
+    case 'mergeInto': {
+      // Merge `ref` into the local branch `target`, checking `target` out first when it is not current.
+      const into = m.target!;
+      const args = await mergeArgs(m.ref!);
+      if (!args) return false;
+      if (into !== m.current && !(await run(ctx, ['checkout', into], `Check out ${into}`))) return true;
+      args[args.length - 1] = m.ref!;
+      await run(ctx, args, `Merge ${m.ref} into ${into}`);
+      return true; // the checkout alone changed the graph
+    }
+    case 'moveBranch': {
+      if (!(await confirm(`Move branch ${m.ref} to ${label}?`, `Runs git branch -f ${m.ref} ${short(sha)}. Commits that were only on ${m.ref} stay reachable from the reflog for a while.`, 'Move branch'))) return false;
+      return run(ctx, ['branch', '-f', m.ref!, sha], `Move ${m.ref}`);
+    }
+    // ---- worktrees ----
+    case 'addWorktree': {
+      // A new working tree for a local branch, a remote branch (as a new local tracking branch) or a commit (detached).
+      const isRemote = m.refType === 'remote';
+      const remote = isRemote ? m.remote ?? m.ref!.split('/')[0] : '';
+      const localName = isRemote ? m.ref!.slice(remote.length + 1) : m.ref;
+      const base = path.basename(ctx.root);
+      const suffix = (localName ?? short(sha)).replace(/[^\w.-]+/g, '-');
+      const where = await vscode.window.showInputBox({ prompt: `Folder for the new worktree (${localName ?? short(sha)})`, value: path.join(path.dirname(ctx.root), `${base}-${suffix}`) });
+      if (!where) return false;
+      const dest = path.resolve(ctx.root, where);
+      let args: string[];
+      if (!m.ref) args = ['worktree', 'add', '--detach', dest, sha];
+      else if (!isRemote) args = ['worktree', 'add', dest, m.ref];
+      else {
+        const exists = (await git(ctx.root, ['branch', '--list', localName!])).trim().length > 0;
+        args = exists ? ['worktree', 'add', dest, localName!] : ['worktree', 'add', '--track', '-b', localName!, dest, m.ref];
+      }
+      if (!(await run(ctx, args, `Add worktree ${path.basename(dest)}`))) return false;
+      vscode.window.showInformationMessage(`Worktree created at ${dest}.`, 'Open in New Window').then((pick) => {
+        if (pick) vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(dest), { forceNewWindow: true });
+      });
+      return true;
+    }
+    case 'openWorktree':
+      if (m.path) await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(m.path), { forceNewWindow: true });
+      return false;
+    case 'removeWorktree': {
+      const p = m.path!;
+      if (!(await confirm(`Remove the worktree at ${p}?`, 'Deletes that folder. Its branch and commits are kept.', 'Remove worktree'))) return false;
+      try {
+        await git(ctx.root, ['worktree', 'remove', p]);
+        return true;
+      } catch (e) {
+        if (e instanceof GitError && /modified or untracked|is dirty|use --force/i.test(e.message)) {
+          if (await confirm(`The worktree at ${p} has uncommitted changes.`, 'Removing it anyway deletes those changes. They cannot be recovered.', 'Remove anyway')) {
+            return run(ctx, ['worktree', 'remove', '--force', p], 'Remove worktree');
+          }
+          return false;
+        }
+        await reportError(e, 'Remove worktree');
+        return false;
+      }
+    }
+    case 'pruneWorktrees':
+      return run(ctx, ['worktree', 'prune'], 'Prune worktrees');
     // ---- tags ----
     case 'pushTag': {
       const remote = await pickRemote(ctx);

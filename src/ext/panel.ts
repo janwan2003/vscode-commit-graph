@@ -2,7 +2,8 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, Commit, RepoState, CommitOrder } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
+import * as fs from 'node:fs';
 import { layout } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
@@ -30,7 +31,7 @@ export class GraphPanel implements vscode.Disposable {
   lastPong: any;
   lastDetails: any;
   lastHistory: any;
-  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown } | undefined;
+  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[] } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
     if (GraphPanel.current) {
@@ -175,7 +176,7 @@ export class GraphPanel implements vscode.Disposable {
     const opts = this.logOptions(order);
     let names: string[] = [];
     let raw = 0;
-    const [commits0, state, stashes, unc] = await Promise.all([
+    const [commits0, state, stashes, unc, wts] = await Promise.all([
       fileMode
         ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
             names = h.names;
@@ -186,7 +187,18 @@ export class GraphPanel implements vscode.Disposable {
       readState(root),
       showStash ? readStashes(root) : Promise.resolve([]),
       showUnc ? readStatusCount(root) : Promise.resolve(0),
+      readWorktrees(root),
     ]);
+    // Other working trees of this repository (git worktree), shown as badges on the commit each has checked out.
+    const real = (p: string) => {
+      try {
+        return fs.realpathSync(p);
+      } catch {
+        return path.resolve(p);
+      }
+    };
+    const here = real(root);
+    const worktrees = wts.length > 1 ? wts.map((w) => ({ ...w, current: real(w.path) === here })) : [];
     const web = await this.webInfo(root, state.branch);
     const hasMore = raw > this.max;
     let commits = hasMore ? commits0.slice(0, this.max) : commits0;
@@ -194,11 +206,11 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const sig = JSON.stringify([root, state, unc, this.filter, order, this.max, commits.map((c) => c.sha)]);
+    const sig = JSON.stringify([root, state, unc, this.filter, order, this.max, worktrees, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
     const lay = layout(commits);
-    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web };
+    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees };
     this.post({
       type: 'data',
       repo: root,
@@ -214,6 +226,7 @@ export class GraphPanel implements vscode.Disposable {
       names,
       order,
       web,
+      worktrees,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
     });
   }
@@ -307,7 +320,7 @@ export class GraphPanel implements vscode.Disposable {
         if (['date', 'topo', 'author-date'].includes(m.order)) await vscode.workspace.getConfiguration('mergeline').update('commitOrder', m.order, vscode.ConfigurationTarget.Global);
         break;
       case 'details':
-        await this.details(m.sha, m.compare);
+        await this.details(m.sha, m.compare, !!m.base);
         break;
       case 'openFile':
         await this.openFile(m);
@@ -319,6 +332,9 @@ export class GraphPanel implements vscode.Disposable {
         // Column widths, hidden columns and the details height, kept across sessions.
         await this.ctx.globalState.update('mergeline.layout', m.layout && typeof m.layout === 'object' ? m.layout : undefined);
         if (m.echo) this.postSettings();
+        break;
+      case 'copy':
+        if (typeof m.text === 'string') await vscode.env.clipboard.writeText(m.text);
         break;
       case 'openUrl':
         if (typeof m.url === 'string' && /^https?:\/\//i.test(m.url)) await vscode.env.openExternal(vscode.Uri.parse(m.url, true));
@@ -333,10 +349,25 @@ export class GraphPanel implements vscode.Disposable {
     }
   }
 
-  private async details(sha: string, compare?: string) {
+  /**
+   * Details pane data. With `compare`, the changes between two commits (UNCOMMITTED = the
+   * working tree); with `base` too, the changes on `sha` since it split from `compare`
+   * (`git diff compare...sha`: what merging `sha` would bring in).
+   */
+  private async details(sha: string, compare?: string, base = false) {
     const root = this.repo;
     if (!root) return;
     try {
+      if (compare && base && sha !== UNCOMMITTED && compare !== UNCOMMITTED) {
+        const mb = await mergeBase(root, compare, sha);
+        if (!mb) {
+          this.post({ type: 'details', sha, compare, base: true, from: null, to: sha, files: [], error: 'These commits share no history.' });
+          return;
+        }
+        const files = await readChanges(root, mb, sha);
+        this.post({ type: 'details', sha, compare, base: true, mergeBase: mb, from: mb, to: sha, files });
+        return;
+      }
       if (compare) {
         // Older first. UNCOMMITTED means the working tree.
         const order = this.lastData?.commits.map((c) => c.sha) ?? [];

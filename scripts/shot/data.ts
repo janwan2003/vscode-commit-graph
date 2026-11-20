@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount } from '../../src/core/gitlog';
+import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees } from '../../src/core/gitlog';
 import { layout } from '../../src/core/graph';
 
 const d = mkdtempSync(join(tmpdir(), 'mergeline-demo-'));
@@ -56,9 +56,12 @@ g('stash', 'push', '-q', '-m', 'WIP: toolbar spacing');
 c('src/sync.ts', 'Sync: debounce writes', 0);
 writeFileSync(join(d, 'src/sync.ts'), 'dirty\n');
 writeFileSync(join(d, 'TODO.md'), 'todo\n');
+g('worktree', 'add', '-q', d + '-release', 'release/1.1');
 
 (async () => {
-  const [log, state, stashes, unc] = await Promise.all([readLog(d, { max: 500 }), readState(d), readStashes(d), readStatusCount(d)]);
+  const [log, state, stashes, unc, wts] = await Promise.all([readLog(d, { max: 500 }), readState(d), readStashes(d), readStatusCount(d), readWorktrees(d)]);
+  // Shown as if the repository were /work/acme-app.
+  const worktrees = wts.map((w) => ({ ...w, path: w.path.replace(d, '/work/acme-app'), current: w.path === d }));
   let commits: any[] = insertStashes(log, stashes);
   commits = [{ sha: '*', parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
   const lay = layout(commits);
@@ -66,9 +69,10 @@ writeFileSync(join(d, 'TODO.md'), 'todo\n');
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
   const out = {
-    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, filter: { branch: null, remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
+    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branch: null, remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
     details: { type: 'details', sha: sel.sha, info, from: info.parents[0], to: sel.sha, files },
   };
   writeFileSync(process.argv[2], JSON.stringify(out));
+  rmSync(d + '-release', { recursive: true, force: true });
   rmSync(d, { recursive: true, force: true });
 })();

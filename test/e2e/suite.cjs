@@ -265,6 +265,58 @@ exports.run = async function run() {
       assert.equal(git('tag', '--list', 'v0.1.0'), '');
     });
 
+    await check('drag and drop: changes since the merge base, rebase a branch onto another, merge into a non-current branch, move a branch', async () => {
+      const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+      const forkSha = git('rev-parse', 'HEAD');
+      git('checkout', '-q', '-b', 'dd/topic');
+      wf('dd.txt', 'topic\n'); git('add', 'dd.txt'); git('commit', '-q', '-m', 'DD topic work');
+      git('checkout', '-q', 'main');
+      wf('main-dd.txt', 'main\n'); git('add', 'main-dd.txt'); git('commit', '-q', '-m', 'DD main work');
+      await panel.refresh(true);
+      const topic = git('rev-parse', 'dd/topic'), main = git('rev-parse', 'main');
+      await panel.testMessage({ type: 'details', sha: topic, compare: main, base: true });
+      const d = panel.lastDetails;
+      assert.equal(d.base, true);
+      assert.equal(d.mergeBase, forkSha);
+      assert.deepEqual(d.files.map((f) => f.path), ['dd.txt']);
+      // Rebase dd/topic (not checked out) onto main.
+      await act({ action: 'rebaseBranch', ref: 'dd/topic', target: 'main' });
+      assert.equal(git('merge-base', 'main', 'dd/topic'), main, 'dd/topic now sits on main');
+      assert.equal(git('log', '-1', '--format=%s', 'dd/topic'), 'DD topic work');
+      git('checkout', '-q', 'main');
+      git('branch', 'dd/target', 'main');
+      await panel.refresh(true);
+      // Merge dd/topic into dd/target, which is not the current branch (stub picks --no-ff).
+      await act({ action: 'mergeInto', ref: 'dd/topic', target: 'dd/target' });
+      assert.equal(git('branch', '--show-current'), 'dd/target');
+      assert.equal(git('log', '-1', '--format=%P', 'dd/target').split(' ').length, 2);
+      git('checkout', '-q', 'main');
+      await panel.refresh(true);
+      await act({ action: 'moveBranch', ref: 'dd/target', sha: forkSha });
+      assert.equal(git('rev-parse', 'dd/target'), forkSha);
+      git('branch', '-q', '-D', 'dd/topic', 'dd/target');
+      await panel.refresh(true);
+    });
+
+    await check('worktrees: add one for a branch, its badge shows in the graph, remove it', async () => {
+      const wt = root + '-wt';
+      const prevInput = w.showInputBox;
+      w.showInputBox = async () => wt;
+      try {
+        await act({ action: 'addWorktree', ref: 'feature/search', refType: 'head' });
+      } finally { w.showInputBox = prevInput; }
+      assert.ok(fs.existsSync(wt + '/.git'), 'worktree folder');
+      assert.equal(execFileSync('git', ['branch', '--show-current'], { cwd: wt, encoding: 'utf8' }).trim(), 'feature/search');
+      await until(() => panel.lastData.worktrees.some((x) => x.branch === 'feature/search' && !x.current && x.head === git('rev-parse', 'feature/search')), 10000, 'worktree in graph data');
+      assert.ok(panel.lastData.worktrees.some((x) => x.current && x.branch === 'main'));
+      await panel.testPost({ type: 'reveal', sha: git('rev-parse', 'feature/search') });
+      const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.wtBadges && panel.lastPong.wtBadges.length && panel.lastPong; }, 10000, 'worktree badge');
+      assert.deepEqual(pong.wtBadges, [require('path').basename(wt)]);
+      await act({ action: 'removeWorktree', path: wt });
+      assert.ok(!fs.existsSync(wt), 'worktree folder removed');
+      await until(() => panel.lastData.worktrees.length === 0, 10000, 'worktree gone from graph data');
+    });
+
     // Real remote: a bare repository next to the workspace.
     const bare = root + '-remote.git';
     const lsRemote = (ref) => (git('ls-remote', 'origin', ref).split('\t')[0] || '');

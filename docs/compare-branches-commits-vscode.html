@@ -139,6 +139,7 @@ A       src/export.ts</span></pre>
         <li><strong>Open a file.</strong> Click it to open the change in VS Code&rsquo;s own diff editor.</li>
         <li><strong>Choose the right base.</strong> This is a direct comparison, the same as <code>git diff A B</code>. For the three-dot view of what a branch changed, <kbd>Ctrl</kbd>-click the commit where its lane leaves <code>main</code> instead of the tip of <code>main</code>.</li>
         <li><strong>Compare with your working tree.</strong> When you have uncommitted changes, a row at the top of the graph holds them. Select it, then <kbd>Ctrl</kbd>-click any commit to compare that commit with the files on disk, untracked files included. Mergeline 0.4.0 also adds <strong>Compare with working tree</strong> to a commit&rsquo;s right-click menu, and a compare-with-current-branch item to a branch badge&rsquo;s menu, which compares that branch&rsquo;s tip with yours in one click.</li>
+        <li><strong>Only what the branch changed (three dots).</strong> Since 0.5.0 a branch&rsquo;s menu also has <strong>Changes since it split from</strong> your current branch. That is <code>git diff current...branch</code>: the files changed on the branch since the merge base, which the details pane names. You can also drag one branch badge onto another and pick <strong>Compare</strong> or <strong>Changes on &hellip; since it split from &hellip;</strong> from the menu that opens.</li>
       </ol>
       <p>Click any commit without <kbd>Ctrl</kbd> to go back to its normal details, or press <kbd>Esc</kbd> to close the pane.</p>
     </section>
@@ -154,7 +155,7 @@ A       src/export.ts</span></pre>
     </details>
     <details>
       <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
-      <p>It is built for them (they install the same <code>.vsix</code>, and Mergeline uses only standard VS Code APIs); our automated tests run in VS Code 1.147. Download it from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>). Listings on the VS Code Marketplace and Open VSX are coming soon.</p>
+      <p>It is built for them (they install the same <code>.vsix</code>, and Mergeline uses only standard VS Code APIs); our automated tests run in VS Code 1.147 and VSCodium 1.143. Download it from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>). Listings on the VS Code Marketplace and Open VSX are coming soon.</p>
     </details>
   </div>
 </main>
@@ -174,6 +175,7 @@ A       src/export.ts</span></pre>
       <a href="compare-branches-commits-vscode.html" aria-current="page">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>
       <a href="git-graph-alternative.html">Git Graph alternative</a>

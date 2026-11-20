@@ -16,6 +16,10 @@
   let selected = null; // sha
   let compareSha = null;
   let refsBySha = new Map();
+  let wtBySha = new Map(); // other worktrees by the commit they have checked out
+  let wtByBranch = new Map(); // other worktrees by the branch they have checked out
+  let cmpInfo = null; // { base, a, b }: labels for a branch comparison in the details pane
+  let dropIndex = -1; // row under a dragged branch
   let indexBySha = new Map();
   let matches = [];
   let matchPos = -1;
@@ -109,7 +113,7 @@
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url) }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent) }); break;
     }
   });
 
@@ -141,6 +145,13 @@
       refsBySha.get(r.sha).push(r);
     }
     indexBySha = new Map(m.commits.map((c, i) => [c.sha, i]));
+    wtBySha = new Map();
+    wtByBranch = new Map();
+    for (const w of m.worktrees || []) {
+      if (w.current || w.bare) continue;
+      if (w.head) { if (!wtBySha.has(w.head)) wtBySha.set(w.head, []); wtBySha.get(w.head).push(w); }
+      if (w.branch) wtByBranch.set(w.branch, w);
+    }
     const bsel = $('#branch');
     bsel.innerHTML = `<option value="">All branches</option>` + m.branches.map((b) => `<option>${esc(b)}</option>`).join('');
     bsel.value = m.filter.branch || '';
@@ -322,9 +333,10 @@
       const cur = r.name === data.branch;
       const twins = remotes.filter((rr) => rr.name.slice(rr.remote.length + 1) === r.name);
       twins.forEach((t) => used.add(t.name));
-      out.push(`<span class="badge branch${cur ? ' current' : ''}" data-ref="${esc(r.name)}" data-type="head" title="${cur ? 'Current branch ' : 'Branch '}${esc(r.name)}">${cur ? '● ' : ''}${esc(r.name)}${twins.map((t) => `<span class="twin" data-ref="${esc(t.name)}" data-type="remote" data-remote="${esc(t.remote)}" title="${esc(t.name)}">${esc(t.remote)}</span>`).join('')}</span>`);
+      out.push(`<span class="badge branch${cur ? ' current' : ''}" data-ref="${esc(r.name)}" data-type="head" title="${cur ? 'Current branch ' : 'Branch '}${esc(r.name)}${wtByBranch.has(r.name) ? ' (checked out in worktree ' + esc(wtByBranch.get(r.name).path) + ')' : ''}. Drag onto another branch or commit to merge, rebase or move it.">${cur ? '● ' : ''}${esc(r.name)}${twins.map((t) => `<span class="twin" data-ref="${esc(t.name)}" data-type="remote" data-remote="${esc(t.remote)}" title="${esc(t.name)}">${esc(t.remote)}</span>`).join('')}</span>`);
     }
-    for (const r of remotes) if (!used.has(r.name)) out.push(`<span class="badge remote" data-ref="${esc(r.name)}" data-type="remote" data-remote="${esc(r.remote)}" title="Remote branch ${esc(r.name)}">${esc(r.name)}</span>`);
+    for (const r of remotes) if (!used.has(r.name)) out.push(`<span class="badge remote" data-ref="${esc(r.name)}" data-type="remote" data-remote="${esc(r.remote)}" title="Remote branch ${esc(r.name)}. Drag onto a branch to merge it there.">${esc(r.name)}</span>`);
+    for (const w of wtBySha.get(c.sha) || []) out.push(`<span class="badge wt${w.prunable ? ' gone' : ''}" data-wt="${esc(w.path)}" title="Worktree at ${esc(w.path)}${w.branch ? ' on ' + esc(w.branch) : ' (detached)'}${w.prunable ? ': its folder is missing' : ''}${w.locked ? ', locked' : ''}">${esc(w.path.split(/[\\/]/).filter(Boolean).pop() || w.path)}</span>`);
     for (const r of refs.filter((r) => r.type === 'tag')) out.push(`<span class="badge tag" data-ref="${esc(r.name)}" data-type="tag" title="Tag ${esc(r.name)}">${esc(r.name)}</span>`);
     return out.join('');
   }
@@ -356,6 +368,7 @@
       if (matches[matchPos] === i) cls.push('match-cur');
       if (c.kind !== 'commit') cls.push('k-' + c.kind);
       if (c.parents.length > 1) cls.push('merge');
+      if (i === dropIndex) cls.push('drop');
       h += `<div class="${cls.join(' ')}" style="top:${i * ROW}px" data-i="${i}">
         <div class="c-graph">${graphSvg(c, row)}</div>
         <div class="c-desc">${refBadges(c)}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
@@ -368,6 +381,7 @@
 
   // ---------- selection & details ----------
   rowsEl.addEventListener('click', (e) => {
+    if (justDropped) return;
     const r = e.target.closest('.row');
     if (!r) return;
     const c = data.commits[+r.dataset.i];
@@ -432,7 +446,11 @@
     details = m;
     const c = data.commits[indexBySha.get(m.sha)] || {};
     let head = '';
-    if (m.compare) {
+    if (m.compare && m.base) {
+      const la = cmpInfo && cmpInfo.a ? cmpInfo.a : short(m.sha), lb = cmpInfo && cmpInfo.b ? cmpInfo.b : short(m.compare);
+      head = `<div class="d-title">Changes on ${esc(la)} since it split from ${esc(lb)}</div>
+        <div class="d-meta">${m.mergeBase ? `<span>Merge base <code class="link" data-goto="${esc(m.mergeBase)}">${esc(short(m.mergeBase))}</code></span>` : ''}<span>What merging ${esc(la)} into ${esc(lb)} would bring in (git diff ${esc(lb)}...${esc(la)})</span></div>`;
+    } else if (m.compare) {
       head = `<div class="d-title">Comparing ${esc(m.from === UNC ? 'working tree' : short(m.from))} → ${esc(m.to ? short(m.to) : 'working tree')}</div>`;
     } else if (m.info) {
       const i = m.info;
@@ -583,8 +601,10 @@
     if (!r) return;
     const c = data.commits[+r.dataset.i];
     const badge = e.target.closest('[data-ref]');
+    const wtb = e.target.closest('[data-wt]');
     let items;
-    if (badge) items = refItems(badge.dataset.ref, badge.dataset.type, badge.dataset.remote, c);
+    if (wtb) items = worktreeItems(wtb.dataset.wt);
+    else if (badge) items = refItems(badge.dataset.ref, badge.dataset.type, badge.dataset.remote, c);
     else items = commitItems(c);
     showMenu(items, e.clientX, e.clientY);
   });
@@ -625,6 +645,7 @@
       ['Reset ' + cur + ' to here…', { ...base, action: 'reset' }, isHead ? 'disabled' : ''],
       null,
       ['Compare with working tree', () => compare(c.sha, UNC)],
+      ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
       ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
       null,
       ['Copy hash', { ...base, action: 'copyHash' }],
@@ -633,10 +654,11 @@
   }
 
   /** Show the changes between commit `a` and `b` (UNC = working tree) in the details pane. */
-  function compare(a, b) {
+  function compare(a, b, base, la, lb) {
     selected = a;
     compareSha = b;
-    vscode.postMessage({ type: 'details', sha: a, compare: b });
+    cmpInfo = base ? { a: la, b: lb } : null;
+    vscode.postMessage({ type: 'details', sha: a, compare: b, base: !!base });
     scrollTo(indexBySha.get(a));
     render();
   }
@@ -657,7 +679,8 @@
       ['Check out as local branch…', { ...r, action: 'checkoutBranch' }],
       ['Merge into ' + curL + '…', { ...r, action: 'merge' }],
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }],
-      ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)]] : []),
+      ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
+      ['Check out in new worktree…', { ...r, action: 'addWorktree' }],
       ...(data.web && remote === data.web.remote ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: webBranch(name.slice(remote.length + 1)) })]] : []),
       null,
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
@@ -665,11 +688,13 @@
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
     const isCur = name === cur;
+    const wt = wtByBranch.get(name);
     return [
-      ['Check out', { ...r, action: 'checkoutBranch' }, isCur ? 'disabled' : ''],
+      wt ? ['Open its worktree in new window', { action: 'openWorktree', path: wt.path }] : ['Check out', { ...r, action: 'checkoutBranch' }, isCur ? 'disabled' : ''],
       ['Merge into ' + curL + '…', { ...r, action: 'merge' }, isCur ? 'disabled' : ''],
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }, isCur ? 'disabled' : ''],
-      ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)]] : []),
+      ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
+      ...(isCur || wt ? [] : [['Check out in new worktree…', { ...r, action: 'addWorktree' }]]),
       null,
       ['Push…', { ...r, action: 'pushBranch' }],
       ...(isCur ? [['Pull', { ...r, action: 'pull' }]] : []),
@@ -678,6 +703,107 @@
       null,
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
+  }
+
+  function worktreeItems(p) {
+    const w = (data.worktrees || []).find((x) => x.path === p) || { path: p };
+    if (w.prunable) return [['Prune missing worktrees', { action: 'pruneWorktrees' }], null, ['Copy path', () => vscode.postMessage({ type: 'copy', text: p })]];
+    return [
+      ['Open in new window', { action: 'openWorktree', path: p }],
+      ['Copy path', () => vscode.postMessage({ type: 'copy', text: p })],
+      null,
+      ['Remove worktree…', { action: 'removeWorktree', path: p }, w.main ? 'disabled' : 'danger'],
+    ];
+  }
+
+  // ---------- drag and drop: a branch badge onto another branch or commit ----------
+  let drag = null; // { name, type, remote, sha, x0, y0, active }
+  let justDropped = false;
+  const ghost = document.createElement('div');
+  ghost.id = 'ghost';
+  ghost.hidden = true;
+  document.body.appendChild(ghost);
+  rowsEl.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || !data) return;
+    const b = e.target.closest('[data-ref]');
+    if (!b || (b.dataset.type !== 'head' && b.dataset.type !== 'remote')) return;
+    const row = b.closest('.row');
+    e.preventDefault(); // no text selection while dragging
+    drag = { name: b.dataset.ref, type: b.dataset.type, remote: b.dataset.remote, sha: data.commits[+row.dataset.i].sha, x0: e.clientX, y0: e.clientY, active: false };
+  });
+  function dropTarget(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const row = el && el.closest('#rows .row');
+    if (!row) return null;
+    const c = data.commits[+row.dataset.i];
+    if (!c || c.kind !== 'commit') return null;
+    const b = el.closest('[data-ref]');
+    return { i: +row.dataset.i, c, ref: b && b.dataset.type !== 'tag' ? b.dataset.ref : null, refType: b ? b.dataset.type : null };
+  }
+  document.addEventListener('mousemove', (e) => {
+    if (!drag) return;
+    if (!drag.active) {
+      if (Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < 6) return;
+      drag.active = true;
+      hideMenu();
+      document.body.classList.add('dragging');
+      ghost.textContent = drag.name;
+      ghost.hidden = false;
+    }
+    ghost.style.left = e.clientX + 14 + 'px';
+    ghost.style.top = e.clientY + 10 + 'px';
+    const sr = scroller.getBoundingClientRect();
+    if (e.clientY < sr.top + ROW) scroller.scrollTop -= ROW / 2;
+    else if (e.clientY > sr.bottom - ROW) scroller.scrollTop += ROW / 2;
+    const t = dropTarget(e.clientX, e.clientY);
+    const i = t ? t.i : -1;
+    if (i !== dropIndex) { dropIndex = i; render(); }
+  });
+  document.addEventListener('mouseup', (e) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (!d.active) return;
+    document.body.classList.remove('dragging');
+    ghost.hidden = true;
+    dropIndex = -1;
+    justDropped = true;
+    setTimeout(() => { justDropped = false; }, 0);
+    const t = dropTarget(e.clientX, e.clientY);
+    render();
+    const items = t && dropItems(d, t);
+    if (items) showMenu(items, e.clientX, e.clientY);
+  });
+
+  /** Menu shown when branch `s` is dropped on row `t`: merge, rebase, move, compare. Null when it is a no-op. */
+  function dropItems(s, t) {
+    const cur = data.branch;
+    const c = t.c;
+    // Target: the branch badge under the pointer, else the current branch when this is the HEAD row, else the commit.
+    let tName = null, tType = null;
+    if (t.ref && t.ref !== s.name) { tName = t.ref; tType = t.refType; }
+    else if (!t.ref && c.sha === data.head && cur && cur !== s.name) { tName = cur; tType = 'head'; }
+    if (c.sha === s.sha && !tName) return null;
+    const sL = `“${s.name}”`, tL = tName ? `“${tName}”` : short(c.sha);
+    const items = [];
+    if (tType === 'head') {
+      const into = tName === cur;
+      if (wtByBranch.has(tName)) items.push([`Merge ${sL} into ${tL} (checked out in another worktree)`, {}, 'disabled']);
+      else items.push([`Merge ${sL} into ${tL}${into ? '' : ' (checks it out)'}…`, into ? { action: 'merge', ref: s.name } : { action: 'mergeInto', ref: s.name, target: tName }]);
+    }
+    if (s.type === 'head') {
+      items.push([`Rebase ${sL} onto ${tL}…`, { action: 'rebaseBranch', ref: s.name, target: tName || c.sha }, wtByBranch.has(s.name) ? 'disabled' : '']);
+      if (c.sha !== s.sha) {
+        if (s.name === cur) items.push([`Reset ${sL} to ${short(c.sha)}…`, { action: 'reset', sha: c.sha, subject: c.subject }]);
+        else items.push([`Move ${sL} to ${short(c.sha)}…`, { action: 'moveBranch', ref: s.name, sha: c.sha, subject: c.subject }, wtByBranch.has(s.name) ? 'disabled' : '']);
+      }
+    }
+    if (c.sha !== s.sha) {
+      if (items.length) items.push(null);
+      items.push([`Compare ${sL} with ${tL}`, () => compare(s.sha, c.sha)]);
+      items.push([`Changes on ${sL} since it split from ${tL}`, () => compare(s.sha, c.sha, true, s.name, tName || short(c.sha))]);
+    }
+    return items.length ? items : null;
   }
 
   let menuItems = [];

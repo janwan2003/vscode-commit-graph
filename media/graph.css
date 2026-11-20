@@ -132,3 +132,12 @@ body.hide-graph .c-graph, body.hide-date .c-date, body.hide-author .c-author, bo
 #split:hover, body.resizing-v #split { background: var(--vscode-focusBorder); }
 #split[hidden] { display: none; }
 #details { min-height: 80px; }
+
+/* Worktrees and drag and drop (0.5.0). */
+.badge.wt { border-color: var(--lane-5); border-radius: 3px; color: var(--vscode-foreground); }
+.badge.wt::before { content: '⧉'; font-size: 10px; color: var(--lane-5); }
+.badge.wt.gone { border-style: dashed; color: var(--vscode-descriptionForeground); text-decoration: line-through; }
+#rows .badge.branch, #rows .badge.remote { cursor: grab; }
+body.dragging, body.dragging * { cursor: grabbing !important; user-select: none; }
+#rows .row.drop { background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground)); outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+#ghost { position: fixed; z-index: 30; pointer-events: none; padding: 1px 8px; border-radius: 9px; font-size: 11px; border: 1px solid var(--lane-0); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-foreground); box-shadow: 0 2px 8px #0006; }
