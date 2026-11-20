@@ -99,25 +99,55 @@ export interface LogOptions {
   paths?: string[];
   /** Follow only the first parent of merges (`--first-parent`): each branch's mainline, merges as one commit. */
   firstParent?: boolean;
+  /** Only commits by these authors, each exactly "Name <email>". Parents are rewritten to the nearest shown ancestor. */
+  authors?: string[];
+  /** Branch globs left out when showing all branches (`--exclude`), e.g. "dependabot/*". Also applied to remote branches under any remote. */
+  exclude?: string[];
 }
 
 export type CommitOrder = 'date' | 'topo' | 'author-date';
 
-/** git log arguments for the revisions, order and paths in `o` (no format or count). */
+/** The revisions part of a log: the chosen branches, or all branches, tags, remotes and HEAD minus the excluded globs. */
+export function revArgs(o: LogOptions): string[] {
+  const args: string[] = [];
+  if (o.branches && o.branches.length) return [...o.branches, ...(o.extraRevs ?? [])];
+  // --exclude applies to the next --branches/--remotes only, then resets; patterns are relative to
+  // refs/heads/ and refs/remotes/ there, so a remote branch is excluded by "<remote>/<glob>".
+  const ex = (o.exclude ?? []).filter((g) => typeof g === 'string' && g.trim() && !g.startsWith('-')).map((g) => g.trim());
+  for (const g of ex) args.push(`--exclude=${g}`);
+  args.push('--branches', '--tags');
+  if (o.remotes !== false) {
+    for (const g of ex) args.push(`--exclude=*/${g}`, `--exclude=${g}`);
+    args.push('--remotes');
+  }
+  args.push('HEAD');
+  if (o.extraRevs) args.push(...o.extraRevs);
+  return args;
+}
+
+/** A basic regular expression (git's default) matching exactly `s`. */
+export const breExact = (s: string) => '^' + s.replace(/[\\.[\]*^$]/g, '\\$&') + '$';
+
+/**
+ * --author arguments for `o.authors`: any of them, each matching the whole "Name <email>" exactly
+ * (git matches --author against the header without its timestamp), so "JoAnn <a@x>" is not "Ann <a@x>".
+ */
+function authorArgs(o: LogOptions): string[] {
+  const a = (o.authors ?? []).filter((x) => typeof x === 'string' && x).map((x) => `--author=${breExact(x)}`);
+  // Raw identities, as shown in the graph and listed by readAuthors (%an <%ae>): with log.mailmap on
+  // (git's default since 2.41) --author would match the .mailmap-mapped identity instead.
+  return a.length ? ['--no-use-mailmap', ...a] : [];
+}
+
+/** git log arguments for the revisions, order, authors and paths in `o` (no format or count). */
 function logArgs(o: LogOptions, extra: string[]): string[] {
   const order = o.order === 'topo' ? '--topo-order' : o.order === 'author-date' ? '--author-date-order' : '--date-order';
-  const args = ['-c', 'log.showSignature=false', 'log', order, '--no-color', ...extra];
+  const args = ['-c', 'log.showSignature=false', 'log', order, '--no-color', ...authorArgs(o), ...extra];
   // With a pathspec, --parents turns on parent rewriting so %P names the nearest
   // ancestor that touched the path and the graph stays connected.
   if (o.paths && o.paths.length) args.push('--parents');
   if (o.firstParent) args.push('--first-parent');
-  if (o.branches && o.branches.length) args.push(...o.branches);
-  else {
-    args.push('--branches', '--tags');
-    if (o.remotes !== false) args.push('--remotes');
-    args.push('HEAD');
-  }
-  if (o.extraRevs) args.push(...o.extraRevs);
+  args.push(...revArgs(o));
   args.push('--');
   if (o.paths) args.push(...o.paths.map((p) => ':(literal)' + p));
   return args;
@@ -132,6 +162,7 @@ export function firstParents(commits: Commit[]): Commit[] {
 
 export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
   try {
+    if (o.authors && o.authors.length && !(o.paths && o.paths.length)) return await readAuthorLog(cwd, o);
     const commits = parseLog(await git(cwd, logArgs(o, [`--max-count=${o.max}`, `--format=${LOG_FORMAT}`])));
     return o.firstParent ? firstParents(commits) : commits;
   } catch (e) {
@@ -139,6 +170,57 @@ export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
     if (e instanceof GitError && EMPTY_REPO.test(e.message)) return [];
     throw e;
   }
+}
+
+/** "Name <email>", the identity the author filter matches. */
+export const authorKey = (c: { author: string; email: string }) => `${c.author} <${c.email}>`;
+
+/**
+ * Commits by `o.authors` only. git does not rewrite parents for --author (unlike a pathspec),
+ * so a filtered log alone would draw lines to commits that are never shown. The parents of every
+ * commit in the same revisions (`git rev-list --parents`) give each shown commit's nearest shown
+ * ancestors, which become its parents, as a path-limited log does.
+ */
+async function readAuthorLog(cwd: string, o: LogOptions): Promise<Commit[]> {
+  // All of the authors' commits, not just this page: every one is a stop, so the last rows point at
+  // the next page's commits rather than past them. Both walks run at once.
+  const [out, graph] = await Promise.all([
+    git(cwd, logArgs(o, [`--format=${LOG_FORMAT}`])),
+    git(cwd, ['rev-list', '--parents', ...(o.firstParent ? ['--first-parent'] : []), ...revArgs(o), '--']),
+  ]);
+  const mine = parseLog(out);
+  const stops = new Set(mine.map((c) => c.sha));
+  const parents = new Map<string, string[]>();
+  for (const line of graph.split('\n')) {
+    if (!line) continue;
+    const f = line.split(' ');
+    parents.set(f[0], o.firstParent ? f.slice(1, 2) : f.slice(1));
+  }
+  const isStop = (sha: string) => stops.has(sha);
+  return mine.slice(0, o.max).map((c) => ({ ...c, parents: nearestShown(parents.get(c.sha) ?? c.parents, parents, isStop) }));
+}
+
+/**
+ * The nearest commits among `stop` reachable from `start` through commits that are not stops,
+ * first parent's side first. Iterative, since histories are deep; each walk ends at the next stops.
+ */
+export function nearestShown(start: string[], parents: Map<string, string[]>, isStop: (sha: string) => boolean): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const stack = [...start].reverse();
+  while (stack.length) {
+    const sha = stack.pop()!;
+    if (seen.has(sha)) continue;
+    seen.add(sha);
+    if (isStop(sha)) {
+      out.push(sha);
+      continue;
+    }
+    const ps = parents.get(sha);
+    if (!ps) continue; // outside the walked revisions: the line ends here
+    for (let k = ps.length - 1; k >= 0; k--) stack.push(ps[k]);
+  }
+  return out;
 }
 
 export interface FileHistory {
@@ -215,7 +297,10 @@ export interface HistoryMatch {
 export async function searchLog(cwd: string, o: LogOptions, query: string, refs: Ref[] = [], limit = 2000): Promise<{ matches: HistoryMatch[]; total: number }> {
   const q = query.trim();
   if (!q) return { matches: [], total: 0 };
-  const run = (extra: string[]) => git(cwd, logArgs(o, ['--format=%H', ...extra])).catch((e) => {
+  // Message and author matches ignore the author filter (its --author would be OR'ed with the
+  // query's); intersecting with `all`, which keeps it, applies both.
+  const free = { ...o, authors: undefined };
+  const run = (extra: string[], oo: LogOptions = o) => git(cwd, logArgs(oo, ['--format=%H', ...extra])).catch((e) => {
     if (e instanceof GitError && EMPTY_REPO.test(e.message)) return '';
     throw e;
   });
@@ -237,7 +322,7 @@ export async function searchLog(cwd: string, o: LogOptions, query: string, refs:
     all = a;
     for (const h of t.split('\n')) if (h) hit.add(h);
   } else {
-    const [a, msg, author] = await Promise.all([run([]), run(['-i', '-F', `--grep=${q}`]), run(['-i', '-F', `--author=${q}`])]);
+    const [a, msg, author] = await Promise.all([run([]), run(['-i', '-F', `--grep=${q}`], free), run(['-i', '-F', `--author=${q}`], free)]);
     all = a;
     for (const out of [msg, author]) for (const h of out.split('\n')) if (h) hit.add(h);
     for (const r of refs) if (r.name.toLowerCase().includes(lq)) hit.add(r.sha);
@@ -589,4 +674,50 @@ export async function mergeBase(cwd: string, a: string, b: string): Promise<stri
   } catch {
     return null;
   }
+}
+
+/** Commits with a note in the default notes ref (refs/notes/commits, or core.notesRef), from `git notes list`. */
+export async function readNotedCommits(cwd: string): Promise<Set<string>> {
+  const out = await git(cwd, ['notes', 'list']).catch(() => '');
+  const set = new Set<string>();
+  for (const line of out.split('\n')) {
+    const sp = line.indexOf(' ');
+    if (sp > 0) set.add(line.slice(sp + 1).trim());
+  }
+  return set;
+}
+
+/** The note on `sha` in the default notes ref, '' when there is none. */
+export async function readNote(cwd: string, sha: string): Promise<string> {
+  try {
+    return (await git(cwd, ['notes', 'show', sha])).replace(/\s+$/, '');
+  } catch {
+    return ''; // "no note found for object"
+  }
+}
+
+/** Sets the note on `sha` (replacing any), or removes it when `text` is blank. */
+export async function writeNote(cwd: string, sha: string, text: string): Promise<'set' | 'removed' | 'none'> {
+  const t = text.replace(/\s+$/, '');
+  if (t) {
+    await git(cwd, ['notes', 'add', '-f', '-F', '-', sha], { input: t + '\n' });
+    return 'set';
+  }
+  if (!(await readNote(cwd, sha))) return 'none';
+  await git(cwd, ['notes', 'remove', sha]);
+  return 'removed';
+}
+
+/** Authors in the revisions of `o` with their commit counts, most commits first ("Name <email>"). */
+export async function readAuthors(cwd: string, o: LogOptions): Promise<{ key: string; n: number }[]> {
+  let out = '';
+  try {
+    out = await git(cwd, ['log', '--format=%an <%ae>', ...(o.firstParent ? ['--first-parent'] : []), ...revArgs(o), '--']);
+  } catch (e) {
+    if (e instanceof GitError && EMPTY_REPO.test(e.message)) return [];
+    throw e;
+  }
+  const n = new Map<string, number>();
+  for (const l of out.split('\n')) if (l) n.set(l, (n.get(l) ?? 0) + 1);
+  return [...n].map(([key, k]) => ({ key, n: k })).sort((a, b) => b.n - a.n || a.key.localeCompare(b.key));
 }

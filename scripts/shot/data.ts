@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags, readSignature } from '../../src/core/gitlog';
+import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags, readSignature, readAuthors, readNote, readNotedCommits, writeNote } from '../../src/core/gitlog';
 import { avatarMap } from '../../src/core/misc';
 import { layout, newLayoutState, pinBranches } from '../../src/core/graph';
 import { pinnedTips } from '../../src/core/pins';
@@ -72,23 +72,29 @@ writeFileSync(join(d, 'TODO.md'), 'todo\n');
 g('worktree', 'add', '-q', d + '-release', 'release/1.1');
 
 (async () => {
-  const [log, state, stashes, unc, wts] = await Promise.all([readLog(d, { max: 500 }), readState(d), readStashes(d), readStatusCount(d), readWorktrees(d)]);
+  // A git note on the feature/search merge (shown as a mark on its row and in its details).
+  const merge = g('log', '--all', '--format=%H %s').split('\n').find((l) => l.endsWith("Merge branch 'feature/search'"))!.split(' ')[0];
+  await writeNote(d, merge, 'Deployed to staging 2025-10-02 (build 1184).\nQA sign-off: Katherine');
+  // AUTHOR="Name <email>": the graph filtered to that author, as the Authors checklist does.
+  const authors = process.env.AUTHOR ? [process.env.AUTHOR] : [];
+  const [log, state, stashes, unc, wts, noted] = await Promise.all([readLog(d, { max: 500, authors: authors.length ? authors : undefined }), readState(d), authors.length ? Promise.resolve([]) : readStashes(d), readStatusCount(d), readWorktrees(d), readNotedCommits(d)]);
   // Shown as if the repository were /work/acme-app.
   const worktrees = wts.map((w) => ({ ...w, path: w.path.replace(d, '/work/acme-app'), current: w.path === d }));
   let commits: any[] = insertStashes(log, stashes);
-  commits = [{ sha: '*', parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
+  if (log.some((x) => x.sha === state.head)) commits = [{ sha: '*', parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
   // As the panel does with the default mergeline.pinnedBranches (PINS=none for the plain layout).
   const st = newLayoutState();
-  const pins = process.env.PINS === 'none' ? { tips: [], names: [] } : pinnedTips(['main', 'master', 'develop'], state.refs, commits.map((x) => x.sha), { sha: '*', parent: state.head! });
+  const pins = process.env.PINS === 'none' ? { tips: [], names: [] } : pinnedTips(['main', 'master', 'develop'], state.refs, commits.map((x) => x.sha), commits[0]?.sha === '*' ? { sha: '*', parent: state.head! } : undefined);
   pinBranches(st, commits, pins.tips);
   const lay = layout(commits, st);
-  const sel = log.find((x) => x.subject === "Merge branch 'feature/search'")!;
+  const sel = log.find((x) => x.subject === "Merge branch 'feature/search'") ?? log[0];
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
   const signature = await readSignature(d, sel.sha);
   const out = {
-    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, pinned: pins.names, pinPatterns: process.env.PINS === 'none' ? [] : ['main', 'master', 'develop'], worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
-    details: { type: 'details', sha: sel.sha, info, signature, from: info.parents[0], to: sel.sha, files },
+    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, pinned: pins.names, pinPatterns: process.env.PINS === 'none' ? [] : ['main', 'master', 'develop'], worktrees, filter: { branches: [], remotes: true, authors }, notes: commits.filter((x) => noted.has(x.sha)).map((x) => x.sha), branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
+    details: { type: 'details', sha: sel.sha, info, signature, note: await readNote(d, sel.sha), from: info.parents[0], to: sel.sha, files },
+    authors: await readAuthors(d, { max: 0 }),
     // TAGS=1 in shot.mjs: the commit tagged v1.0.0, with its tags.
     tagged: await (async () => {
       const sha = state.refs.find((r) => r.name === 'v1.0.0')!.sha;

@@ -28,6 +28,7 @@ const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${vars}</s
 const P = ${payload};
 window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMessage(m) {
   if (window.__onPost) window.__onPost(m);
+  if (m.type === 'authors') setTimeout(() => window.postMessage({ type: 'authors', list: P.authors }, '*'), 10);
   if (m.type === 'ready') {
     window.postMessage({ type: 'settings', settings: ${process.env.TAGS === '1'} ? { dateFormat: 'relative', showAvatars: true, issueLinks: [{ pattern: 'PROJ-[0-9]+', url: 'https://acme.atlassian.net/browse/$0' }] } : { dateFormat: 'relative' } }, '*');
     // TAGS=1: avatars on, a Jira issue-link rule, and the details of the commit tagged v1.0.0.
@@ -69,6 +70,8 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
         ev(document, 'mousemove', d.left + 8, d.top + 8);
         ev(document.elementFromPoint(d.left + 8, d.top + 8), 'mouseup', d.left + 8, d.top + 8);
       }, 140);
+      // AUTHORS=1: the author checklist open (run with AUTHOR="Grace Hopper <grace@example.com>" for a filtered graph).
+      if (${process.env.AUTHORS === '1'}) setTimeout(() => document.querySelector('#authbtn').click(), 140);
       // BRANCHES=1: the branch checklist open with two branches ticked, commits off HEAD dimmed.
       if (${process.env.BRANCHES === '1'}) setTimeout(() => {
         window.postMessage({ type: 'settings', settings: { dateFormat: 'relative', dimOtherCommits: true } }, '*');
@@ -97,4 +100,4 @@ console.log('screenshot:', out, '|', title);
 rmSync(tmp, { recursive: true, force: true });
 if (INTERACT) { if (!title.startsWith('INTERACT ') || title.includes('"error"')) { console.error('interaction check failed'); process.exit(1); } process.exit(0); }
 const m = /rows=(\d+) badges=(\d+) files=(\d+) paths=(\d+)/.exec(title);
-if (!m || +m[1] < 15 || (!process.env.PAYLOAD && (+m[2] < 5 || (+m[3] < 1 && process.env.BISECT !== '1'))) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }
+if (!m || +m[1] < (process.env.AUTHOR ? 2 : 15) || (!process.env.PAYLOAD && (+m[2] < (process.env.AUTHOR ? 1 : 5) || (+m[3] < 1 && process.env.BISECT !== '1'))) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }

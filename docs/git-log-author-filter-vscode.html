@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git log by author: show one person&rsquo;s commits, in the terminal and VS Code | Mergeline</title>
+<meta name="description" content="Filter git log by author: how --author matches, several authors at once, exact matches, .mailmap, why --graph misleads, and an author filter in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-log-author-filter-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git log by author: show one person&rsquo;s commits">
+<meta property="og:description" content="How git log --author matches Name &lt;email&gt;, OR-ing several authors, avoiding partial matches, .mailmap identities, why an author-filtered graph is drawn wrong, and hiding dependabot branches.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-log-author-filter-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>git log by author: show one person&rsquo;s commits</h1>
+    <p>To see what one colleague changed, or to find your own commits in a busy repository, filter the log by author. <code>git log --author</code> does it, but the pattern matches more than people expect, and with <code>--graph</code> the drawing stops telling the truth. This guide covers how <code>--author</code> matches, listing authors, <code>.mailmap</code>, the graph problem, filtering by author in VS Code with Mergeline, and hiding noise branches such as <code>dependabot/*</code>.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#match">How <code>--author</code> matches</a></li>
+        <li><a href="#list">List the authors in a repository</a></li>
+        <li><a href="#mailmap">One person, several identities: <code>.mailmap</code></a></li>
+        <li><a href="#graph">Why <code>git log --graph --author</code> misleads</a></li>
+        <li><a href="#mergeline">Filter by author in Mergeline</a></li>
+        <li><a href="#noise">Hide dependabot and other noise branches</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Show commits by one author</td><td><code>git log --author='Ann Lee'</code></td></tr>
+          <tr><td>Show commits by any of several authors</td><td><code>git log --author='Ann Lee' --author='Bob Ray'</code></td></tr>
+          <tr><td>Match exactly one person, nobody with a similar name</td><td><code>git log --author='^Ann Lee &lt;ann@example.com&gt;$'</code></td></tr>
+          <tr><td>Ignore upper and lower case</td><td><code>git log -i --author=lee</code></td></tr>
+          <tr><td>Match the text literally, not as a regular expression</td><td><code>git log -F --author='ann.lee@old.example.com'</code></td></tr>
+          <tr><td>List every author with a commit count</td><td><code>git shortlog -sne --all</code></td></tr>
+          <tr><td>Leave out dependabot branches</td><td><code>git log --exclude='dependabot/*' --branches</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in throwaway repositories and quote the output we saw. The main test repository has nine commits by Ann Lee, Bob Ray and JoAnn Kim on <code>main</code> and a merged <code>feature</code> branch, plus one commit Ann made from an old laptop under a different name.</p>
+<pre><span class="k">git log --graph --format=</span>'%h %s (%an)'
+<span class="o">* 7804532 Old laptop commit (ann)
+*   dec6be5 Merge feature (Bob Ray)
+|\
+| * 857f1d3 Handle time zones (Ann Lee)
+| * 8daa653 Add date tests (Bob Ray)
+| * 8c569a3 Parse dates (Ann Lee)
+* | c943d29 Speed up lexer (Ann Lee)
+* | 8ec7ccf Fix typo in README (JoAnn Kim)
+|/
+* cb3fc07 Set up CI (Bob Ray)
+* 630603d Add parser (Ann Lee)</span></pre>
+
+    <h2 id="match">How <code>--author</code> matches</h2>
+    <p>The pattern is a <strong>regular expression</strong> (a text pattern in which characters such as <code>.</code>, <code>^</code> and <code>$</code> have special meanings), and git tests it against the author&rsquo;s name and email together, in the form <code>Name &lt;email&gt;</code>. A commit is shown if the pattern matches any part of that text. So a short pattern catches more than one person:</p>
+<pre><span class="k">git log --format=</span>'%h %s (%an)' <span class="k">--author=</span>Ann
+<span class="o">c943d29 Speed up lexer (Ann Lee)
+857f1d3 Handle time zones (Ann Lee)
+8ec7ccf Fix typo in README (JoAnn Kim)
+8c569a3 Parse dates (Ann Lee)
+630603d Add parser (Ann Lee)</span></pre>
+    <p>&ldquo;Ann&rdquo; is inside &ldquo;JoAnn&rdquo;. To match one person and nobody else, <strong>anchor</strong> the pattern: <code>^</code> means the start of the text and <code>$</code> the end, so the whole <code>Name &lt;email&gt;</code> has to match:</p>
+<pre><span class="k">git log --format=</span>'%h %s (%an)' <span class="k">--author=</span>'^Ann Lee &lt;ann@example.com&gt;$'
+<span class="o">c943d29 Speed up lexer (Ann Lee)
+857f1d3 Handle time zones (Ann Lee)
+8c569a3 Parse dates (Ann Lee)
+630603d Add parser (Ann Lee)</span></pre>
+    <ul>
+      <li><strong>The email counts too.</strong> <code>--author=lee</code> found only the old-laptop commit, because its address is <code>ann.lee@old.example.com</code>; &ldquo;Lee&rdquo; in &ldquo;Ann Lee&rdquo; has a capital L. <code>--author=@example.com</code> finds everyone at that domain.</li>
+      <li><strong>Case matters</strong> unless you add <code>-i</code> (<code>--regexp-ignore-case</code>). <code>git log -i --author=lee</code> found all five of Ann&rsquo;s commits.</li>
+      <li><strong>Several <code>--author</code> options are OR&rsquo;ed</strong>: a commit is shown if it matches any of them. <code>--author='^Bob Ray ' --author='^JoAnn Kim '</code> listed Bob&rsquo;s three commits and JoAnn&rsquo;s one.</li>
+      <li><strong><code>--author</code> and <code>--grep</code> are AND&rsquo;ed.</strong> <code>git log --author='Ann Lee' --grep=dates</code> listed only &ldquo;Parse dates&rdquo;; with <code>--author=Bob</code> instead it listed nothing.</li>
+      <li><strong>Dots match any character.</strong> <code>--author='x@old.example.com'</code> also matched an author whose address was <code>x@oldYexample.com</code>. <code>-F</code> (<code>--fixed-strings</code>) treats the pattern as plain text, and then it did not.</li>
+    </ul>
+
+    <h2 id="list">List the authors in a repository</h2>
+    <p>Before filtering, find out how each person&rsquo;s name and email are actually written. <code>git shortlog</code> groups commits by author; <code>-s</code> prints only the counts, <code>-n</code> sorts by count, <code>-e</code> adds the email, and <code>--all</code> counts every branch:</p>
+<pre><span class="k">git shortlog -sne --all</span>
+<span class="o">     4	Ann Lee &lt;ann@example.com&gt;
+     3	Bob Ray &lt;bob@example.com&gt;
+     1	JoAnn Kim &lt;joann@example.com&gt;
+     1	ann &lt;ann.lee@old.example.com&gt;</span></pre>
+    <p>The last line is the same person as the first, committing with another name and email. That is common: a work and a personal address, or a laptop set up before <code>user.name</code> was.</p>
+
+    <h2 id="mailmap">One person, several identities: <code>.mailmap</code></h2>
+    <p>A <code>.mailmap</code> file at the top of the repository maps old identities to one canonical one. Each line gives the identity to show, then the identity found in commits:</p>
+<pre>Ann Lee &lt;ann@example.com&gt; ann &lt;ann.lee@old.example.com&gt;</pre>
+<pre><span class="k">git shortlog -sne --all</span>
+<span class="o">     5	Ann Lee &lt;ann@example.com&gt;
+     3	Bob Ray &lt;bob@example.com&gt;
+     1	JoAnn Kim &lt;joann@example.com&gt;</span></pre>
+    <p>In git 2.53 <code>git log</code> uses the mailmap by default too (the <code>log.mailmap</code> setting, which we had not set), and <code>--author</code> is matched against the mapped identity:</p>
+<pre><span class="k">git log --format=</span>'%h %s (%an)' <span class="k">--author=</span>'^Ann Lee &lt;ann@example.com&gt;$'
+<span class="o">7804532 Old laptop commit (ann)
+c943d29 Speed up lexer (Ann Lee)
+857f1d3 Handle time zones (Ann Lee)
+8c569a3 Parse dates (Ann Lee)
+630603d Add parser (Ann Lee)</span></pre>
+    <p>Two things to know. The old identity no longer matches at all: <code>--author='^ann &lt;ann.lee@old.example.com&gt;$'</code> printed nothing. And <code>%an</code> in a format still prints the name written in the commit (&ldquo;ann&rdquo;); <code>%aN</code> prints the mapped one. To match the identities as they are written in the commits, add <code>--no-use-mailmap</code>, or run with <code>-c log.mailmap=false</code>; either brought the old-laptop commit back out of Ann&rsquo;s list.</p>
+
+    <h2 id="graph">Why <code>git log --graph --author</code> misleads</h2>
+    <p>Add <code>--graph</code> to an author filter and you get a tidy straight line:</p>
+<pre><span class="k">git log --graph --oneline --author=</span>'Ann Lee'
+<span class="o">* 857f1d3 Handle time zones
+* 8c569a3 Parse dates
+* c943d29 Speed up lexer
+* 630603d Add parser</span></pre>
+    <p>It looks as if Ann made four commits one after another on one branch. In fact two are on <code>feature</code> and two on <code>main</code> (compare the full graph above). The reason: for a <strong>path</strong> filter (<code>git log -- &lt;file&gt;</code>), git <strong>rewrites parents</strong>. Each shown commit is drawn as the child of its nearest shown ancestor, so the lines stay true. For <code>--author</code> it does not. Each commit keeps its real parents, and those are usually commits that are filtered out:</p>
+<pre><span class="k">git log --format=</span>'%h %p %s' <span class="k">--author=</span>'Ann Lee'      <span class="c"># %p: parent hashes</span>
+<span class="o">c943d29 8ec7ccf Speed up lexer
+857f1d3 8daa653 Handle time zones
+8c569a3 cb3fc07 Parse dates
+630603d  Add parser</span></pre>
+    <p>None of those parents are in the output, so <code>--graph</code> has nothing to connect and stacks the commits in a column. In a smaller repository we checked the difference directly: with <code>-- f</code>, <code>git log --parents</code> reported the previous commit that touched <code>f</code> as the parent; with <code>--author</code> it reported the real parent, which the filter had hidden. Use <code>--author</code> for lists, not for pictures of history.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Filter by author in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.15 it can show only the commits of the authors you pick, and draws the graph correctly while it does.</p>
+      <ol class="steps">
+        <li><strong>Open the author list.</strong> Click <strong>Authors</strong> in the toolbar. It lists everyone with a commit in the branches the graph shows, with the number of commits each, and a box to filter the list by typing part of a name or email.</li>
+        <li><strong>Tick one or more authors.</strong> The graph shows only their commits. Each commit is joined to its nearest shown ancestor: Mergeline rewrites the parents itself, the way git does for a path filter, so lines connect commits that really are related and branches still look like branches. Ticking Ann Lee does not bring in JoAnn Kim; an entry is one whole name and email.</li>
+        <li><strong>Or start from a commit.</strong> Right-click any commit and choose <strong>Show only commits by &lt;name&gt;</strong>. While only that author is shown, the same place offers <strong>Show commits by all authors</strong>. The <strong>All authors</strong> button in the list resets the filter too.</li>
+        <li><strong>Combine it.</strong> The author filter works together with the <strong>Branches</strong> checklist (see <a href="filter-git-graph-by-branch.html">filter by branch</a>) and the <strong>First parent</strong> toggle. Find with <strong>All history</strong> keeps the author filter, so it searches only the chosen authors&rsquo; commits.</li>
+      </ol>
+      <p><img src="screenshot-authors.png" alt="Mergeline with the Authors checklist open: Ada Lovelace ticked (7 commits), the graph showing only her commits as a connected line, including a merge whose second parent is redrawn to her nearest earlier commit" width="1280" height="800" loading="lazy" style="max-width:100%;height:auto"></p>
+      <p>Mergeline matches authors exactly as they are written in the commits (the names the graph shows), even when a <code>.mailmap</code> maps them to another identity; it runs <code>git log</code> with <code>--no-use-mailmap</code> for the filter.</p>
+      <p>The author filter is not available in file history: there the <strong>Authors</strong> button is disabled.</p>
+      <p>In the Git Graph extension, filtering by author is <a href="https://github.com/mhutchie/vscode-git-graph/issues/171">issue #171</a>, opened in September 2019. When we checked on 20 November 2026 it was still open, with 19 thumbs-up.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="noise">Hide dependabot and other noise branches</h2>
+    <p>Bots such as Dependabot and Renovate open a branch for every dependency update. Each one adds a line to the graph. With <code>git log</code>, put <code>--exclude=&lt;pattern&gt;</code> in front of <code>--branches</code> or <code>--remotes</code> to leave matching branches out. The pattern is relative to the kind of branch, so remote-tracking branches need the remote in it (<code>origin/dependabot/*</code>, or <code>*/dependabot/*</code> for any remote):</p>
+<pre><span class="k">git log --graph --oneline --branches --remotes</span>
+<span class="o">* 0559e61 (origin/feature/login, feature/login) Login form
+| * a85e79f (HEAD -&gt; main, origin/main, origin/HEAD) Docs
+|/
+| * 1bb5ae9 (origin/dependabot/npm/lodash-4.17.21) Bump lodash
+|/
+| * c5ad9bd (origin/dependabot/npm/vite-5.4.1) Bump vite
+|/
+* 4fc726c Initial</span>
+<span class="k">git log --graph --oneline --exclude=</span>'dependabot/*' <span class="k">--branches --exclude=</span>'*/dependabot/*' <span class="k">--remotes</span>
+<span class="o">* 0559e61 (origin/feature/login, feature/login) Login form
+| * a85e79f (HEAD -&gt; main, origin/main, origin/HEAD) Docs
+|/
+* 4fc726c Initial</span></pre>
+    <p>Each <code>--exclude</code> applies only to the next <code>--branches</code> or <code>--remotes</code>, so you repeat it for each. Placed after them, it had no effect. The <code>*</code> also matches <code>/</code>: <code>dependabot/*</code> left out <code>dependabot/npm/vite-5.4.1</code>.</p>
+    <p>In Mergeline, the setting <code>mergeline.hiddenBranches</code> is a list of branch names or patterns such as <code>["dependabot/*", "renovate/*"]</code>, where <code>*</code> matches anything, including <code>/</code>. It applies to local branches and to remote-tracking branches under any remote, and Mergeline passes it to git as <code>--exclude</code> before <code>--branches</code> and <code>--remotes</code>.</p>
+    <ul>
+      <li><strong>From the graph:</strong> right-click a branch badge and choose <strong>Hide this branch</strong>, or, for a branch like <code>dependabot/npm/vite-5.4.1</code>, <strong>Hide all dependabot/&hellip; branches</strong>. Both add an entry to the setting.</li>
+      <li><strong>To show them again:</strong> the <strong>Branches</strong> checklist lists the hidden patterns at the bottom, each with a <strong>&#x2715;</strong>; click it to remove the pattern.</li>
+      <li><strong>The checked-out branch is always shown</strong>, even if it matches a pattern.</li>
+      <li><strong>Hiding a branch does not hide shared commits.</strong> Commits that a visible branch or tag also contains still appear; only commits that nothing visible contains drop out.</li>
+      <li><strong>Picking branches overrides it.</strong> When you tick branches in the <strong>Branches</strong> checklist, the graph shows exactly those and ignores <code>mergeline.hiddenBranches</code>.</li>
+    </ul>
+    <p>Excluding branches by pattern is Git Graph <a href="https://github.com/mhutchie/vscode-git-graph/issues/360">issue #360</a>, opened in August 2020; on 20 November 2026 it was open with 14 thumbs-up.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>How do I see only my own commits?</summary>
+      <p><code>git log --author="$(git config user.email)"</code> matches the email you commit with. In Mergeline, right-click one of your commits and choose <strong>Show only commits by &lt;name&gt;</strong>.</p>
+    </details>
+    <details>
+      <summary>Can I filter by committer instead of author?</summary>
+      <p>Yes, in the terminal: <code>--committer</code> takes the same kind of pattern. The author wrote the change; the committer is whoever last created the commit, for example by rebasing or cherry-picking it. Mergeline&rsquo;s filter uses the author.</p>
+    </details>
+    <details>
+      <summary>Why does <code>--author</code> find nothing for a name I can see in the log?</summary>
+      <p>Check case (add <code>-i</code>), special characters (add <code>-F</code>), and whether a <code>.mailmap</code> maps that identity to another one; then git matches only the mapped identity.</p>
+    </details>
+    <p>Related: <a href="filter-git-graph-by-branch.html">filter by branch</a>, <a href="git-log-graph.html">git log --graph</a> and <a href="git-file-history-vscode.html">file history</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html" aria-current="page">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

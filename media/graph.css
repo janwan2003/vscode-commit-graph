@@ -179,17 +179,17 @@ button:disabled { opacity: .5; cursor: default; }
 .dlg-btns .hint { flex: 1; }
 
 /* Branch checklist */
-#branchbtn { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#branchbtn::after { content: ' ▾'; opacity: .7; }
-#branchbtn.on { border-color: var(--vscode-focusBorder); }
-#bpop { position: fixed; z-index: 12; width: 290px; max-height: 60vh; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #8886)); border-radius: 5px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, #0005); }
-#bpop[hidden] { display: none; }
-#bpop input[type=search] { width: 100%; box-sizing: border-box; }
-#bpop .bp-quick { display: flex; gap: 6px; }
+#branchbtn, #authbtn { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#branchbtn::after, #authbtn::after { content: ' ▾'; opacity: .7; }
+#branchbtn.on, #authbtn.on { border-color: var(--vscode-focusBorder); }
+#bpop, #apop { position: fixed; z-index: 12; width: 290px; max-height: 60vh; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #8886)); border-radius: 5px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, #0005); }
+#bpop[hidden], #apop[hidden] { display: none; }
+#bpop input[type=search], #apop input[type=search] { width: 100%; box-sizing: border-box; }
+#bpop .bp-quick, #apop .bp-quick { display: flex; gap: 6px; }
 #blist { overflow-y: auto; min-height: 0; flex: 1; }
-#blist .bp-item { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-#blist .bp-item:hover { background: var(--vscode-list-hoverBackground); }
-#blist .bp-item span { overflow: hidden; text-overflow: ellipsis; }
+#blist .bp-item, #alist .bp-item { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+#blist .bp-item:hover, #alist .bp-item:hover { background: var(--vscode-list-hoverBackground); }
+#blist .bp-item span, #alist .bp-item span { overflow: hidden; text-overflow: ellipsis; }
 #blist .bp-item.cur span { font-weight: 600; }
 .bp-hint { font-size: 11px; }
 
@@ -242,3 +242,15 @@ button:disabled { opacity: .5; cursor: default; }
 .badge.bisect.bad { border-color: var(--vscode-errorForeground, #f14c4c); color: var(--vscode-errorForeground, #f14c4c); background: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 14%, transparent); }
 .badge.bisect.good { border-color: var(--vscode-testing-iconPassed, #73c991); color: var(--vscode-testing-iconPassed, #73c991); background: color-mix(in srgb, var(--vscode-testing-iconPassed, #73c991) 14%, transparent); }
 .badge.bisect.skip { border-color: var(--vscode-descriptionForeground, #999); color: var(--vscode-descriptionForeground, #999); border-style: dashed; }
+
+#apop { width: 330px; }
+#alist { overflow-y: auto; min-height: 0; flex: 1; }
+#alist .bp-item > span:first-of-type { flex: 1; }
+#alist .ap-mail { color: var(--vscode-descriptionForeground); font-size: 11px; }
+#alist .ap-n { color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bp-unhide { cursor: pointer; border: 1px solid var(--vscode-widget-border, #8886); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+.bp-unhide:hover { background: var(--vscode-list-hoverBackground); }
+.nt { display: inline-block; margin-right: 6px; padding: 0 4px; border-radius: 3px; font-size: 10px; line-height: 14px; vertical-align: 1px; color: var(--vscode-editorWarning-foreground, #d29922); border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground, #d29922) 60%, transparent); }
+.d-note { margin: 0 0 6px; border-left: 3px solid var(--vscode-editorWarning-foreground, #d29922); padding: 2px 8px; background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #d29922) 8%, transparent); font-size: 12px; }
+.d-note .d-note-h { font-weight: 600; }
+.d-note pre { margin: 3px 0 0; white-space: pre-wrap; font-family: inherit; }

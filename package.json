@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "Visualization",
     "Other"
   ],
-  "keywords": ["git graph", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "drop commit", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "filter branches", "code review", "fixup commit", "merge editor", "git remote", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
+  "keywords": ["git graph", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "filter branches", "code review", "fixup commit", "git remote", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
@@ -163,6 +163,12 @@
       "items": { "type": "string" },
       "default": ["main", "master", "develop"],
       "markdownDescription": "Branches that keep their own straight column on the left of the graph, with a fixed colour, instead of moving between columns (useful for git-flow `main` and `develop`). Each entry is a branch name or a pattern where `*` matches anything, e.g. `release/*`; earlier entries get the leftmost columns, at most 4. A local branch and its remote-tracking branch (`main`, `origin/main`) share one column. Right-click a branch in the graph to pin or unpin it. Set to `[]` for the plain layout."
+    },
+    "mergeline.hiddenBranches": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "markdownDescription": "Branches left out of the graph when it shows all branches, e.g. `[\"dependabot/*\", \"renovate/*\", \"gh-pages\"]`. Each entry is a branch name or a pattern where `*` matches anything (including `/`); it applies to local branches and to remote-tracking branches under any remote (`origin/dependabot/...`). The checked-out branch is always shown, and commits a visible branch or tag also contains still appear. Picking branches in the Branches checklist ignores this list. Right-click a branch to hide it or every branch with the same prefix."
     },
     "mergeline.dimOtherCommits": {
           "type": "boolean",

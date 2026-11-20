@@ -16,6 +16,8 @@
   let selected = null; // sha
   let compareSha = null;
   let refsBySha = new Map();
+  /** Loaded commits that have a git note (refs/notes/commits). */
+  let noteSet = new Set();
   let wtBySha = new Map(); // other worktrees by the commit they have checked out
   let bisectBy = new Map(); // sha → 'bad' | 'good' | 'skip' while a git bisect runs
   let lastTesting = null; // bisect: the commit under test last time, to follow it when it changes
@@ -47,6 +49,7 @@
   <div id="toolbar">
     <label class="tb">Repo <select id="repo" title="Repository"></select></label>
     <span class="tb">Branches <button id="branchbtn" class="secondary drop" title="Show only some branches" aria-haspopup="true" aria-expanded="false">All</button></span>
+    <span class="tb">Authors <button id="authbtn" class="secondary drop" title="Show only commits by some authors" aria-haspopup="true" aria-expanded="false">All</button></span>
     <label class="tb chk" title="Show remote-tracking branches"><input type="checkbox" id="remotes"> Remote branches</label>
     <label class="tb chk" title="Follow only the first parent of merges (git log --first-parent): each branch's own line, merged commits hidden behind their merge"><input type="checkbox" id="firstparent"> First parent</label>
     <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
@@ -71,11 +74,14 @@
   <div id="menu" hidden role="menu"></div>
   <div id="bpop" hidden role="dialog" aria-label="Branches to show"><input id="bfind" type="search" placeholder="Filter branches" spellcheck="false" aria-label="Filter branches">
     <div class="bp-quick"><button type="button" data-q="all" class="secondary">All branches</button><button type="button" data-q="cur" class="secondary">Current branch</button></div>
-    <div id="blist"></div><div class="hint bp-hint">Tick branches to show only their history.</div></div>
+    <div id="blist"></div><div id="bhidden" class="hint bp-hint" hidden></div><div class="hint bp-hint">Tick branches to show only their history.</div></div>
+  <div id="apop" hidden role="dialog" aria-label="Authors to show"><input id="afind" type="search" placeholder="Filter authors" spellcheck="false" aria-label="Filter authors">
+    <div class="bp-quick"><button type="button" data-q="all" class="secondary">All authors</button></div>
+    <div id="alist"></div><div class="hint bp-hint">Tick authors to show only their commits. Each one links to its nearest shown ancestor.</div></div>
   <div id="dlg" hidden role="dialog" aria-modal="true" aria-labelledby="dlg-t"><form id="dlg-f">
     <div id="dlg-t"></div>
-    <label for="dlg-s">Subject</label><input id="dlg-s" type="text" spellcheck="true" autocomplete="off">
-    <label for="dlg-b">Body <span class="hint">(optional)</span></label><textarea id="dlg-b" rows="9" spellcheck="true"></textarea>
+    <label for="dlg-s" id="dlg-sl">Subject</label><input id="dlg-s" type="text" spellcheck="true" autocomplete="off">
+    <label for="dlg-b" id="dlg-bl">Body <span class="hint">(optional)</span></label><textarea id="dlg-b" rows="9" spellcheck="true"></textarea>
     <div id="dlg-n" class="hint"></div>
     <div class="dlg-btns"><span class="hint">Ctrl/Cmd+Enter to save, Esc to cancel</span><button type="button" id="dlg-c" class="secondary">Cancel</button><button type="submit" id="dlg-ok">Save message</button></div>
   </form></div>`;
@@ -125,7 +131,7 @@
   }
   $('#prev').addEventListener('click', () => step(-1));
   function sendFilter() {
-    vscode.postMessage({ type: 'filter', branches: selBranches, remotes: $('#remotes').checked });
+    vscode.postMessage({ type: 'filter', branches: selBranches, remotes: $('#remotes').checked, authors: selAuthors });
   }
 
   // ---------- branch checklist (show only some branches) ----------
@@ -149,7 +155,15 @@
       ? shown.map((b) => `<label class="bp-item${b === data.branch ? ' cur' : ''}" title="${esc(b)}"><input type="checkbox" value="${esc(b)}"${sel.has(b) ? ' checked' : ''}> <span>${esc(b)}</span></label>`).join('')
       : '<div class="hint">No branch matches.</div>';
     bpop.querySelector('[data-q="cur"]').disabled = !data.branch;
+    const hid = data.hidden || [];
+    const bh = $('#bhidden');
+    bh.hidden = !hid.length;
+    bh.innerHTML = hid.length ? 'Hidden (mergeline.hiddenBranches): ' + hid.map((g) => `<span class="bp-unhide" data-unhide="${esc(g)}" title="Show ${esc(g)} again">${esc(g)} ✕</span>`).join(' ') : '';
   }
+  $('#bhidden').addEventListener('click', (e) => {
+    const u = e.target.closest('[data-unhide]');
+    if (u) vscode.postMessage({ type: 'hide', pattern: u.dataset.unhide, on: false });
+  });
   function openBranches() {
     const r = $('#branchbtn').getBoundingClientRect();
     bpop.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 300)) + 'px';
@@ -183,6 +197,61 @@
   });
   document.addEventListener('mousedown', (e) => { if (!bpop.hidden && !bpop.contains(e.target) && !e.target.closest('#branchbtn')) closeBranches(); });
 
+  // ---------- author checklist (show only commits by some authors) ----------
+  /** "Name <email>" ticked in the checklist; empty = everyone. */
+  let selAuthors = [];
+  /** [{ key, n }] from the extension, most commits first; null until it answers. */
+  let authorList = null;
+  const apop = $('#apop');
+  const authorKey = (c) => `${c.author} <${c.email}>`;
+  const authorName = (k) => k.replace(/ <[^<]*>$/, '');
+  function authorLabel() {
+    const b = $('#authbtn');
+    b.textContent = !selAuthors.length ? 'All' : selAuthors.length === 1 ? authorName(selAuthors[0]) : `${selAuthors.length} authors`;
+    const fileMode = !!(data && data.filter.path);
+    b.title = fileMode ? 'The author filter is off in file history' : selAuthors.length ? 'Showing only commits by: ' + selAuthors.join(', ') : 'Show only commits by some authors';
+    b.classList.toggle('on', selAuthors.length > 0 && !fileMode);
+    b.disabled = fileMode;
+  }
+  function fillAuthorList() {
+    const el = $('#alist');
+    if (!authorList) { el.innerHTML = '<div class="hint">Reading authors…</div>'; return; }
+    const q = $('#afind').value.trim().toLowerCase();
+    const sel = new Set(selAuthors);
+    // Ticked authors stay listed (at the top) so they can be unticked.
+    const all = [...selAuthors.map((k) => authorList.find((a) => a.key === k) || { key: k, n: 0 }), ...authorList.filter((a) => !sel.has(a.key))];
+    const shown = all.filter((a) => !q || a.key.toLowerCase().includes(q)).slice(0, 300);
+    el.innerHTML = shown.length
+      ? shown.map((a) => `<label class="bp-item" title="${esc(a.key)}${a.n ? ` — ${a.n} commit${a.n === 1 ? '' : 's'}` : ''}"><input type="checkbox" value="${esc(a.key)}"${sel.has(a.key) ? ' checked' : ''}> <span>${esc(authorName(a.key))} <span class="ap-mail">${esc(a.key.slice(authorName(a.key).length + 1))}</span></span><span class="ap-n">${a.n || ''}</span></label>`).join('')
+      : '<div class="hint">No author matches.</div>';
+  }
+  function openAuthors() {
+    const r = $('#authbtn').getBoundingClientRect();
+    apop.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 340)) + 'px';
+    apop.style.top = r.bottom + 4 + 'px';
+    apop.hidden = false;
+    $('#authbtn').setAttribute('aria-expanded', 'true');
+    $('#afind').value = '';
+    authorList = null;
+    vscode.postMessage({ type: 'authors' });
+    fillAuthorList();
+    $('#afind').focus();
+  }
+  function closeAuthors() { apop.hidden = true; $('#authbtn').setAttribute('aria-expanded', 'false'); }
+  function setAuthors(list) { selAuthors = list; authorLabel(); if (!apop.hidden) fillAuthorList(); sendFilter(); }
+  $('#authbtn').addEventListener('click', () => (apop.hidden ? openAuthors() : closeAuthors()));
+  $('#afind').addEventListener('input', fillAuthorList);
+  $('#afind').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeAuthors(); $('#authbtn').focus(); }
+    if (e.key === 'Enter') { const first = $('#alist input:not(:checked)') || $('#alist input'); if (first) { first.checked = !first.checked; first.dispatchEvent(new Event('change', { bubbles: true })); } }
+  });
+  $('#alist').addEventListener('change', (e) => {
+    const v = e.target.value;
+    setAuthors(e.target.checked ? [...selAuthors.filter((a) => a !== v), v] : selAuthors.filter((a) => a !== v));
+  });
+  apop.querySelector('.bp-quick').addEventListener('click', (e) => { if (e.target.closest('[data-q="all"]')) setAuthors([]); });
+  document.addEventListener('mousedown', (e) => { if (!apop.hidden && !apop.contains(e.target) && !e.target.closest('#authbtn')) closeAuthors(); });
+
   // ---------- messages ----------
   window.addEventListener('message', (ev) => {
     const m = ev.data;
@@ -194,13 +263,15 @@
       case 'details': showDetails(m); break;
       case 'history': gotHistory(m); break;
       case 'message': openMessageEditor(m.sha, m.message); break;
+      case 'note': openNoteEditor(m.sha, m.note); break;
+      case 'authors': authorList = m.list || []; if (!apop.hidden) fillAuthorList(); break;
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       // Test hook (only the extension can post here): click an element, optionally with Ctrl.
       case 'find': { const f = $('#find'); f.value = m.q; f.dispatchEvent(new Event('input')); if (m.enter) f.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); break; }
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -247,6 +318,9 @@
       if (w.branch) wtByBranch.set(w.branch, w);
     }
     selBranches = m.filter.branches || [];
+    selAuthors = m.filter.authors || [];
+    noteSet = new Set(m.notes || []);
+    authorLabel();
     branchLabel();
     if (!bpop.hidden) fillBranchList();
     $('#remotes').checked = m.filter.remotes;
@@ -294,6 +368,7 @@
     data.width = m.width;
     data.hasMore = m.hasMore;
     if (m.avatars) Object.assign(avatarBy, m.avatars);
+    for (const s of m.notes || []) noteSet.add(s);
     reachFor = null; // caches keyed on `data`, which was extended in place
     editableFor = null;
     $('#orderhint').hidden = !(data.order !== 'topo' && data.width > 20);
@@ -533,7 +608,7 @@
       if (dim && c.kind === 'commit' && !dim.has(c.sha)) cls.push('dim');
       h += `<div class="${cls.join(' ')}" style="top:${i * ROW}px" data-i="${i}">
         <div class="c-graph">${graphSvg(c, row)}</div>
-        <div class="c-desc">${refBadges(c)}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
+        <div class="c-desc">${refBadges(c)}${noteSet.has(c.sha) ? '<span class="nt" title="This commit has a git note (shown in its details)">note</span>' : ''}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
         <div class="c-date" title="${c.kind === 'uncommitted' ? '' : esc(new Date(c.date * 1000).toString())}">${c.kind === 'uncommitted' ? '' : esc(fmtDate(c.date))}</div>
         <div class="c-author" title="${esc(c.email)}">${settings.showAvatars && c.kind !== 'uncommitted' ? avatarHtml(c.author, c.email, avatarBy[c.email]) : ''}${esc(c.author)}</div>
         <div class="c-hash">${c.kind === 'uncommitted' ? '' : esc(short(c.sha))}</div></div>`;
@@ -662,7 +737,8 @@
         ${signatureHtml(m.signature)}
         ${data.web ? `<span><span class="link" data-url="${esc(data.web.commit + i.sha)}" title="${esc(data.web.commit + i.sha)}">Open on ${esc(data.web.name)}</span></span>` : ''}</div>
         ${tagsHtml(m.tags)}
-        ${body ? `<pre class="d-body">${linkify(body)}</pre>` : ''}`;
+        ${body ? `<pre class="d-body">${linkify(body)}</pre>` : ''}
+        ${m.note ? `<div class="d-note"><span class="d-note-h">Note</span> <span class="link" data-note="${esc(i.sha)}" title="Edit this note (git notes)">Edit</span><pre>${linkify(m.note)}</pre></div>` : ''}`;
     } else if (c.kind === 'uncommitted') head = `<div class="d-title">Uncommitted changes</div>`;
     if (m.error) head += `<div class="d-err">${esc(m.error)}</div>`;
     const add = m.files.reduce((n, f) => n + (f.additions || 0), 0);
@@ -806,6 +882,8 @@
     if (fv) { lay.files = fv.dataset.fv; saveLayout(); renderFiles(); return; }
     const dir = e.target.closest('.dir');
     if (dir) { const p = dir.dataset.dir; if (collapsedDirs.has(p)) collapsedDirs.delete(p); else collapsedDirs.add(p); renderFiles(); return; }
+    const nb = e.target.closest('[data-note]');
+    if (nb) { vscode.postMessage({ type: 'getNote', sha: nb.dataset.note }); return; }
     const g = e.target.closest('[data-goto]');
     if (g) { if (indexBySha.has(g.dataset.goto)) select(g.dataset.goto, true); return; }
     const cp = e.target.closest('[data-copy]');
@@ -919,7 +997,7 @@
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#find').focus(); $('#find').select(); return; }
     if (!$('#dlg').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } return; }
-    if (e.key === 'Escape') { if (!bpop.hidden) closeBranches(); else if (!menu.hidden) hideMenu(); else if (!detailsEl.hidden) closeDetails(); return; }
+    if (e.key === 'Escape') { if (!bpop.hidden) closeBranches(); else if (!apop.hidden) closeAuthors(); else if (!menu.hidden) hideMenu(); else if (!detailsEl.hidden) closeDetails(); return; }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
       // Jump to the checked-out commit.
@@ -998,6 +1076,12 @@
       ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
       ['Save as archive (zip, tar.gz)…', { ...base, action: 'archive' }],
       ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
+      null,
+      [noteSet.has(c.sha) ? 'Edit note…' : 'Add note…', () => vscode.postMessage({ type: 'getNote', sha: c.sha })],
+      ...(noteSet.has(c.sha) ? [['Remove note', () => vscode.postMessage({ type: 'setNote', sha: c.sha, note: '' })]] : []),
+      ...(data.filter.path ? [] : [selAuthors.length === 1 && selAuthors[0] === authorKey(c)
+        ? ['Show commits by all authors', () => setAuthors([])]
+        : ['Show only commits by ' + c.author, () => setAuthors([authorKey(c)])]]),
       null,
       ['Copy hash', { ...base, action: 'copyHash' }],
       ['Copy subject', { ...base, action: 'copySubject' }],
@@ -1181,7 +1265,28 @@
 
   // ---------- commit message editor (Edit commit message…) ----------
   let dlgSha = null, dlgOrig = '';
+  let dlgMode = 'msg';
+  function dialogMode(mode) {
+    dlgMode = mode;
+    const note = mode === 'note';
+    $('#dlg-s').hidden = note;
+    $('#dlg-sl').hidden = note;
+    $('#dlg-bl').innerHTML = note ? 'Note <span class="hint">(leave empty to remove it)</span>' : 'Body <span class="hint">(optional)</span>';
+    $('#dlg-ok').textContent = note ? 'Save note' : 'Save message';
+  }
+  /** Add or edit the git note on `sha` (refs/notes/commits). */
+  function openNoteEditor(sha, note) {
+    dialogMode('note');
+    dlgSha = sha;
+    dlgOrig = note || '';
+    $('#dlg-t').textContent = `${note ? 'Edit' : 'Add'} note on ${sha.slice(0, 8)}`;
+    $('#dlg-b').value = note || '';
+    $('#dlg').hidden = false;
+    updateDlg();
+    $('#dlg-b').focus();
+  }
   function openMessageEditor(sha, message) {
+    dialogMode('msg');
     const nl = message.indexOf('\n');
     const subject = nl < 0 ? message : message.slice(0, nl);
     const body = nl < 0 ? '' : message.slice(nl + 1).replace(/^\n/, '');
@@ -1201,6 +1306,12 @@
     return body ? `${subject}\n\n${body}` : subject;
   }
   function updateDlg() {
+    if (dlgMode === 'note') {
+      const v = $('#dlg-b').value.replace(/\s+$/, '');
+      $('#dlg-n').textContent = 'Notes live in refs/notes/commits and are not pushed with branches (git push origin refs/notes/commits).';
+      $('#dlg-ok').disabled = v === dlgOrig.replace(/\s+$/, '') || (!v && !dlgOrig);
+      return;
+    }
     const len = $('#dlg-s').value.trim().length;
     $('#dlg-n').textContent = !len ? 'Enter a subject.' : len > 72 ? `Subject is ${len} characters; many tools cut it at 50–72.` : '';
     $('#dlg-ok').disabled = !len || dlgMessage() === dlgOrig.replace(/\s+$/, '');
@@ -1216,6 +1327,7 @@
   $('#dlg-f').addEventListener('submit', (e) => {
     e.preventDefault();
     if ($('#dlg-ok').disabled || !dlgSha) return;
+    if (dlgMode === 'note') { vscode.postMessage({ type: 'setNote', sha: dlgSha, note: $('#dlg-b').value }); closeDialog(); return; }
     const c = indexBySha.has(dlgSha) ? data.commits[indexBySha.get(dlgSha)] : null;
     action({ action: 'reword', sha: dlgSha, subject: c ? c.subject : '', current: data.branch, fullMessage: dlgMessage() });
     closeDialog();
@@ -1259,6 +1371,7 @@
       null,
       ['Manage remote “' + remote + '”…', { action: 'manageRemotes', remote }],
       pinItem(name.slice(remote.length + 1)),
+      ...hideItems(name.slice(remote.length + 1), false),
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
     const isCur = name === cur;
@@ -1280,6 +1393,7 @@
       ['Delete…', { ...r, action: 'deleteBranch' }, isCur ? 'disabled' : 'danger'],
       null,
       pinItem(name),
+      ...hideItems(name, isCur),
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
   }
@@ -1290,6 +1404,16 @@
     if (pats.includes(n)) return ['Unpin (stop keeping it in its own column)', () => vscode.postMessage({ type: 'pin', name: n, on: false })];
     if ((data.pinned || []).includes(n)) return ['Pinned by a pattern in mergeline.pinnedBranches', null, 'disabled'];
     return ['Pin to its own column on the left', () => vscode.postMessage({ type: 'pin', name: n, on: true })];
+  }
+
+  // Setting mergeline.hiddenBranches: globs left out of the graph when it shows all branches.
+  function hideItems(n, isCur) {
+    if (isCur) return [['Hide (the checked-out branch is always shown)', null, 'disabled']];
+    const hide = (g) => () => vscode.postMessage({ type: 'hide', pattern: g, on: true });
+    const items = [['Hide this branch', hide(n)]];
+    const k = n.indexOf('/');
+    if (k > 0) items.push([`Hide all ${n.slice(0, k)}/… branches`, hide(n.slice(0, k) + '/*')]);
+    return items;
   }
 
   function worktreeItems(p) {

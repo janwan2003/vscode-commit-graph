@@ -2,7 +2,7 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, readNotedCommits, readNote, writeNote, readAuthors, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
 import { layout, LayoutState, newLayoutState, pinBranches, extendPins } from '../core/graph';
 import { pinnedTips } from '../core/pins';
@@ -24,8 +24,11 @@ export class GraphPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel;
   private repo: string | undefined;
   private max: number;
-  /** branches: show only these (empty = all). path: repo-relative, '/'-separated path for file history, or null for the whole repo. */
-  private filter: { branches: string[]; remotes: boolean; path: string | null };
+  /**
+   * branches: show only these (empty = all). authors: only commits by these "Name <email>" (empty = all;
+   * not applied in file history). path: repo-relative, '/'-separated path for file history, or null for the whole repo.
+   */
+  private filter: { branches: string[]; remotes: boolean; path: string | null; authors: string[] };
   private subs: vscode.Disposable[] = [];
   private timer: NodeJS.Timeout | undefined;
   private lastSig = '';
@@ -43,7 +46,7 @@ export class GraphPanel implements vscode.Disposable {
   lastHistory: any;
   /** Last URL handed to the browser (tests read it; under test nothing is opened). */
   lastUrl: string | undefined;
-  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[]; op: OpState | null; bisect: BisectState | null } | undefined;
+  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[]; op: OpState | null; bisect: BisectState | null; notes: string[] } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
     if (GraphPanel.current) {
@@ -58,7 +61,7 @@ export class GraphPanel implements vscode.Disposable {
   private constructor(private ctx: vscode.ExtensionContext, private repos: Repos, root?: string) {
     const cfg = vscode.workspace.getConfiguration('mergeline');
     this.max = cfg.get<number>('initialCommits', 500);
-    this.filter = { branches: [], remotes: cfg.get<boolean>('showRemoteBranches', true), path: null };
+    this.filter = { branches: [], remotes: cfg.get<boolean>('showRemoteBranches', true), path: null, authors: [] };
     this.repo = root ?? ctx.workspaceState.get<string>('mergeline.repo');
     this.panel = vscode.window.createWebviewPanel('mergeline.graph', 'Mergeline', vscode.ViewColumn.Active, {
       enableScripts: true,
@@ -136,19 +139,19 @@ export class GraphPanel implements vscode.Disposable {
   }
 
   /**
-   * Adds a branch name to mergeline.pinnedBranches, or removes it, at the most specific level that
-   * already sets it (folder, workspace), else in user settings, so a repository's .vscode/settings.json
-   * is only written when the user put the setting there.
+   * Adds a branch name or glob to mergeline.pinnedBranches / hiddenBranches, or removes it, at the most
+   * specific level that already sets it (folder, workspace), else in user settings, so a repository's
+   * .vscode/settings.json is only written when the user put the setting there.
    */
-  private async setPinned(name: string, on: boolean) {
+  private async setListSetting(key: 'pinnedBranches' | 'hiddenBranches', name: string, on: boolean) {
     const cfg = vscode.workspace.getConfiguration('mergeline');
-    const i = cfg.inspect<unknown>('pinnedBranches');
+    const i = cfg.inspect<unknown>(key);
     const target = i?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : i?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-    const cur = cfg.get<unknown>('pinnedBranches', []);
+    const cur = cfg.get<unknown>(key, []);
     const list = (Array.isArray(cur) ? cur : []).filter((x): x is string => typeof x === 'string');
     const next = on ? (list.includes(name) ? list : [...list, name]) : list.filter((x) => x !== name);
     if (next.length === list.length && next.every((x, k) => x === list[k])) return;
-    await cfg.update('pinnedBranches', next, target);
+    await cfg.update(key, next, target);
   }
 
   private settings() {
@@ -261,7 +264,7 @@ export class GraphPanel implements vscode.Disposable {
     const opts = this.logOptions(order);
     let names: string[] = [];
     let raw = 0;
-    const [commits0, state, stashes, unc, wts, op, bisect] = await Promise.all([
+    const [commits0, state, stashes, unc, wts, op, bisect, noted] = await Promise.all([
       fileMode
         ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
             names = h.names;
@@ -275,6 +278,7 @@ export class GraphPanel implements vscode.Disposable {
       readWorktrees(root),
       readOperation(root).catch((): OpState | null => null),
       readBisect(root).catch((): BisectState | null => null),
+      readNotedCommits(root),
     ]);
     // Other working trees of this repository (git worktree), shown as badges on the commit each has checked out.
     const real = (p: string) => {
@@ -294,8 +298,9 @@ export class GraphPanel implements vscode.Disposable {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
     const pinSetting = cfg.get<unknown>('pinnedBranches', []);
-    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, worktrees, op, bisect, names, web, pinSetting]);
-    const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha)]);
+    const notes = commits.filter((c) => noted.has(c.sha)).map((c) => c.sha);
+    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, opts.exclude, worktrees, op, bisect, names, web, pinSetting, noted.size]);
+    const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha), notes]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
     // Load more (or any reload where only more commits arrived): when nothing else changed and the
@@ -306,9 +311,9 @@ export class GraphPanel implements vscode.Disposable {
       const st = this.layState;
       extendPins(st, commits);
       const lay = layout(tail, st);
-      this.lastData = { ...prev, commits, width: lay.width };
+      this.lastData = { ...prev, commits, width: lay.width, notes };
       this.lastSent = { kind: 'append', rows: tail.length };
-      this.post({ type: 'append', commits: tail, packed: lay.packed, width: lay.width, hasMore, avatars: this.avatars(tail) });
+      this.post({ type: 'append', commits: tail, packed: lay.packed, width: lay.width, hasMore, avatars: this.avatars(tail), notes: tail.filter((c) => noted.has(c.sha)).map((c) => c.sha) });
       return;
     }
     this.lastBase = base;
@@ -319,7 +324,7 @@ export class GraphPanel implements vscode.Disposable {
     const lay = layout(commits, st);
     this.layState = st;
     this.lastSent = { kind: 'data', rows: commits.length };
-    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees, op, bisect };
+    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees, op, bisect, notes };
     this.post({
       type: 'data',
       repo: root,
@@ -332,6 +337,8 @@ export class GraphPanel implements vscode.Disposable {
       branch: state.branch,
       hasMore,
       filter: this.filter,
+      hidden: opts.exclude,
+      notes,
       names,
       order,
       firstParent: opts.firstParent,
@@ -375,8 +382,19 @@ export class GraphPanel implements vscode.Disposable {
   }
 
   private logOptions(order: CommitOrder) {
-    const firstParent = vscode.workspace.getConfiguration('mergeline').get<boolean>('firstParentOnly', false);
-    return { max: this.max, branches: this.filter.branches.length ? this.filter.branches : undefined, remotes: this.filter.remotes, order, firstParent };
+    const cfg = vscode.workspace.getConfiguration('mergeline');
+    const firstParent = cfg.get<boolean>('firstParentOnly', false);
+    const hidden = cfg.get<unknown>('hiddenBranches', []);
+    const exclude = (Array.isArray(hidden) ? hidden : []).filter((x): x is string => typeof x === 'string' && !!x.trim() && !x.startsWith('-'));
+    return {
+      max: this.max,
+      branches: this.filter.branches.length ? this.filter.branches : undefined,
+      remotes: this.filter.remotes,
+      order,
+      firstParent,
+      exclude,
+      authors: this.filter.authors.length && !this.filter.path ? this.filter.authors : undefined,
+    };
   }
 
   /** Find box "All history": search every commit the graph could show, not just the loaded ones. */
@@ -431,10 +449,45 @@ export class GraphPanel implements vscode.Disposable {
         // `branches` (a list) from the toolbar checklist; `branch` (one name, '' = all) is still accepted.
         const list: unknown[] = Array.isArray(m.branches) ? m.branches : m.branch ? [m.branch] : [];
         const branches = [...new Set(list.filter((b): b is string => typeof b === 'string' && !!b && !b.startsWith('-')))];
-        this.filter = { branches, remotes: !!m.remotes, path: m.path === undefined ? this.filter.path : m.path || null };
+        // `authors` left out keeps the current author filter.
+        const authors = Array.isArray(m.authors) ? [...new Set((m.authors as unknown[]).filter((a): a is string => typeof a === 'string' && /^.* <.*>$/.test(a)))] : this.filter.authors;
+        this.filter = { branches, remotes: !!m.remotes, path: m.path === undefined ? this.filter.path : m.path || null, authors };
         await this.refresh(true);
         break;
       }
+      case 'authors': {
+        // The author checklist: everyone in the branches shown (ignoring the author filter itself).
+        if (!this.repo) return;
+        const order = vscode.workspace.getConfiguration('mergeline').get<CommitOrder>('commitOrder', 'date');
+        try {
+          const list = await readAuthors(this.repo, { ...this.logOptions(order), authors: undefined });
+          this.post({ type: 'authors', list: list.slice(0, 1000), total: list.length });
+        } catch (e) {
+          this.post({ type: 'authors', list: [], total: 0, error: String((e as Error)?.message ?? e) });
+        }
+        break;
+      }
+      case 'getNote': {
+        if (!this.repo || typeof m.sha !== 'string' || !/^[0-9a-f]{40,64}$/i.test(m.sha)) return;
+        this.post({ type: 'note', sha: m.sha, note: await readNote(this.repo, m.sha) });
+        break;
+      }
+      case 'setNote': {
+        if (!this.repo || typeof m.sha !== 'string' || !/^[0-9a-f]{40,64}$/i.test(m.sha) || typeof m.note !== 'string') return;
+        try {
+          const r = await writeNote(this.repo, m.sha, m.note);
+          if (r === 'removed') vscode.window.setStatusBarMessage(`Mergeline: removed the note on ${m.sha.slice(0, 8)}`, 4000);
+        } catch (e) {
+          vscode.window.showErrorMessage(`Mergeline: could not save the note: ${String((e as Error)?.message ?? e)}`);
+        }
+        await this.refresh(true);
+        if (this.lastDetails?.sha === m.sha && !this.lastDetails.compare) await this.details(m.sha);
+        break;
+      }
+      case 'hide':
+        // A glob for mergeline.hiddenBranches; the configuration listener refreshes the graph.
+        if (typeof m.pattern === 'string' && m.pattern.trim() && !m.pattern.startsWith('-')) await this.setListSetting('hiddenBranches', m.pattern.trim(), !!m.on);
+        break;
       case 'order':
         // Saved as a user setting; the configuration listener refreshes the graph.
         if (['date', 'topo', 'author-date'].includes(m.order)) await vscode.workspace.getConfiguration('mergeline').update('commitOrder', m.order, vscode.ConfigurationTarget.Global);
@@ -482,7 +535,7 @@ export class GraphPanel implements vscode.Disposable {
         await this.openPullRequest(String(m.ref ?? ''), m.refType === 'remote' ? 'remote' : 'head', typeof m.remote === 'string' ? m.remote : undefined);
         break;
       case 'pin':
-        if (typeof m.name === 'string' && m.name) await this.setPinned(m.name, !!m.on);
+        if (typeof m.name === 'string' && m.name) await this.setListSetting('pinnedBranches', m.name, !!m.on);
         break;
       case 'action': {
         const info = this.info();
@@ -527,10 +580,10 @@ export class GraphPanel implements vscode.Disposable {
         this.post({ type: 'details', sha, from: 'HEAD', to: null, files });
         return;
       }
-      const [info, tags, signature] = await Promise.all([readCommitInfo(root, sha), readTags(root, sha).catch(() => []), readSignature(root, sha)]);
+      const [info, tags, signature, note] = await Promise.all([readCommitInfo(root, sha), readTags(root, sha).catch(() => []), readSignature(root, sha), readNote(root, sha)]);
       const files = await readChanges(root, info.parents[0] ?? null, sha);
       const avatars = this.avatars([{ email: info.email }]);
-      this.post({ type: 'details', sha, info, tags, signature, from: info.parents[0] ?? null, to: sha, files, avatar: avatars?.[info.email] });
+      this.post({ type: 'details', sha, info, tags, signature, note, from: info.parents[0] ?? null, to: sha, files, avatar: avatars?.[info.email] });
     } catch (e) {
       this.post({ type: 'details', sha, error: String((e as Error)?.message ?? e), files: [] });
     }

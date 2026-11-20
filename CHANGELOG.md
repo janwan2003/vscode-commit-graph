@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0 (2026-11-20)
+
+- **Filter by author.** A new **Authors** button in the toolbar opens a checklist of everyone in the branches shown, with their commit counts and a filter box. Tick one or more people to see only their commits. Each commit is joined to its nearest shown ancestor, so the graph stays connected (plain `git log --author` does not do this). Or right-click a commit → **Show only commits by <name>**, and **Show commits by all authors** to go back. Works with the Branches checklist, First parent and Find → All history. The filter is off in file history.
+- **Git notes.** Commits with a note (`git notes`, the default `refs/notes/commits`) get a small **note** mark in the graph, and the details pane shows the note under the message. Right-click a commit → **Add note…** / **Edit note…** opens an editor in the graph (save it empty to remove the note), or **Remove note**. Notes are not pushed with branches; the editor says how to push them.
+- **Hide branches.** New setting `mergeline.hiddenBranches` leaves branches out of the graph by name or pattern, for example `["dependabot/*", "renovate/*", "gh-pages"]`. A pattern hides local branches and remote branches under any remote (`git log --exclude`). Right-click a branch → **Hide this branch** or **Hide all dependabot/… branches**; the Branches checklist lists what is hidden, with a ✕ to show it again. The checked-out branch is always shown.
+
 ## 0.14.0 (2026-11-20)
 
 - **Pinned branches keep their own straight column.** `main`, `master` and `develop` now each get a fixed column on the left of the graph with a fixed colour, and their history is drawn as one straight line instead of moving from column to column as other branches start and end. Git-flow repositories read at a glance: `main` on the far left, `develop` next to it, features and releases to the right. Pin any other branch, or a pattern like `release/*`, with the new setting `mergeline.pinnedBranches` (earlier entries get the leftmost columns, at most 4), or right-click a branch → **Pin to its own column on the left** / **Unpin**. A local branch and its remote branch (`main`, `origin/main`) share a column. Set the setting to `[]` for the previous layout.

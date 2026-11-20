@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.14.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 14).
+**Mergeline 0.15.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 15).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.14.0
-  (`mergeline-0.14.0.vsix`, 81 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.15.0
+  (`mergeline-0.15.0.vsix`, 85 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  33 SEO guides (session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  35 SEO guides (session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (36 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (38 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -209,6 +209,19 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   newest loaded ref starts it; the uncommitted row starts HEAD's line). Branch menus: Pin to its own column / Unpin (message `pin` → `setPinned` in
   `src/ext/panel.ts`, writes the most specific level that already sets it, else user settings). Unit test `test/pins.test.ts` checks, over 300
   random histories × 3 pin sets, laid out whole and with Load more, that every node's drawn lines reach exactly its loaded parents.
+  **0.15.0 added** (Git Graph issues #171 filter by author, 19 👍; #475 git notes, 19 👍; #360 exclude branches by glob, 14 👍; the next three
+  by 👍 after #207): **author filter** (toolbar **Authors** checklist from `readAuthors` = `git log --format='%an <%ae>'` counted, filter box,
+  "All authors"; commit menu "Show only commits by <name>" / "Show commits by all authors"; off in file history). git does **not** rewrite
+  parents for `--author` (checked with git 2.53.0: neither `--parents` nor `--graph` does), so `readAuthorLog` in `src/core/gitlog.ts` reads
+  all of the authors' commits (`--author=^Name <email>$`, a BRE built by `breExact`: `-F` substring matching let "JoAnn <a@x>" match
+  "Ann <a@x>" and shifted history-search row indexes, found by the unit test) plus `git rev-list --parents` of the same revisions at once,
+  and `nearestShown` replaces each parent with the nearest shown ancestors (first parent's side first). `searchLog` runs its message/author
+  queries without the filter (else git ORs the two `--author`s). The filter passes `--no-use-mailmap`: git 2.53 applies `.mailmap` to `--author` by
+  default, while the graph and the checklist show raw `%an <%ae>` (found by the guide subagent; unit test with a `.mailmap` fails without the flag). **Git notes** (`readNotedCommits` = `git notes list`, `readNote`,
+  `writeNote` = `notes add -f -F -` / `notes remove`): a "note" mark on rows, a Note block with Edit in details, commit menu Add/Edit/Remove
+  note, the webview message dialog in a note mode (`dialogMode`). **Hidden branches**: setting `mergeline.hiddenBranches` → `revArgs` puts
+  `--exclude=<g>` before `--branches` and `--exclude=*/<g> --exclude=<g>` before `--remotes`; branch menus "Hide this branch" / "Hide all
+  <prefix>/… branches" (message `hide` → `setListSetting`, shared with pins); the Branches checklist lists hidden globs with ✕ to unhide.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -415,6 +428,35 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   - Not verified: bisect on Windows (`sh -c` with double quotes in PowerShell/cmd; Git for Windows runs the step with its own sh), a bisect with
     `--first-parent` or with paths (`git bisect start -- <path>`: the candidate count ignores paths, so "N left" would be too high), and real right-clicks
     on the new menu items (the e2e reads the item labels from the webview and posts the actions).
+- Verified 2026-11-20 (session 15), on the minified packaged 0.15.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 52/52, also with an empty `HOME` and `GIT_CONFIG_NOSYSTEM=1` (new `test/authors.test.ts`, 4 tests:
+    `nearestShown` equals a brute-force "kept ancestors through non-kept commits" on 300 random DAGs; a real repo with Ann/Bob/JoAnn (same email,
+    name contains Ann) → only Ann's 4 commits, merge parents rewritten to [a3, a2], a page of 2 points at the next page's commit, first parent,
+    history search keeps the filter and does not OR it, author counts; `--exclude` globs for local and remote branches, HEAD on a hidden branch
+    still shown, a chosen branch list ignores them; notes add/replace/multi-line/remove). The first CI-conditions run failed 1 test: `git notes add`
+    needs an identity (test defect, fixed with a repo-local identity).
+  - `node scripts/e2e.mjs` in VS Code 1.147: 48/48 on the dev build and 48/48 twice on the packaged build (`/tmp/ml-e2e15b,c,d.txt`). New check:
+    **real clicks** open the Authors checklist (3 authors read from the DOM) and tick Grace → 2 rows, newer's parent = older, older's parents []
+    , label "Grace Hopper", commit menu offers "Show commits by all authors", the All authors button restores all; a note set → `git notes show`
+    matches, row mark and details text, Edit/Remove in the menu, the editor opens with the note, removing clears the mark; `hide` writes
+    `hiddenBranches`, the hotfix commit disappears, the checklist lists `hotfix/* ✕`, a real click on ✕ brings it back. The first dev run
+    failed only because `lastData` lacked `notes` (fixed).
+  - git.git commits-only clone (86,366 commits, f7de8145, git 2.53.0, `scripts/bench-authors.ts`, best of 3): no filter, first page 618 ms;
+    busiest author (Junio, 27,401 commits) first page 1,935 ms with a separate "stops" query, **1,138 ms** after merging it into one read;
+    a 3-commit author 868 ms; author list (2,866 identities) 763 ms. The 28 distinct off-page parents of the busiest author's first page are all
+    his commits and all appear in later pages.
+  - Headless Chromium (`AUTHORS=1 AUTHOR="Ada Lovelace <ada@example.com>"`, dark and light; looked at both): checklist with counts, button label
+    and focus border, connected filtered graph incl. a rewritten merge line, note mark and Note block. Saved as `docs/screenshot-authors.png`.
+    `INTERACT=1` steps still pass (exit 0).
+  - Guides (subagent): every git output on both pages reproduced with git 2.53.0 in throwaway repos; it corrected my brief on notes and rewriting
+    (amend/rebase do not drop notes; nothing is copied until `notes.rewriteRef` is set) and found the mailmap mismatch above. VS Code 1.147's
+    bundled git extension never mentions notes. Link check (my script after my last edits): 40 pages, 1,917 relative links, 0 broken; sitemap 38.
+    The index tagline still said "v0.13" (missed in session 14): now v0.15.
+  - `code --install-extension mergeline-0.15.0.vsix` (temp extensions dir, VS Code 1.147.0) lists `plainbyte.mergeline@0.15.0`. Package 84.5 KB,
+    sha256 3f63d1c0… (rebuilt after the mailmap fix; 48/48 e2e again on it); keywords "git notes", "git log author" in, "drop commit", "merge editor" out (30).
+  - Not verified: notes refs other than the default (`notes.displayRef` is ignored); a repo where `git notes add` has no identity (git's error is
+    shown); author filter on repos far bigger than git.git (each load walks all history with `rev-list --parents`; timed end to end on git.git only); real right-clicks on the new
+    menu items (the e2e reads labels from the webview and posts the messages).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -423,6 +465,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 15): release downloads v0.1.0 to v0.14.0 2 each, v0.3.0 3 (read before the v0.15.0 release); 0 stars, 0 forks, 0 issues;
+  traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by page
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`).
 
 - 2026-11-20 (session 14): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 to v0.12.0 2 each, v0.13.0 1 (read before the v0.14.0 release);
   0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
@@ -485,9 +531,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. Pinned-branch follow-ups: a colour picker per pinned branch (#254 "branch colours on all commits", 22 👍); measure `pinChains` +
-   layout on git.git with `main`/`master`/`next`/`seen` pinned (expected linear); light-theme check of pinned colours 0-3. Next highest Git Graph
-   requests not covered (same query): #171 filter by author (19 👍), #475 git notes (19), #538 create/apply patches (17), #360 exclude branches by glob (14).
+1a. Next Git Graph request by 👍 not covered: #538 create/apply patches (17 👍: commit/range → "Save as patch…" via `git format-patch`/`git diff`,
+   "Apply patch…" via `git apply --3way` or `git am` for mbox files). Then #254 branch colours (22 👍; a colour per pinned branch).
+   Author-filter follow-ups: a "me" quick button (`git config user.email`), `.mailmap` identities (`%aN <%aE>` + `--use-mailmap`), and cache the
+   `rev-list --parents` map between Load more pages (each page re-walks all history today). Notes: show `notes.displayRef` refs too.
 1b. Bisect follow-ups: count candidates with the bisect's paths and `--first-parent` (read `BISECT_NAMES` and `BISECT_FIRST_PARENT`) so "N left" matches
    git's own count; a "Bisect log" item (copy `git bisect log`); offer to stash when the working tree is dirty (git refuses the checkout today and the
    error is shown).

@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git notes: add a note to a commit without changing its hash, in the terminal and VS Code | Mergeline</title>
+<meta name="description" content="Add a git note to a commit without changing its hash: add, append and remove notes, push and fetch them, keep them through rebase, and use them in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-notes-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git notes: add a note to a commit without changing its hash">
+<meta property="og:description" content="What git notes are, the add, append, show, list and remove commands, how notes appear in git log, why they are not pushed or fetched by default, what amend and rebase do to them, and notes in a VS Code graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-notes-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>git notes: add a note to a commit without changing its hash</h1>
+    <p>Sometimes you want to write something on a commit after the fact: &ldquo;deployed to production&rdquo;, &ldquo;reviewed by Bob&rdquo;, a link to a CI run. Editing the message would change the commit&rsquo;s hash and rewrite history. A <strong>git note</strong> is text attached to a commit from the outside, so the commit and its hash stay exactly as they were. This guide covers the commands, how notes show up in <code>git log</code>, sharing them (they are not pushed by default), what amend and rebase do to them, and notes in VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What a git note is</a></li>
+        <li><a href="#commands">Add, replace, append, show, remove</a></li>
+        <li><a href="#log">Notes in <code>git log</code></a></li>
+        <li><a href="#share">Push and fetch notes</a></li>
+        <li><a href="#rewrite">Amend, rebase and cherry-pick</a></li>
+        <li><a href="#uses">What people use notes for</a></li>
+        <li><a href="#vscode">Notes in VS Code</a></li>
+        <li><a href="#mergeline">Notes in the Mergeline graph</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Add a note to the current commit</td><td><code>git notes add -m "Deployed to staging"</code></td></tr>
+          <tr><td>Add a note to another commit</td><td><code>git notes add -m "&hellip;" &lt;commit&gt;</code></td></tr>
+          <tr><td>Replace an existing note</td><td><code>git notes add -f -m "&hellip;"</code></td></tr>
+          <tr><td>Add a line to an existing note</td><td><code>git notes append -m "&hellip;"</code></td></tr>
+          <tr><td>Read a note</td><td><code>git notes show [&lt;commit&gt;]</code></td></tr>
+          <tr><td>Delete a note</td><td><code>git notes remove [&lt;commit&gt;]</code></td></tr>
+          <tr><td>Share notes</td><td><code>git push origin refs/notes/commits</code></td></tr>
+          <tr><td>Get other people&rsquo;s notes</td><td><code>git fetch origin 'refs/notes/*:refs/notes/*'</code></td></tr>
+          <tr><td>Keep notes when amending or rebasing</td><td><code>git config notes.rewriteRef refs/notes/commits</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in throwaway repositories, one of them pushing to a local bare repository as its <code>origin</code>, and quote the output we saw.</p>
+
+    <h2 id="what">What a git note is</h2>
+    <p>A note is a piece of text that git stores next to a commit, not inside it. The commit&rsquo;s hash is computed from its content, message, author and parents; a note is none of those, so adding one leaves the hash alone:</p>
+<pre><span class="k">git rev-parse --short HEAD</span>
+<span class="o">b24d436</span>
+<span class="k">git notes add -m</span> "Deployed to staging"
+<span class="k">git rev-parse --short HEAD</span>
+<span class="o">b24d436</span></pre>
+    <p>Notes live under their own ref, <code>refs/notes/commits</code> by default. A <strong>ref</strong> is a name pointing at a commit, like a branch. This one points at a small history of its own that records every note change, so notes can be pushed, fetched and merged much like a branch. Because it is not under <code>refs/heads/</code>, it is not a branch and does not appear in <code>git branch</code>.</p>
+
+    <h2 id="commands">Add, replace, append, show, remove</h2>
+    <p>Each commit has at most one note per notes ref. <code>git notes add</code> refuses to overwrite one unless you add <code>-f</code>:</p>
+<pre><span class="k">git notes add -m</span> "Deployed to production"
+<span class="o">error: Cannot add notes. Found existing notes for object b24d436de4dde534aa5ef23bcb180f78294fe2fe. Use '-f' to overwrite existing notes</span>
+<span class="k">git notes add -f -m</span> "Deployed to production"
+<span class="o">Overwriting existing notes for object b24d436de4dde534aa5ef23bcb180f78294fe2fe</span>
+<span class="k">git notes append -m</span> "Smoke tests passed"
+<span class="k">git notes show</span>
+<span class="o">Deployed to production
+
+Smoke tests passed</span></pre>
+    <ul>
+      <li><strong>Without <code>-m</code></strong>, <code>git notes add</code> and <code>git notes append</code> open your editor, as <code>git commit</code> does. <code>-F &lt;file&gt;</code> reads the text from a file.</li>
+      <li><strong><code>append</code></strong> adds a blank line and the new text to the existing note, or creates the note if there is none.</li>
+      <li><strong>Every command takes a commit</strong> as the last argument; without one it uses <code>HEAD</code>. <code>git notes show HEAD~1</code> on a commit without a note printed <code>error: no note found for object 6a3712a9342d9267a0ab55329d1f7b94668db9fa.</code></li>
+      <li><strong><code>git notes list</code></strong> prints one line per note: the note&rsquo;s own object id, then the commit it belongs to.</li>
+    </ul>
+<pre><span class="k">git notes list</span>
+<span class="o">b3d9e725bdfa420707330be79cf9958fd1e9b678 b24d436de4dde534aa5ef23bcb180f78294fe2fe</span>
+<span class="k">git notes remove</span> HEAD
+<span class="o">Removing note for object HEAD</span></pre>
+
+    <h2 id="log">Notes in <code>git log</code></h2>
+    <p><code>git log</code> and <code>git show</code> print notes by default, under a <code>Notes:</code> heading after the message:</p>
+<pre><span class="k">git log -1</span>
+<span class="o">commit b24d436de4dde534aa5ef23bcb180f78294fe2fe
+Author: Ann Lee &lt;ann@example.com&gt;
+Date:   Fri Nov 20 10:00:00 2026 +0100
+
+    Fix session timeout
+
+Notes:
+    Deployed to production
+
+    Smoke tests passed</span></pre>
+    <ul>
+      <li><code>--no-notes</code> hides them.</li>
+      <li><code>git log --oneline</code> does not show them; <code>git log --oneline --notes</code> does.</li>
+      <li>In your own <code>--format</code>, <code>%N</code> is the note text: <code>git log --format='%h %s: %N'</code> printed <code>b24d436 Fix session timeout: Deployed to production</code> followed by the rest of the note. A format without <code>%N</code> shows no note, even with <code>--notes</code>.</li>
+      <li>Notes in another ref are shown with <code>--notes=&lt;name&gt;</code>: <code>git log --notes=review</code> shows <code>refs/notes/review</code> under a <code>Notes (review):</code> heading. Setting <code>core.notesRef</code> changes which ref every <code>git notes</code> command and <code>git log</code> use by default.</li>
+    </ul>
+
+    <h2 id="share">Push and fetch notes</h2>
+    <p>Notes stay on your machine unless you push them on purpose. A normal push sends branches; <code>git ls-remote</code> after <code>git push origin main</code> listed only <code>HEAD</code> and <code>refs/heads/main</code>. Push the notes ref by name:</p>
+<pre><span class="k">git push origin refs/notes/commits</span>
+<span class="o">To ../origin.git
+ * [new reference]   refs/notes/commits -&gt; refs/notes/commits</span></pre>
+    <p>Fetching is the same story. A fresh clone of that repository had no notes: <code>git show-ref</code> listed only branches, and <code>git notes show HEAD</code> said <code>error: no note found</code>. Fetch them explicitly:</p>
+<pre><span class="k">git fetch origin</span> 'refs/notes/*:refs/notes/*'
+<span class="o">From &hellip;/origin
+ * [new ref]         refs/notes/commits -&gt; refs/notes/commits</span>
+<span class="k">git notes show</span> HEAD
+<span class="o">Deployed to production
+
+Smoke tests passed</span></pre>
+    <p>To get notes with every <code>git fetch</code>, add the refspec to the remote: <code>git config --add remote.origin.fetch '+refs/notes/*:refs/notes/*'</code>. After that, a plain <code>git fetch origin</code> brought in <code>refs/notes/commits</code>. The leading <code>+</code> lets the fetch overwrite your local notes ref, so notes you added locally and did not push are replaced by the remote&rsquo;s.</p>
+    <p>If both sides added notes, the refs have diverged. Without the <code>+</code>, the fetch was refused with <code>! [rejected] refs/notes/commits -&gt; refs/notes/commits (non-fast-forward)</code>, and the push was refused too. Fetch the remote&rsquo;s notes into a separate ref and merge them: <code>git fetch origin refs/notes/commits:refs/notes/origin/commits</code>, then <code>git notes merge refs/notes/origin/commits</code>. When both sides had noted the same commit, the merge stopped with <code>CONFLICT (add/add): Merge conflict in notes for object &hellip;</code>; <code>git notes merge -s union</code> instead joined the two texts into one note.</p>
+
+    <h2 id="rewrite">Amend, rebase and cherry-pick</h2>
+    <p>A note belongs to one commit hash. Amending, rebasing or cherry-picking creates new commits with new hashes, and by default the note does not come along: the old commit keeps it, and the new one has none. We tested each case on a commit with a note:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Operation</th><th scope="col">Default settings</th><th scope="col">With <code>notes.rewriteRef</code> set</th></tr></thead>
+        <tbody>
+          <tr><td><code>git commit --amend</code></td><td>note not copied</td><td>note copied</td></tr>
+          <tr><td><code>git rebase</code> and <code>git rebase -i</code></td><td>note not copied</td><td>note copied</td></tr>
+          <tr><td><code>git cherry-pick</code></td><td>note not copied</td><td>note not copied</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The switch is <code>notes.rewriteRef</code>, which names the notes refs to carry over and has no value until you set one:</p>
+<pre><span class="k">git config notes.rewriteRef</span> refs/notes/commits</pre>
+    <p>Two more settings, <code>notes.rewrite.amend</code> and <code>notes.rewrite.rebase</code>, are on by default but do nothing while <code>notes.rewriteRef</code> is unset. With it set, setting either to <code>false</code> stopped the copy for that command. For a single command, the environment variable <code>GIT_NOTES_REWRITE_REF=refs/notes/commits</code> did the same as the setting. To move a note by hand, for example after a cherry-pick, run <code>git notes copy &lt;old&gt; &lt;new&gt;</code>. In every case the old commit kept its note as well.</p>
+
+    <h2 id="uses">What people use notes for</h2>
+    <ul>
+      <li><strong>Deploy markers.</strong> A deploy script runs <code>git notes append -m "Deployed to production 2026-11-20"</code> on the commit it shipped and pushes <code>refs/notes/commits</code>.</li>
+      <li><strong>Review sign-off.</strong> &ldquo;Reviewed by &hellip;&rdquo; on a commit after it was merged, without amending a commit others already have.</li>
+      <li><strong>CI results.</strong> A link to the build or the test summary. Keep these in their own ref, such as <code>git notes --ref=ci add -m "&hellip;"</code>, so they do not mix with notes people write.</li>
+      <li><strong>Corrections.</strong> A message that turned out to be wrong or incomplete: the note shows up next to it in <code>git log</code>.</li>
+    </ul>
+
+    <h2 id="vscode">Notes in VS Code</h2>
+    <p>We searched the Git extension bundled with VS Code 1.147 (its <code>package.json</code>, its <code>package.nls.json</code> with the user-facing strings, and its code) for &ldquo;notes&rdquo; and found no mention of git notes. To add or read notes there, use the integrated terminal (<kbd>Ctrl</kbd>+<kbd>`</kbd>) with the commands above.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Notes in the Mergeline graph</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.15 it shows git notes and lets you add, edit and remove them.</p>
+      <ol class="steps">
+        <li><strong>See which commits have a note.</strong> Rows with a note show a small &ldquo;note&rdquo; mark before the subject.</li>
+        <li><strong>Read it.</strong> Click the commit. The details pane shows the note under the message, with an <strong>Edit</strong> link.</li>
+        <li><strong>Add or edit.</strong> Right-click a commit and choose <strong>Add note&hellip;</strong>, or <strong>Edit note&hellip;</strong> if it already has one. An editor opens in the graph; save to write the note. Saving it empty removes the note.</li>
+        <li><strong>Remove.</strong> Right-click and choose <strong>Remove note</strong>.</li>
+      </ol>
+      <p>Mergeline reads and writes only the default notes ref: <code>refs/notes/commits</code>, or the ref named in <code>core.notesRef</code> if you set it. It does not push or fetch notes; use the commands in <a href="#share">Push and fetch notes</a>.</p>
+      <p>Showing notes is Git Graph <a href="https://github.com/mhutchie/vscode-git-graph/issues/475">issue #475</a>, opened in March 2021. When we checked on 20 November 2026 it was still open, with 19 thumbs-up.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Does adding a note change the commit hash?</summary>
+      <p>No. The note is stored outside the commit, in <code>refs/notes/commits</code>. In our test the hash was <code>b24d436</code> before and after.</p>
+    </details>
+    <details>
+      <summary>Why can&rsquo;t my teammates see my notes?</summary>
+      <p>Because notes are not pushed with branches and not fetched by default. Push with <code>git push origin refs/notes/commits</code>; they fetch with <code>git fetch origin 'refs/notes/*:refs/notes/*'</code>.</p>
+    </details>
+    <details>
+      <summary>Where did my note go after a rebase?</summary>
+      <p>It is still on the old commit. Rebase made a new commit, and without <code>notes.rewriteRef</code> the note was not copied. Find the old hash with <code>git reflog</code> and run <code>git notes copy &lt;old&gt; &lt;new&gt;</code>, then set <code>git config notes.rewriteRef refs/notes/commits</code> for next time.</p>
+    </details>
+    <details>
+      <summary>Can a commit have more than one note?</summary>
+      <p>One per notes ref. Use <code>git notes append</code> to add to it, or a separate ref with <code>--ref=&lt;name&gt;</code> for a different kind of note.</p>
+    </details>
+    <p>Related: <a href="edit-commit-message-vscode.html">edit a commit message</a>, <a href="git-log-graph.html">git log --graph</a> and <a href="undo-git-reset-cherry-pick-revert.html">undo in git</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html" aria-current="page">Git notes</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

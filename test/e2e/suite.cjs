@@ -255,6 +255,65 @@ exports.run = async function run() {
     await packed((pk) => mainLine.every((s) => colOf(pk, s) === 0), 'back to default');
   });
 
+  await check('author filter (real clicks in the checklist, rewritten parents, menu), notes (marks, details, editor), hidden branches (hide, unhide)', async () => {
+    const pong = async (ok, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && ok(panel.lastPong) && panel.lastPong; }, 10000, what);
+    const click = (selector) => panel.testPost({ type: 'click', selector });
+    const commitsOnly = () => panel.lastData.commits.filter((c) => c.kind === 'commit');
+    const total = commitsOnly().length;
+    const GRACE = 'Grace Hopper <grace.hopper@example.com>';
+    // The checklist lists every author with a count (read from the rendered rows).
+    await click('#authbtn');
+    let p = await pong((x) => x.authorRows.length === 3, 'author list');
+    assert.deepEqual(p.authorRows.map((r) => r.slice(4)).sort(), ['Ada Lovelace <ada@example.com>', 'Alan Turing <alan.turing@example.com>', GRACE]);
+    // Tick Grace with a real click: only her two commits, the newer one's parent rewritten to the older.
+    await click(`#alist input[value="${GRACE}"]`);
+    await until(() => commitsOnly().length === 2, 10000, 'filtered to Grace');
+    const [newer, older] = commitsOnly();
+    assert.deepEqual([newer.subject, older.subject], ['Search: rank by recency', 'Add search index']);
+    assert.deepEqual(newer.parents, [older.sha]);
+    assert.deepEqual(older.parents, [], 'Ada\'s commits below are not shown, so the line ends');
+    p = await pong((x) => x.authBtn === 'Grace Hopper', 'button label');
+    await click('#authbtn'); // close
+    // The commit menu offers the way back; "All authors" restores everything.
+    await panel.testPost({ type: 'reveal', sha: newer.sha });
+    p = await pong((x) => x.selected === newer.sha && x.commitMenu.includes('Show commits by all authors'), 'menu: all authors');
+    assert.ok(p.commitMenu.includes('Add note…'));
+    await click('#authbtn');
+    await click('#apop [data-q="all"]');
+    await until(() => commitsOnly().length === total, 10000, 'all authors again');
+    await click('#authbtn'); // close
+    p = await pong((x) => x.authBtn === 'All', 'label All');
+
+    // Notes: set one, the row gets a mark and the details show it; the editor opens with it; remove.
+    const c = bySubject('Parser: handle empty input');
+    await panel.testMessage({ type: 'setNote', sha: c.sha, note: 'Deployed to staging\nSee #42' });
+    assert.equal(git('notes', 'show', c.sha), 'Deployed to staging\nSee #42');
+    await until(() => (panel.lastData.notes || []).includes(c.sha), 10000, 'notes in data');
+    await panel.testPost({ type: 'reveal', sha: c.sha });
+    p = await pong((x) => x.noteMarks.length === 1 && /Note Edit\s*Deployed to staging\s*See #42/.test(x.detailsText), 'note mark and details');
+    assert.ok(p.commitMenu.includes('Edit note…') && p.commitMenu.includes('Remove note'));
+    await panel.testMessage({ type: 'getNote', sha: c.sha });
+    p = await pong((x) => x.dialog && x.dialog.title === `Edit note on ${c.sha.slice(0, 8)}`, 'note editor');
+    assert.equal(p.dialog.body, 'Deployed to staging\nSee #42');
+    await click('#dlg-c');
+    await panel.testMessage({ type: 'setNote', sha: c.sha, note: '' });
+    assert.throws(() => git('notes', 'show', c.sha));
+    p = await pong((x) => x.noteMarks.length === 0, 'mark gone');
+
+    // Hidden branches: the branch menu's message writes the setting; the checklist shows it with an unhide button.
+    const cfg = () => vscode.workspace.getConfiguration('mergeline');
+    await panel.testMessage({ type: 'hide', pattern: 'hotfix/*', on: true });
+    assert.deepEqual(cfg().get('hiddenBranches'), ['hotfix/*']);
+    await until(() => !bySubject('Fix crash on startup') && commitsOnly().length === total - 1, 10000, 'hotfix hidden');
+    await click('#branchbtn');
+    p = await pong((x) => x.hiddenText.includes('hotfix/* ✕'), 'hidden list');
+    await click('#bhidden [data-unhide="hotfix/*"]');
+    await until(() => bySubject('Fix crash on startup') && commitsOnly().length === total, 10000, 'hotfix back');
+    assert.deepEqual(cfg().get('hiddenBranches'), []);
+    await click('#branchbtn');
+    await cfg().update('hiddenBranches', undefined, vscode.ConfigurationTarget.Global);
+  });
+
   await check('compare a commit with the working tree', async () => {
     const a = bySubject('Initial commit');
     await panel.testMessage({ type: 'details', sha: a.sha, compare: '*' });
