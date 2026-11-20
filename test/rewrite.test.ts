@@ -15,6 +15,9 @@ function repo(): { d: string; sha: Record<string, string> } {
   const d = mkdtempSync(join(tmpdir(), 'mergeline-rw-'));
   sh(d, 'init', '-q', '-b', 'main');
   sh(d, 'config', 'commit.gpgsign', 'false');
+  // runRewrite's own git calls do not get the env above (CI has no global identity).
+  sh(d, 'config', 'user.name', 'Ada');
+  sh(d, 'config', 'user.email', 'ada@example.com');
   const sha: Record<string, string> = {};
   for (const [i, s] of ['one', 'two', 'three', 'four'].entries()) {
     writeFileSync(join(d, `${i + 1}.txt`), s + '\n');
