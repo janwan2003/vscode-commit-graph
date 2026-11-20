@@ -105,8 +105,8 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.7.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 7).
+**Mergeline 0.8.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 8).
 
 - Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.7.0
   (`mergeline-0.7.0.vsix`, 56 KB): https://github.com/janwan2003/vscode-commit-graph/releases
@@ -156,6 +156,14 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   conflict markers via `git diff --cached --check`), Skip, Abort, Source Control; it also shows operations started in a terminal. Move commit
   up/down (swap in the todo). Edit commit message opens a subject + body editor in the webview (`getMessage` → `message` → `fullMessage`).
   Move down / Squash into parent are greyed out when the parent is a merge (the planner refused it anyway; 0.6 showed them enabled).
+  **0.8.0 added:** a **Branches** checklist in the toolbar (any number of local/remote branches → `git log <b1> <b2> …`; "Current branch",
+  "All branches", a search box; `filter.branches` in `src/ext/panel.ts`, the old one-name `branch` message still accepted); **drag a commit
+  row**: from another branch onto the current branch's badge or the HEAD row → Cherry-pick, and between two commits on HEAD's editable line
+  → "Squash into" / "Move to right after" (new `place` op in `src/core/rewrite.ts`: the todo drops the commit and re-inserts it after the
+  target as `pick` or `fixup`); **Create pull request on GitHub/GitLab/Bitbucket** in branch menus (`pullRequestUrl` in `src/core/remote.ts`;
+  a local branch resolves to `branch.<name>.remote`/`.merge`, an unpushed one is offered Push first); setting `mergeline.dimOtherCommits`
+  (fades commits not reachable from HEAD among the loaded ones); Ctrl/Cmd+H selects HEAD. CI now also runs the e2e suite in the latest
+  stable VS Code (job `e2e` in `.github/workflows/ci.yml`).
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -257,6 +265,29 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     `cherry-pick --abort` undoing already-applied picks was re-checked by hand (it also fixed the wording of Mergeline's Abort dialog).
   - Not verified: real clicks on the bar's buttons inside VS Code (the e2e sends the same `action` messages; the click handler was exercised
     only in Chromium for the dialog), `git am` in progress (detection only, no test), and Windows.
+- Verified 2026-11-20 (session 8), on the minified packaged 0.8.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 24/24 (new: `place` todo building; move HEAD down onto the root's child keeps the root's
+    hash; "already right after" refused; fold HEAD into a commit two below keeps that commit's message and both files; move the root to
+    the top (`--root`); a commit on another branch refused; `pullRequestUrl` for GitHub/GitLab/Bitbucket incl. slashes, spaces and `#`).
+  - `node scripts/e2e.mjs` in VS Code 1.147: 32/32, three times on the first packaged build and twice after the refresh fix. New checks:
+    placeCommit move and fold (git log read back), branch filter `['hotfix/crash','feature/search']` → commit count equals
+    `git rev-list --count` of the two and the toolbar reads "2 branches", back to all; `dimOtherCommits` on → dimmed rows ≤ commits off
+    HEAD, off → 0; Create pull request for a tracked local branch and a remote branch gives the GitHub compare URL (recorded, not opened,
+    under test), a non-forge remote gives none.
+  - **CI e2e (new job) first run failed, 3 of 32** (run 44751989277): "Cannot read properties of undefined (reading 'sha')". A real
+    defect, not a flake: `GraphPanel.refresh()` returned at once when a load was already running, so callers (the tests, and actions that
+    await a refresh) read stale data. It now resolves after the queued reload finishes. Second CI run: see the Log line for this session.
+  - Headless Chromium (`INTERACT=1 node scripts/shot/shot.mjs`, `scripts/shot/interact.js` steps 11-15) with synthetic mouse events: dragging
+    "Changelog for 1.1" (release/1.1, unmerged) onto the HEAD row shows the ghost and a menu "Cherry-pick d0ae9c3 onto “main”" + Compare,
+    and clicking posts `cherryPick`; dragging HEAD onto its parent lists Squash (enabled) and Move (disabled) and posts `placeCommit fold=true`;
+    the checklist opens with 6 branches, ticking feature/search posts `filter ["feature/search"]` and labels the button, the search box narrows
+    to 2, "Current branch" posts `["main"]`, Esc closes it; Ctrl+H selects HEAD; with dimming on only "Changelog for 1.1" is dimmed (stash
+    not). Looked at `docs/screenshot-branches.png` (dark) and a light-theme render.
+  - `code --install-extension mergeline-0.8.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.8.0`. Package 59.9 KB, 30 keywords.
+  - Guides (subagent): git commands run in throwaway repos (git 2.53); VS Code labels read from the local 1.147 install; forge URLs from forge
+    docs. Uncertain and worded as such on the page: GitHub `?expand=1` (not in GitHub's docs; works), Bitbucket `pull-requests/new?source=`.
+  - Not verified: real mouse drags of a commit inside VS Code, the PR link actually opening a browser, and the "push first" prompt path
+    (needs a click on a non-modal notification).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -265,6 +296,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 8): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 0 (read before the v0.8.0 release);
+  0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, 0 errors (`sitemaps.list`).
 
 - 2026-11-20 (session 7): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2 (read before the v0.7.0 release);
   0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
@@ -296,16 +331,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Edit history, next pieces (0.7 shipped the message editor, move up/down and the in-progress bar): drag a commit row onto another
-   to reorder or squash (drag already exists for branch badges), "Edit (stop at) this commit" (`edit` in the todo; the bar then offers
+2. Edit history, next pieces (0.8 shipped dragging a commit to squash/move/cherry-pick): "Edit (stop at) this commit" (`edit` in the todo; the bar then offers
    Continue), "Create fixup commit for this" (`git commit --fixup` + autosquash), and a conflicted-files list in the bar's tooltip → click
    to open the merge editor.
 3. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
    already resumable via `LayoutState`; stashes whose base is in the new page and the uncommitted row need care).
-4. Still missing that users ask for: avatars (opt-in; needs network, off by default), a commit search by changed path,
-   and a "pull request" overlay later. Drag-and-drop could also accept a tag or a commit row as the source (cherry-pick on drop).
-5. Add e2e to CI (VS Code headless, then VSCodium as a second target: download the tarball, `node scripts/e2e.mjs <codium>`;
-   610 MB extracted, so CI only). CI runs typecheck, unit tests and package only, which is why the identity bug above was caught only there.
+4. Still missing that Git Graph users have: avatars (opt-in; needs network, off by default), a commit search by changed path, remote
+   management (add/remove/prune a remote), and a code-review mode (mark files reviewed). Drag-and-drop: cherry-pick onto a non-current
+   branch (checks it out first). Older guide pages: 18 meta descriptions over 155 chars and 12 without a releases link (subagent sweep).
+5. CI now runs e2e in the latest stable VS Code (session 8). Add VSCodium as a second target (download the tarball,
+   `node scripts/e2e.mjs <codium>`; 610 MB extracted, so CI only).
 6. History search positions in file-history mode are approximate (they come from the multi-name log, not
    the filtered one); fine for small file histories, revisit if users report misses.
 7. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
@@ -371,3 +406,9 @@ on the graph). The graph itself stays free.
   checked in throwaway repos), older guides updated, new screenshot. Verified: 23/23 unit (also CI conditions), 30/30 e2e ×2 on the final
   packaged build, Chromium renders and dialog submit, vsix install. After push: CI ×2 and Pages green, live pages 200, release asset
   byte-identical, sitemap resubmitted.
+- 2026-11-20 builder (session 8): store tokens still absent. Built 0.8.0: Branches checklist (any set of branches, current branch), drag a
+  commit (cherry-pick onto the current branch; squash into / move after another commit on it), Create pull request on GitHub/GitLab/Bitbucket,
+  `mergeline.dimOtherCommits`, Ctrl/Cmd+H; e2e added to CI. The new CI job exposed a real refresh race (3/32 failed, run 44751989277), fixed
+  in the panel; CI run 44752350144: unit + e2e 32/32 green. Three guides by a subagent (cherry-pick, create a pull request, filter by branch),
+  homepage cards, branch-checklist screenshot. Verified: 24/24 unit, 32/32 e2e ×5 locally on packaged builds, Chromium interaction steps
+  11-15, vsix install.
