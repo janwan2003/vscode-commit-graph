@@ -707,3 +707,6 @@ on the graph). The graph itself stays free.
   command run in a scratch repo), footer link on all 40 pages, index card, screenshot-patch.png. Verified: typecheck, unit 59/59, e2e 49/49 on the dev
   build and on the final minified package (real clicks: Ctrl-click row, compare-pane link, toolbar Patch menu item), Chromium renders dark/light,
   vsix installs as plainbyte.mergeline@0.16.0 (sha256 89d86940…).
+  After push: CI main (run 44776533372) and tag v0.16.0 (run 44776533429) both unit 59/59, e2e 49/49; Pages run 44776532472 deployed; live index
+  (v0.16 tagline, `mergeline-0.16.0.vsix`), the guide, screenshot-patch.png and sitemap (39 URLs) return 200; release asset byte-identical (sha256
+  89d86940…); sitemap resubmitted (HTTP 204). Inbox: 0.16.0 line appended.
