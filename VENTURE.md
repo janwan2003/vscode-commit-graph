@@ -151,7 +151,7 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   - `pnpm typecheck` clean; `pnpm test`: 13/13 (new: packed rows decode to exactly the full rows on the
     fixture, across pages and on 200 random DAGs; `searchLog` by message/author/hash/ref with positions;
     `readFileHistory` across a rename with a new file reusing the old name).
-  - `node scripts/e2e.mjs`: 22/22 in VS Code 1.147, five runs in a row after fixing a test race
+  - `node scripts/e2e.mjs`: 22/22 in VS Code 1.147, four runs in a row (three in development, one on the packaged build) after fixing a test race
     (an assertion made before a deferred refresh landed). New checks: rename-following file history
     with the "also as" bar in the webview, and history search → `loadTo` → the webview selects the match.
   - Payload, git.git first 5,000 commits (`scripts/bench.ts` on a `--filter=tree:0` clone, 86,366 commits):
@@ -224,5 +224,5 @@ on the graph). The graph itself stays free.
   sitemap submitted). Built 0.3.0: find in all history, rename-following file history, packed graph rows
   (git.git 5,000 commits: graph data 6.58 → 0.57 MB), `initialCommits` fix; two new guides (`git log --graph`,
   Cursor/VSCodium) and removed an FAQ claim of fork testing we had not done. Verified: 13/13 unit, 22/22 e2e
-  ×5 on the packaged build, pixel-identical render vs 0.2.0, vsix install, CI + Pages green for 47af3a6,
+  ×4 (last on the packaged build), pixel-identical render vs 0.2.0, vsix install, CI + Pages green for 47af3a6,
   live pages 200, release asset byte-identical.
