@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git rebase vs merge: when to use each, with examples | Mergeline</title>
+<meta name="description" content="What git merge and git rebase actually do to your history, when to use each, the one rule that keeps rebasing safe, handling conflicts, and how to undo either one.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-rebase-vs-merge.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git rebase vs merge: when to use each, with examples">
+<meta property="og:description" content="What each does to your history, when to pick which, conflicts, and how to undo either.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-rebase-vs-merge.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Git rebase vs merge: when to use each</h1>
+    <p>Merge and rebase solve the same problem: your branch and <code>main</code> have both moved on, and you want to bring them together. They differ in what they leave behind. A merge keeps history exactly as it happened and records the join. A rebase rewrites your commits so history reads as if you had started from the latest <code>main</code>. Neither is &ldquo;right&rdquo;; each fits different situations, and most teams use both.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#start">The starting point</a></li>
+        <li><a href="#merge">What merge does</a></li>
+        <li><a href="#rebase">What rebase does</a></li>
+        <li><a href="#when">When to use which</a></li>
+        <li><a href="#rule">The one rule</a></li>
+        <li><a href="#conflicts">Conflicts</a></li>
+        <li><a href="#undo">Undoing either</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="start">The starting point</h2>
+    <p>You branched <code>feature</code> from <code>main</code> at commit <code>E</code> and made three commits. Meanwhile two commits landed on <code>main</code>:</p>
+<pre>          <span class="l2">A---B---C</span>  feature
+         <span class="l2">/</span>
+<span class="l1">    D---E---F---G</span>  main</pre>
+
+    <h2 id="merge">What merge does</h2>
+<pre><span class="k">git switch main</span>
+<span class="k">git merge feature</span></pre>
+    <p>Git creates a new <em>merge commit</em> <code>M</code> with two parents, <code>G</code> and <code>C</code>. Nothing that already existed changes:</p>
+<pre>          <span class="l2">A---B---C</span>
+         <span class="l2">/         \</span>
+<span class="l1">    D---E---F---G---M</span>  main</pre>
+    <p>If <code>main</code> had <em>not</em> moved since you branched, git would do a <em>fast-forward</em> instead: it simply moves the <code>main</code> label up to <code>C</code> and creates no merge commit. Two flags control this:</p>
+    <ul>
+      <li><code>git merge --no-ff feature</code> always creates a merge commit, so the feature stays visible as a group in the graph.</li>
+      <li><code>git merge --ff-only feature</code> refuses to merge unless a fast-forward is possible. It is a good default for <code>git pull</code> on branches you never commit to directly: <code>git config --global pull.ff only</code>.</li>
+    </ul>
+    <p>There is also <code>git merge --squash feature</code>, which stages the combined changes of the whole branch without committing or recording a merge. You then run <code>git commit</code> to make one ordinary commit. Hosting platforms call this &ldquo;squash and merge&rdquo;. The graph will not show that <code>feature</code> was merged, so delete the branch afterwards with <code>git branch -D feature</code> (capital <code>-D</code>, because git cannot tell it was merged).</p>
+
+    <h2 id="rebase">What rebase does</h2>
+<pre><span class="k">git switch feature</span>
+<span class="k">git rebase main</span></pre>
+    <p>Git sets your three commits aside, moves <code>feature</code> to the tip of <code>main</code>, and replays each change on top, one at a time:</p>
+<pre>                  <span class="l2">A'--B'--C'</span>  feature
+                 <span class="l2">/</span>
+<span class="l1">    D---E---F---G</span>  main</pre>
+    <p><code>A'</code>, <code>B'</code> and <code>C'</code> contain the same changes as <code>A</code>, <code>B</code> and <code>C</code>, but they are <strong>new commits with new hashes</strong>, because their parent changed. The originals still exist until git garbage-collects them, which is why a rebase can be undone (see below). Now <code>git switch main</code> and <code>git merge feature</code> is a fast-forward, and history is a straight line.</p>
+    <p>An interactive rebase goes further and lets you edit the commits as they are replayed: reorder them, squash fixups together, reword messages or drop one.</p>
+<pre><span class="k">git rebase -i main</span>          <span class="c"># edit the todo list: pick, reword, squash, fixup, drop</span>
+<span class="k">git commit --fixup=</span>&lt;hash-of-B&gt;  <span class="c"># mark a new commit as a fix for B ...</span>
+<span class="k">git rebase -i --autosquash main</span>   <span class="c"># ... and have rebase fold it in for you</span></pre>
+    <p>To keep a feature branch current without merge commits every time you pull, use <code>git pull --rebase</code>, or make it the default with <code>git config --global pull.rebase true</code>.</p>
+
+    <h2 id="when">When to use which</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Situation</th><th scope="col">Use</th><th scope="col">Why</th></tr></thead>
+        <tbody>
+          <tr><td>Bringing the latest <code>main</code> into your own, unshared feature branch</td><td>Rebase</td><td>Your branch stays a clean line on top of <code>main</code>, and reviewers see only your changes.</td></tr>
+          <tr><td>Tidying your commits before opening a pull request</td><td>Interactive rebase</td><td>Squash &ldquo;fix typo&rdquo; commits so each remaining commit makes sense alone.</td></tr>
+          <tr><td>Landing a finished feature on <code>main</code></td><td>Merge (often <code>--no-ff</code>) or squash, per team convention</td><td>A merge commit records when and how the feature arrived and is easy to revert as a unit.</td></tr>
+          <tr><td>A branch other people have pulled and build on</td><td>Merge</td><td>Rebasing it would rewrite commits under their feet.</td></tr>
+          <tr><td>Long-lived release or maintenance branches</td><td>Merge (or cherry-pick specific fixes)</td><td>Their history is shared and should never be rewritten.</td></tr>
+          <tr><td>You want to know exactly what happened, in order</td><td>Merge</td><td>Merges never change existing commits.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="rule">The one rule: do not rebase commits other people have</h2>
+    <p>Rebasing replaces commits. If a teammate already has the old ones, their branch and yours now disagree about history, and the next pull produces duplicated commits and confusing conflicts. Rebase freely on branches only you use. If you rebase a branch you have already pushed for review, you must force-push it, and you should use the safe form:</p>
+<pre><span class="k">git push --force-with-lease</span></pre>
+    <p><code>--force-with-lease</code> refuses to overwrite the remote branch if it contains commits you have not seen, for example a fix a reviewer pushed. Plain <code>--force</code> would silently delete them.</p>
+
+    <h2 id="conflicts">Conflicts</h2>
+    <p>A merge shows you all conflicts once, in a single step. A rebase replays commit by commit, so you may resolve conflicts several times, but each one is smaller and in the context of a single change. The commands to know:</p>
+<pre><span class="c"># during a merge</span>
+<span class="k">git merge --abort</span>           <span class="c"># give up, back to before the merge</span>
+<span class="k">git add</span> &lt;file&gt; &amp;&amp; <span class="k">git commit</span>   <span class="c"># after resolving</span>
+
+<span class="c"># during a rebase</span>
+<span class="k">git add</span> &lt;file&gt; &amp;&amp; <span class="k">git rebase --continue</span>
+<span class="k">git rebase --skip</span>           <span class="c"># drop the commit being replayed</span>
+<span class="k">git rebase --abort</span>          <span class="c"># give up, branch restored to where it was</span></pre>
+    <p>If you rebase often and keep resolving the same conflict, enable <code>git config --global rerere.enabled true</code>. Git then records how you resolved a conflict and reapplies that resolution the next time it sees the same one.</p>
+
+    <h2 id="undo">Undoing either one</h2>
+    <p>Both merge and rebase save the previous tip of your branch in <code>ORIG_HEAD</code>. Right after either finishes, this puts the branch back:</p>
+<pre><span class="k">git reset --hard ORIG_HEAD</span></pre>
+    <p>This also discards uncommitted changes in your working tree, so commit or stash them first. If you have done other things since, find the old position in <code>git reflog</code> instead; the <a href="undo-git-reset-cherry-pick-revert.html">undo guide</a> walks through it. To undo a merge that has already been pushed, do not reset: revert it with <code>git revert -m 1 &lt;merge-commit&gt;</code>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>The graph shows the before and after, so you can check that the result is what you meant.</p>
+      <ol class="steps">
+        <li><strong>Merge:</strong> check out the branch you want to merge <em>into</em> (the current branch has a bold badge with a &#9679;), then right-click the other branch&rsquo;s badge, or any commit, and choose <strong>merge into current</strong>. The new merge commit appears at the top with both lanes joining.</li>
+        <li><strong>Rebase:</strong> check out your feature branch, right-click <code>main</code> (or any commit) and choose <strong>rebase current onto</strong>. Your commits move to the top of that lane with new hashes.</li>
+        <li><strong>Interactive rebase:</strong> right-click the commit just <em>below</em> the oldest one you want to edit and choose the interactive rebase action. It runs <code>git rebase -i</code> from that commit in the integrated terminal so you can edit the todo list. Set <code>git config --global core.editor "code --wait"</code> to edit it in a tab.</li>
+        <li><strong>Conflicts:</strong> resolve them in the editor as usual. The uncommitted-changes row at the top of the graph shows the work in progress. Then continue or abort with the commands above and click <em>Refresh</em>.</li>
+        <li><strong>Push:</strong> right-click the branch and choose <strong>push</strong>. If you rebased a branch that was already on the remote, a normal push is rejected; run <code>git push --force-with-lease</code> in the terminal instead. Mergeline asks before every action and uses a modal confirmation for destructive ones.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html" aria-current="page">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

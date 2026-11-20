@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mergeline: a free, interactive git commit graph for VS Code</title>
+<meta name="description" content="Mergeline is a free, open-source (MIT) git graph for VS Code, VSCodium, Cursor and Windsurf. See every branch, then checkout, merge, rebase, cherry-pick, revert, reset, tag and stash from the graph. No account, no telemetry.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Mergeline: a free, interactive git commit graph for VS Code">
+<meta property="og:description" content="See every branch as a graph and act on it: checkout, merge, rebase, cherry-pick, revert, reset, tag and stash. MIT, no account, no telemetry.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-commit-graph/screenshot.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="The Mergeline commit graph inside VS Code.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./" aria-current="page"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap">
+    <section class="hero">
+      <span class="tagline">Free and open source (MIT) &middot; v0.1</span>
+      <h1>Your whole repository as one graph, with the git actions where you need them</h1>
+      <p class="lead">Mergeline draws every branch, merge, tag and stash of your repository as an interactive commit graph inside VS Code, VSCodium, Cursor and Windsurf. Right-click a commit or a branch to check it out, merge it, rebase onto it, cherry-pick it, revert it or reset to it. Click a commit to see what changed and open any file in the editor&rsquo;s own diff view. There is no account, no paid tier and no telemetry.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">Download the .vsix</a>
+        <a class="btn secondary" href="#install">Install steps</a>
+        <a class="btn secondary" href="https://github.com/janwan2003/vscode-commit-graph">Source on GitHub</a>
+      </div>
+      <p class="small">Listings on the VS Code Marketplace and on Open VSX are coming soon. Until then, install from the release file.</p>
+    </section>
+
+    <figure class="shot"><img src="screenshot.png" width="1280" height="800" alt="Mergeline in VS Code: a commit graph with coloured lanes for several branches, branch and tag badges on commits, columns for description, date, author and hash, and a details pane listing the files changed in the selected commit."><figcaption>The commit graph, with the details pane open for the selected commit.</figcaption></figure>
+  </div>
+
+  <div class="section-soft" id="features">
+    <div class="wrap">
+      <h2>Features</h2>
+      <p>Items marked <span class="plus">not built in</span> are not available in VS Code&rsquo;s built-in Source Control Graph (compared with VS Code 1.147).</p>
+      <div class="grid">
+        <div class="card"><h3>A real graph</h3><p>Coloured lanes for every branch, merge lines, and badges for local branches, remote branches, tags and <code>HEAD</code>. Stashes appear as their own nodes <span class="plus">not built in</span>, and a row at the top shows uncommitted changes <span class="plus">not built in</span>.</p></div>
+        <div class="card"><h3>A readable table <span class="plus">not built in</span></h3><p>Columns for graph, description, date, author and short hash, under a header that stays put while you scroll. Dates can be relative, ISO or in your locale&rsquo;s format.</p></div>
+        <div class="card"><h3>Built for big repositories</h3><p>Only the rows on screen are drawn. Mergeline loads the first 500 commits (configurable) and fetches more as you scroll, so it stays responsive on repositories with 100,000 commits.</p></div>
+        <div class="card"><h3>Commit details <span class="plus">not built in</span></h3><p>The full message, author and committer, parents, and every changed file with lines added and removed. Click a file to open it in the editor&rsquo;s own diff view.</p></div>
+        <div class="card"><h3>Compare any two commits <span class="plus">not built in</span></h3><p><kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to list every file that differs between the two, and open each diff.</p></div>
+        <div class="card"><h3>Find <span class="plus">not built in</span></h3><p>Search subjects, authors, hashes and branch or tag names, and step through matches with next and previous.</p></div>
+        <div class="card"><h3>Filter <span class="plus">not built in</span></h3><p>Show one branch or all of them, and hide remote-tracking branches with one toggle when the graph gets busy.</p></div>
+        <div class="card"><h3>Commit actions</h3><p>Checkout, create a branch, add a lightweight or annotated tag, cherry-pick, copy the hash or subject. Plus <span class="plus">not built in</span>: revert, merge into the current branch, rebase the current branch onto it, reset soft, mixed or hard, and an interactive rebase in the terminal.</p></div>
+        <div class="card"><h3>Branch actions</h3><p>Checkout (a remote branch becomes a local tracking branch), delete (with a force option if unmerged), copy the name. Plus <span class="plus">not built in</span>: merge, rebase onto, rename, push, and delete the branch on the remote.</p></div>
+        <div class="card"><h3>Tags and stashes <span class="plus">not built in</span></h3><p>Push a tag, delete it locally and on the remote. Apply, pop or drop a stash, or turn it into a new branch.</p></div>
+        <div class="card"><h3>Every repository you have open</h3><p>A repository picker covers multi-root workspaces, nested repositories and worktrees. The toolbar has the picker, the branch filter, the remotes toggle, find, fetch and refresh.</p></div>
+        <div class="card"><h3>Careful by default</h3><p>Every action asks before it runs, and destructive ones such as a hard reset or deleting a remote branch use a modal confirmation. Push and fetch go through VS Code&rsquo;s git extension when it is available, so your usual credential prompts work.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section id="why">
+      <h2>Why another git graph?</h2>
+      <p>VS Code ships a basic history graph, and there are older graph extensions that many people still use. Mergeline exists because a tool you use every day should be one you can count on next year too.</p>
+      <div class="grid">
+        <div class="card"><h3>Maintained</h3><p>Mergeline is new (first release November 2026) and under active development. Bugs and requests go to a public issue tracker on GitHub, next to the code.</p></div>
+        <div class="card"><h3>MIT, so you can fork it</h3><p>The licence lets anyone fork, fix and republish the code. If this project ever stops, the community can carry it on without asking anyone&rsquo;s permission. Read more in <a href="git-graph-alternative.html">a maintained alternative to Git Graph</a>.</p></div>
+        <div class="card"><h3>Free, nothing paywalled</h3><p>Every feature on this page is free. There is no Pro tier, no trial, no sign-in and no upsell inside the graph.</p></div>
+        <div class="card"><h3>For every VS Code-based editor</h3><p>Mergeline is being published on Open VSX, the registry VSCodium, Cursor and Windsurf search, as well as the VS Code Marketplace. Both listings are coming soon; the <code>.vsix</code> works in all of them today.</p></div>
+      </div>
+    </section>
+
+    <section id="install">
+      <h2>Install</h2>
+      <ol class="steps">
+        <li><strong>Download</strong> <code>mergeline-0.1.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Install it.</strong> In VS Code, VSCodium, Cursor or Windsurf open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and choose the file. From a terminal you can instead run one of:
+<pre>code --install-extension mergeline-0.1.0.vsix
+codium --install-extension mergeline-0.1.0.vsix
+cursor --install-extension mergeline-0.1.0.vsix</pre></li>
+        <li><strong>Open a folder that is a git repository</strong> and trust it when the editor asks (Mergeline runs git commands, so it is disabled in Restricted Mode). Then open the graph in any of three ways: the <strong>Mergeline</strong> button in the Source Control view&rsquo;s title bar, the Mergeline button in the status bar, or the command <strong>Mergeline: Show Commit Graph</strong>.</li>
+      </ol>
+      <p class="small">Requires VS Code 1.85 or newer (or an editor built on it) and git installed on your machine. Mergeline also works in remote windows such as Remote SSH and WSL; git has to be installed on the remote side.</p>
+    </section>
+
+    <section id="guides">
+      <h2>Git guides</h2>
+      <div class="grid">
+        <div class="card"><h3><a href="visualize-git-branches-vscode.html">See a branch graph in VS Code</a></h3><p><code>git log --graph</code>, the built-in Source Control Graph, and when you want more.</p></div>
+        <div class="card"><h3><a href="git-rebase-vs-merge.html">Rebase or merge?</a></h3><p>What each does to your history, when to pick which, and how to recover from either.</p></div>
+        <div class="card"><h3><a href="undo-git-reset-cherry-pick-revert.html">Undo in git: reset, revert, cherry-pick, reflog</a></h3><p>Soft, mixed and hard resets, safe reverts, copying commits, and getting lost work back.</p></div>
+        <div class="card"><h3><a href="git-stash-guide.html">The git stash guide</a></h3><p>Push, list, apply, pop, drop, and turn a stash into a branch.</p></div>
+        <div class="card"><h3><a href="git-graph-alternative.html">A maintained alternative to Git Graph</a></h3><p>The facts, the licence question, and how to switch.</p></div>
+      </div>
+    </section>
+
+    <section id="faq" class="narrow">
+      <h2>FAQ</h2>
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. Mergeline is open source under the MIT licence. Every feature is free, with no paid tier, no account and no ads.</p>
+      </details>
+      <details>
+        <summary>Does it send anything anywhere?</summary>
+        <p>No. Mergeline has no telemetry and makes no network requests of its own. It runs git on your machine. The only network traffic it causes is the fetches and pushes you ask for, and they go to your own remotes. See the <a href="privacy.html">privacy policy</a>.</p>
+      </details>
+      <details>
+        <summary>How is it different from the graph built into VS Code?</summary>
+        <p>VS Code&rsquo;s Source Control Graph is good for a quick look at recent history. Mergeline adds a table with author, date and hash columns, a details pane with per-file diffs, comparing two commits, search, a branch filter, stashes and uncommitted changes in the graph, and the actions the built-in graph does not have: merge, rebase, revert, reset, rename, push, and deleting branches and tags on the remote. The <a href="visualize-git-branches-vscode.html">branch graph guide</a> compares the two.</p>
+      </details>
+      <details>
+        <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
+        <p>Yes. They are built on VS Code and install the same <code>.vsix</code>. The right-click menus are drawn by Mergeline itself, so they do not depend on editor-specific menu APIs.</p>
+      </details>
+      <details>
+        <summary>Can it break my repository?</summary>
+        <p>Mergeline runs ordinary git commands, the same ones you would type, and asks before each one. Destructive actions such as a hard reset, a forced branch delete or deleting a remote branch use a modal confirmation. Most mistakes can still be undone with the reflog; see the <a href="undo-git-reset-cherry-pick-revert.html">undo guide</a>.</p>
+      </details>
+      <details>
+        <summary>My repository is huge. Will it cope?</summary>
+        <p>It draws only the rows you can see and loads commits in batches, starting with 500. If the first load is still slow, lower the <code>mergeline.initialCommits</code> setting (minimum 50). More tips are on the <a href="support.html#large-repos">support page</a>.</p>
+      </details>
+      <details>
+        <summary>Can I use it alongside Git Graph or GitLens?</summary>
+        <p>Yes. Mergeline uses its own commands and settings (all under <code>mergeline.</code>), so it can be installed next to other git extensions. It is an independent project and is not affiliated with either of them.</p>
+      </details>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

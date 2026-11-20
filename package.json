@@ -1,0 +1,54 @@
+{
+  "name": "mergeline",
+  "displayName": "Mergeline — Git Graph, History & Branch Actions",
+  "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
+  "version": "0.1.0",
+  "publisher": "plainbyte",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "homepage": "https://janwan2003.github.io/vscode-commit-graph/",
+  "repository": { "type": "git", "url": "https://github.com/janwan2003/vscode-commit-graph.git" },
+  "bugs": { "url": "https://github.com/janwan2003/vscode-commit-graph/issues" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["SCM Providers", "Visualization", "Other"],
+  "keywords": ["git graph", "git history", "commit graph", "branch graph", "git log", "git tree", "git", "graph", "history", "branches", "merge", "rebase", "cherry-pick", "stash", "tags", "log", "visualize"],
+  "main": "./dist/extension.js",
+  "activationEvents": ["workspaceContains:.git", "onWebviewPanel:mergeline.graph"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false, "description": "Mergeline runs git commands in the workspace." } },
+  "contributes": {
+    "commands": [
+      { "command": "mergeline.show", "title": "Show Commit Graph", "category": "Mergeline", "icon": "$(git-merge)" },
+      { "command": "mergeline.refresh", "title": "Refresh Commit Graph", "category": "Mergeline" }
+    ],
+    "menus": {
+      "scm/title": [ { "command": "mergeline.show", "when": "scmProvider == git", "group": "navigation@50" } ],
+      "commandPalette": [ { "command": "mergeline.refresh", "when": "mergeline.panelOpen" } ]
+    },
+    "configuration": {
+      "title": "Mergeline",
+      "properties": {
+        "mergeline.initialCommits": { "type": "number", "default": 500, "minimum": 50, "description": "How many commits to load first. More load as you scroll or click Load more." },
+        "mergeline.showRemoteBranches": { "type": "boolean", "default": true, "description": "Show remote-tracking branches in the graph." },
+        "mergeline.showStashes": { "type": "boolean", "default": true, "description": "Show stashes in the graph." },
+        "mergeline.showUncommitted": { "type": "boolean", "default": true, "description": "Show a row for uncommitted changes above HEAD." },
+        "mergeline.statusBarButton": { "type": "boolean", "default": true, "description": "Show a Mergeline button in the status bar." },
+        "mergeline.dateFormat": { "type": "string", "enum": ["relative", "iso", "locale"], "default": "relative", "description": "How commit dates are shown." }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/ext/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "package": "esbuild src/ext/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js --minify && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "~1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

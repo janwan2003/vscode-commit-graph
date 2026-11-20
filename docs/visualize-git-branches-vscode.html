@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to see a git branch graph in VS Code (3 ways) | Mergeline</title>
+<meta name="description" content="Three ways to visualize git branches in VS Code: git log --graph in the terminal, the built-in Source Control Graph, and a full graph extension. Commands, flags and when to use each.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/visualize-git-branches-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="How to see a git branch graph in VS Code">
+<meta property="og:description" content="git log --graph, the built-in Source Control Graph, or an extension: what each shows and when to use it.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/visualize-git-branches-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>How to see a git branch graph in VS Code</h1>
+    <p>A list of commits tells you <em>what</em> happened. A graph tells you <em>where</em>: which branch a commit is on, where a feature split off, whether it has been merged, and how far your branch is behind <code>main</code>. VS Code gives you three ways to get that picture. This guide covers each one, with the commands and flags worth knowing, so you can pick the right tool for the question you are asking.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#terminal">1. <code>git log --graph</code> in the terminal</a></li>
+        <li><a href="#read">Reading the graph</a></li>
+        <li><a href="#builtin">2. The built-in Source Control Graph</a></li>
+        <li><a href="#extension">3. A graph extension</a></li>
+        <li><a href="#compare">Side by side</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="terminal">1. <code>git log --graph</code> in the integrated terminal</h2>
+    <p>Git can draw a text graph itself. Open the integrated terminal (<kbd>Ctrl</kbd>+<kbd>`</kbd>) and run:</p>
+<pre><span class="k">git log --graph --oneline --decorate --all</span></pre>
+    <p>Each flag does one job: <code>--graph</code> draws the lines, <code>--oneline</code> shows a short hash and the subject, <code>--decorate</code> prints branch and tag names next to their commits (modern git does this by default in a terminal), and <code>--all</code> includes every branch, remote-tracking branch and tag instead of just the one you are on. The output looks like this:</p>
+<pre><span class="l1">*</span>   9f2c1ab (HEAD -&gt; main, origin/main) Merge branch 'feature/search'
+<span class="l1">|</span><span class="l2">\</span>
+<span class="l1">|</span> <span class="l2">*</span> 4e7d0c2 (feature/search) Highlight matches in results
+<span class="l1">|</span> <span class="l2">*</span> b18a9e3 Add search box to toolbar
+<span class="l1">*</span> <span class="l2">|</span> 72c5f10 Fix date parsing in log view
+<span class="l1">|</span><span class="l2">/</span>
+<span class="l1">*</span> 3a9b6d4 (tag: v0.3.0) Release 0.3.0
+<span class="l1">*</span> 0c1e8f7 Initial commit</pre>
+
+    <h3>Flags that make it more useful</h3>
+    <ul>
+      <li><code>-n 30</code> limits output to the 30 newest commits. Longer output opens in a pager; press <kbd>q</kbd> to leave it.</li>
+      <li><code>--branches</code> or <code>--remotes</code> instead of <code>--all</code> show only local or only remote-tracking branches.</li>
+      <li><code>--simplify-by-decoration</code> hides every commit that has no branch or tag on it. On a busy repository this shrinks the graph to its skeleton: where branches start and end.</li>
+      <li><code>--first-parent</code> follows only the first parent of each merge. On <code>main</code> this shows one line per merged pull request rather than every commit inside it.</li>
+      <li><code>main..feature</code> shows commits on <code>feature</code> that are not on <code>main</code> yet, which is exactly what a merge would bring in.</li>
+      <li><code>--since="2 weeks ago"</code>, <code>--author="Sam"</code> and <code>--grep="search"</code> filter by date, author and message. <code>-S"parseDate"</code> finds commits that added or removed that exact string.</li>
+    </ul>
+    <p>A custom format adds the author and a relative date. Save it as an alias so you never type it again:</p>
+<pre><span class="k">git config --global alias.lg</span> "log --graph --all --format='%C(auto)%h%d %s %C(dim)%an, %ar'"
+<span class="k">git lg</span> -n 40</pre>
+    <p>Before reading any graph, run <code>git fetch --all --prune</code>. Remote-tracking branches such as <code>origin/main</code> only move when you fetch, and <code>--prune</code> removes ones deleted on the server. A graph drawn from stale refs answers the wrong question confidently.</p>
+
+    <h2 id="read">Reading the graph</h2>
+    <ul>
+      <li>Each <code>*</code> (or dot, in a graphical tool) is a commit. Newest is at the top.</li>
+      <li>A vertical line is a line of development. Lines that split going <em>up</em> are branches being created; lines that join going up are merges.</li>
+      <li>A merge commit has two parents. The first parent is the branch you were on when you merged; the second is the branch you merged in.</li>
+      <li>A branch name is just a label on one commit. In the example above, <code>feature/search</code> is still pointing at <code>4e7d0c2</code> even though that work is already merged into <code>main</code>, so it is safe to delete with <code>git branch -d feature/search</code>.</li>
+    </ul>
+    <p>The terminal graph is always available, scriptable and exact. Its limits show up quickly, though: you cannot click a commit to see its diff, long histories scroll off screen, and acting on what you see means copying hashes into more commands.</p>
+
+    <h2 id="builtin">2. The built-in Source Control Graph</h2>
+    <p>Recent versions of VS Code include a graph in the Source Control view (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>). It shows the history of your current branch alongside its upstream, with incoming and outgoing commits marked, and you can choose which other branches to include. Clicking a commit opens its changes.</p>
+    <p>It also has a right-click menu. In VS Code 1.147, a commit can be checked out (as a detached <code>HEAD</code>), used to create a branch or a tag, cherry-picked, compared, or have its hash or message copied. Branch and tag labels can be checked out or deleted. (We read this list from the menus defined in VS Code&rsquo;s bundled git extension.)</p>
+    <p>That covers a quick look at recent history very well, and it needs nothing installed. What it does not have is a table with author, date and hash columns, a details pane, comparing two arbitrary commits, search, stashes in the graph, or actions such as merge, rebase, revert and reset.</p>
+
+    <h2 id="extension">3. A graph extension</h2>
+    <p>When the graph is where you work rather than something you glance at, an extension gives you the whole repository at once: every branch in coloured lanes, who changed what and when, and the git operations on a right-click. That is the gap <a href="./">Mergeline</a> is built for.</p>
+
+    <h2 id="compare">Side by side</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col"><code>git log --graph</code></th><th scope="col">Built-in graph</th><th scope="col">Mergeline</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Setup</th><td>None</td><td>None</td><td>Install an extension</td></tr>
+          <tr><th scope="row">All branches at once</th><td class="yes">With <code>--all</code></td><td>Choose which to include</td><td class="yes">Yes, with a branch filter</td></tr>
+          <tr><th scope="row">Author, date, hash columns</th><td>With a custom format</td><td class="no">No</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Click a commit for its files</th><td class="no">No (run <code>git show</code>)</td><td class="yes">Yes</td><td class="yes">Yes, with a details pane</td></tr>
+          <tr><th scope="row">Compare two commits</th><td><code>git diff A B</code></td><td>Compare action</td><td class="yes"><kbd>Ctrl</kbd>/<kbd>Cmd</kbd>-click</td></tr>
+          <tr><th scope="row">Search</th><td><code>--grep</code>, <code>--author</code>, <code>-S</code></td><td class="no">No</td><td class="yes">Subject, author, hash, ref</td></tr>
+          <tr><th scope="row">Stashes and uncommitted changes</th><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Merge, rebase, revert, reset</th><td>Separate commands</td><td class="no">No</td><td class="yes">Right-click</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Use the terminal when you need a precise query or a script, the built-in graph for a quick look, and an extension when you are reorganising branches and want to see the result as you go.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <ol class="steps">
+        <li><strong>Install</strong> the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest release</a> with <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</li>
+        <li><strong>Open the graph</strong> with the Mergeline button in the Source Control title bar, the status-bar button, or <strong>Mergeline: Show Commit Graph</strong>.</li>
+        <li><strong>Fetch first.</strong> Click <em>Fetch</em> in the toolbar so <code>origin/*</code> branches are current.</li>
+        <li><strong>Narrow it down.</strong> Use the branch filter to follow one branch, or the remotes toggle to hide remote-tracking branches. This is the graphical version of <code>--branches</code> and <code>--all</code>.</li>
+        <li><strong>Inspect.</strong> Click a commit to open its details: message, author, committer, parents, and each changed file with its line counts. Click a file to open the diff. <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to compare the two.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html" aria-current="page">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

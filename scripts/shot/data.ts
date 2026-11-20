@@ -1,0 +1,74 @@
+// Builds a demo repo, runs Mergeline's core on it and writes the webview payload
+// as JSON (for the screenshot harness and the webview smoke test).
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount } from '../../src/core/gitlog';
+import { layout } from '../../src/core/graph';
+
+const d = mkdtempSync(join(tmpdir(), 'mergeline-demo-'));
+let t = Math.floor(Date.now() / 1000) - 86400 * 45;
+const people = ['Ada Lovelace', 'Grace Hopper', 'Alan Turing', 'Katherine Johnson', 'Linus Pauling'];
+function g(...a: string[]) {
+  return execFileSync('git', a, { cwd: d, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: `${t} +0000`, GIT_COMMITTER_DATE: `${t} +0000`, GIT_COMMITTER_NAME: 'Ada Lovelace', GIT_COMMITTER_EMAIL: 'ada@example.com', GIT_AUTHOR_NAME: 'Ada Lovelace', GIT_AUTHOR_EMAIL: 'ada@example.com', GIT_CONFIG_GLOBAL: '/dev/null' } });
+}
+function c(file: string, msg: string, who = 0) {
+  mkdirSync(dirname(join(d, file)), { recursive: true });
+  writeFileSync(join(d, file), msg + '\n' + t + '\n');
+  t += 3600 * (5 + (msg.length % 31));
+  g('add', '-A');
+  g('commit', '-q', `--author=${people[who]} <${people[who].split(' ')[0].toLowerCase()}@example.com>`, '-m', msg);
+}
+g('init', '-q', '-b', 'main');
+g('config', 'commit.gpgsign', 'false');
+c('README.md', 'Initial commit');
+c('src/app.ts', 'Scaffold app and build script');
+c('src/config.ts', 'Load config from environment', 2);
+g('tag', 'v0.1.0');
+g('checkout', '-q', '-b', 'feature/search');
+c('src/search.ts', 'Add full-text search index', 1);
+c('src/search.ts', 'Search: rank results by recency', 1);
+g('checkout', '-q', 'main');
+c('src/http.ts', 'Retry failed requests with backoff', 3);
+g('checkout', '-q', '-b', 'feature/dark-mode');
+c('src/theme.css', 'Add dark theme tokens', 4);
+g('checkout', '-q', 'feature/search');
+c('src/search.ts', 'Search: highlight matched terms', 1);
+g('checkout', '-q', 'main');
+c('src/app.ts', 'Fix race on startup', 2);
+t += 3600; g('merge', '-q', '--no-ff', '-m', "Merge branch 'feature/search'", 'feature/search');
+g('tag', '-a', 'v1.0.0', '-m', 'Release 1.0.0');
+g('checkout', '-q', 'feature/dark-mode');
+c('src/theme.css', 'Dark theme: respect prefers-color-scheme', 4);
+g('checkout', '-q', 'main');
+c('docs/guide.md', 'Write getting-started guide', 0);
+g('checkout', '-q', '-b', 'release/1.1');
+c('CHANGELOG.md', 'Changelog for 1.1', 3);
+g('checkout', '-q', 'main');
+c('src/http.ts', 'Cache GET responses for 60 s', 2);
+t += 3600; g('merge', '-q', '--no-ff', '-m', "Merge branch 'feature/dark-mode'", 'feature/dark-mode');
+c('src/app.ts', 'Show sync status in the toolbar', 0);
+g('update-ref', 'refs/remotes/origin/main', 'HEAD~1');
+g('update-ref', 'refs/remotes/origin/release/1.1', 'release/1.1');
+writeFileSync(join(d, 'src/app.ts'), 'wip\n');
+g('stash', 'push', '-q', '-m', 'WIP: toolbar spacing');
+c('src/sync.ts', 'Sync: debounce writes', 0);
+writeFileSync(join(d, 'src/sync.ts'), 'dirty\n');
+writeFileSync(join(d, 'TODO.md'), 'todo\n');
+
+(async () => {
+  const [log, state, stashes, unc] = await Promise.all([readLog(d, { max: 500 }), readState(d), readStashes(d), readStatusCount(d)]);
+  let commits: any[] = insertStashes(log, stashes);
+  commits = [{ sha: '*', parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
+  const lay = layout(commits);
+  const sel = log.find((x) => x.subject === "Merge branch 'feature/search'")!;
+  const info = await readCommitInfo(d, sel.sha);
+  const files = await readChanges(d, info.parents[0], sel.sha);
+  const out = {
+    data: { type: 'data', repo: d, commits, rows: lay.rows, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, filter: { branch: null, remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
+    details: { type: 'details', sha: sel.sha, info, from: info.parents[0], to: sel.sha, files },
+  };
+  writeFileSync(process.argv[2], JSON.stringify(out));
+  rmSync(d, { recursive: true, force: true });
+})();

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git stash guide: push, apply, pop, drop and branch | Mergeline</title>
+<meta name="description" content="A practical git stash guide: save work in progress with git stash push, list and inspect stashes, apply vs pop, drop and clear, turn a stash into a branch, and recover a dropped stash.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-stash-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git stash guide: push, apply, pop, drop and branch">
+<meta property="og:description" content="Save work in progress, apply vs pop, turn a stash into a branch, and recover a dropped stash.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-stash-guide.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>The git stash guide: push, apply, pop, drop and branch</h1>
+    <p>You are halfway through a change when you need a clean working tree: an urgent fix on another branch, a pull that refuses to run, or a quick test of the code as it was. <code>git stash</code> takes your uncommitted changes, saves them away, and gives you back a clean checkout. Later you put them back. This guide covers the whole lifecycle of a stash and the few options that save you from surprises.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#push">Saving: git stash push</a></li>
+        <li><a href="#list">Listing and inspecting</a></li>
+        <li><a href="#apply">Apply vs pop</a></li>
+        <li><a href="#drop">Drop and clear</a></li>
+        <li><a href="#branch">Turning a stash into a branch</a></li>
+        <li><a href="#recover">Recovering a dropped stash</a></li>
+        <li><a href="#alternatives">When not to stash</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="push">Saving: <code>git stash push</code></h2>
+<pre><span class="k">git stash</span>                              <span class="c"># same as git stash push</span>
+<span class="k">git stash push -m</span> "half-done search"    <span class="c"># with a message you will recognise later</span></pre>
+    <p>By default a stash saves changes to <strong>tracked</strong> files, both staged and unstaged, and then resets them to match <code>HEAD</code>. Brand-new files that you have never added are left where they are. That is the most common stash surprise. The options that change what is saved:</p>
+    <ul>
+      <li><code>-u</code> (<code>--include-untracked</code>) also stashes untracked files. <code>-a</code> (<code>--all</code>) adds ignored files too, which is rarely what you want because it sweeps up build output and <code>node_modules</code>.</li>
+      <li><code>git stash push -- src/search.ts src/search.css</code> stashes only those paths.</li>
+      <li><code>-p</code> (<code>--patch</code>) asks hunk by hunk what to stash.</li>
+      <li><code>--staged</code> stashes only what is staged (git 2.35 and later).</li>
+      <li><code>--keep-index</code> stashes everything but leaves the staged changes in place, handy for testing exactly what you are about to commit.</li>
+    </ul>
+    <p>You may also see <code>git stash save "message"</code> in older tutorials. It still works but is deprecated in favour of <code>git stash push -m</code>, which also accepts paths.</p>
+
+    <h2 id="list">Listing and inspecting</h2>
+<pre><span class="k">git stash list</span>
+<span class="o">stash@{0}: On main: half-done search
+stash@{1}: WIP on feature/export: 72c5f10 Fix date parsing in log view</span></pre>
+    <p>The newest stash is always <code>stash@{0}</code>, and the numbers shift every time you add or remove one, so check the list before you name a stash by number. Stashes made without <code>-m</code> are labelled <code>WIP on &lt;branch&gt;</code> plus the commit they were made on. Each stash also remembers the branch it came from, but you can apply it anywhere.</p>
+<pre><span class="k">git stash show</span> stash@{1}        <span class="c"># files changed, with a summary of lines</span>
+<span class="k">git stash show -p</span> stash@{1}     <span class="c"># the full diff</span>
+<span class="k">git restore --source=</span>stash@{1} -- src/export.ts   <span class="c"># pull one file out of a stash</span></pre>
+
+    <h2 id="apply">Apply vs pop</h2>
+<pre><span class="k">git stash apply</span>                <span class="c"># reapply stash@{0}, keep it in the list</span>
+<span class="k">git stash apply</span> stash@{2}      <span class="c"># reapply a specific one</span>
+<span class="k">git stash pop</span>                  <span class="c"># reapply stash@{0} and remove it from the list</span></pre>
+    <p><code>apply</code> leaves the stash in the list, so you can apply the same changes to several branches or try again if something goes wrong. <code>pop</code> is <code>apply</code> followed by <code>drop</code>, and is what you want most of the time.</p>
+    <p>Both can hit conflicts if the files changed since you stashed. Resolve them as you would any merge conflict and <code>git add</code> the files. When <code>pop</code> hits a conflict, <strong>the stash is not dropped</strong>, so nothing is lost; once you are happy, remove it yourself with <code>git stash drop</code>.</p>
+    <p>By default, applying puts everything back as unstaged changes, even what was staged. Add <code>--index</code> (<code>git stash pop --index</code>) to restore the staged/unstaged split exactly.</p>
+
+    <h2 id="drop">Drop and clear</h2>
+<pre><span class="k">git stash drop</span>                 <span class="c"># delete stash@{0}</span>
+<span class="k">git stash drop</span> stash@{3}       <span class="c"># delete a specific one</span>
+<span class="k">git stash clear</span>                <span class="c"># delete all stashes, without asking</span></pre>
+    <p>Stashes are easy to forget. A list of twelve <code>WIP on main</code> entries from last spring is a sign some of them can go. Look at each with <code>git stash show -p</code> before dropping it.</p>
+
+    <h2 id="branch">Turning a stash into a branch</h2>
+<pre><span class="k">git stash branch</span> search-wip stash@{0}</pre>
+    <p>This creates a new branch starting at the commit you were on when you made the stash, checks it out, applies the stash (restoring what was staged), and drops the stash if that succeeded. Because the branch starts exactly where the changes were made, it applies cleanly even when your original branch has moved on and a plain <code>pop</code> would conflict. It is also the right move when the &ldquo;quick experiment&rdquo; in a stash has turned into real work that deserves commits.</p>
+
+    <h2 id="recover">Recovering a dropped stash</h2>
+    <p>A stash is stored as a commit, so dropping one removes the reference to it, not the data, until git garbage-collects it. <code>git stash drop</code> and a successful <code>pop</code> both print the hash:</p>
+<pre><span class="o">Dropped stash@{0} (5d8e2f4a9c1b7e3d6f0a2b4c8e1d3f5a7b9c0d2e)</span>
+<span class="k">git stash apply</span> 5d8e2f4a9c1b7e3d6f0a2b4c8e1d3f5a7b9c0d2e</pre>
+    <p>If that output has scrolled away, ask git for commits that nothing points to and look for the stash-style messages:</p>
+<pre><span class="k">git fsck --no-reflog</span> | <span class="k">awk</span> '/dangling commit/ {print $3}' \
+  | <span class="k">xargs git log --no-walk --oneline</span>
+<span class="c"># look for "WIP on ..." or "On &lt;branch&gt;: ..." and apply that hash</span></pre>
+
+    <h2 id="alternatives">When not to stash</h2>
+    <ul>
+      <li><strong>The interruption will take a while.</strong> Commit the work in progress instead (<code>git commit -m "wip"</code>), and later undo the commit with <code>git reset HEAD~1</code> to keep the changes. A commit lives on its branch, where you will find it again; a stash is easy to forget.</li>
+      <li><strong>You need both versions at once.</strong> <code>git worktree add ../hotfix main</code> checks out <code>main</code> in a second folder, so you can fix a bug there without touching your current changes at all.</li>
+    </ul>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>Because a stash is a commit, Mergeline draws each one as its own node, attached to the commit it was made on. You can see at a glance which stashes are old, and which branch each belongs to.</p>
+      <ol class="steps">
+        <li><strong>Create a stash:</strong> right-click the <em>Uncommitted changes</em> row at the top of the graph and choose <strong>Stash changes&hellip;</strong> (it includes untracked files and asks for an optional message). Stashes made in the terminal or from VS Code&rsquo;s Source Control view show up too; the graph refreshes on its own.</li>
+        <li><strong>Use it:</strong> right-click the stash and choose <strong>apply</strong>, <strong>pop</strong>, <strong>drop</strong>, or <strong>Create branch from stash</strong>, which runs <code>git stash branch</code> with a name you choose. Dropping asks for confirmation first.</li>
+        <li><strong>Hide them</strong> when you do not need them with the <code>mergeline.showStashes</code> setting. The uncommitted-changes row (<code>mergeline.showUncommitted</code>) shows what you have not stashed or committed yet.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html" aria-current="page">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undo in git: reset (soft, mixed, hard), revert, cherry-pick and reflog | Mergeline</title>
+<meta name="description" content="How to undo things in git: git reset --soft, --mixed and --hard, git revert for pushed commits, git cherry-pick to copy commits, and git reflog to recover lost commits and deleted branches.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/undo-git-reset-cherry-pick-revert.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Undo in git: reset, revert, cherry-pick and reflog">
+<meta property="og:description" content="Soft, mixed and hard resets, safe reverts, copying commits, and getting lost work back with the reflog.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/undo-git-reset-cherry-pick-revert.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Undo in git: reset, revert, cherry-pick and the reflog</h1>
+    <p>Git almost never forgets a commit. Once something is committed, you can nearly always get it back, even after a reset or a deleted branch. What you choose depends on one question: <strong>has the commit been pushed and pulled by anyone else?</strong> If not, you can rewrite history with <code>reset</code>. If it has, add a new commit that undoes it with <code>revert</code>. This guide covers both, how to copy commits with <code>cherry-pick</code>, and how to recover from mistakes with the <code>reflog</code>.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#reset">git reset: soft, mixed, hard</a></li>
+        <li><a href="#revert">git revert</a></li>
+        <li><a href="#cherry-pick">git cherry-pick</a></li>
+        <li><a href="#reflog">git reflog: getting lost work back</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Fix the message or contents of my last commit (not pushed)</td><td><code>git commit --amend</code></td></tr>
+          <tr><td>Undo my last commit but keep its changes staged</td><td><code>git reset --soft HEAD~1</code></td></tr>
+          <tr><td>Undo my last commit, keep changes as unstaged edits</td><td><code>git reset HEAD~1</code></td></tr>
+          <tr><td>Throw away my last commit <em>and</em> its changes</td><td><code>git reset --hard HEAD~1</code></td></tr>
+          <tr><td>Unstage a file but keep my edits</td><td><code>git restore --staged &lt;file&gt;</code></td></tr>
+          <tr><td>Undo a commit that is already pushed</td><td><code>git revert &lt;commit&gt;</code></td></tr>
+          <tr><td>Copy one commit onto my current branch</td><td><code>git cherry-pick &lt;commit&gt;</code></td></tr>
+          <tr><td>Stop a merge, rebase, cherry-pick or revert halfway</td><td><code>git merge --abort</code> (or <code>rebase</code>, <code>cherry-pick</code>, <code>revert</code> with <code>--abort</code>)</td></tr>
+          <tr><td>Get back a commit after a bad reset or rebase</td><td><code>git reflog</code>, then <code>git reset --hard HEAD@{n}</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="reset">git reset: soft, mixed and hard</h2>
+    <p>Git keeps your work in three places: the commit your branch points to (<code>HEAD</code>), the staging area (also called the index: what the next commit will contain), and the working tree (the files on disk). <code>git reset &lt;commit&gt;</code> always moves your current branch to <code>&lt;commit&gt;</code>. The mode decides how many of the other two places are reset to match:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Mode</th><th scope="col">Branch moves</th><th scope="col">Staging area</th><th scope="col">Files on disk</th><th scope="col">Typical use</th></tr></thead>
+        <tbody>
+          <tr><td><code>--soft</code></td><td class="yes">Yes</td><td>Kept</td><td>Kept</td><td>Squash the last few commits into one: reset, then commit again.</td></tr>
+          <tr><td><code>--mixed</code> (default)</td><td class="yes">Yes</td><td>Reset</td><td>Kept</td><td>Redo the last commit with different files staged.</td></tr>
+          <tr><td><code>--hard</code></td><td class="yes">Yes</td><td>Reset</td><td class="no">Reset</td><td>Discard commits and all uncommitted changes to tracked files.</td></tr>
+        </tbody>
+      </table>
+    </div>
+<pre><span class="c"># combine the last three commits into one</span>
+<span class="k">git reset --soft HEAD~3</span>
+<span class="k">git commit -m</span> "Add CSV export"
+
+<span class="c"># make the branch match the remote exactly, dropping local commits</span>
+<span class="k">git fetch</span>
+<span class="k">git reset --hard origin/main</span></pre>
+    <div class="note warn"><p><strong><code>--hard</code> is the one command here that can lose work for good.</strong> Commits it removes can be recovered from the reflog, but uncommitted edits to tracked files are simply overwritten. Untracked files are left alone. If you are not sure, run <code>git stash</code> first, or use <code>git reset --keep &lt;commit&gt;</code>, which refuses to run if it would overwrite your local changes.</p></div>
+    <p>Do not reset a branch that others have already pulled. Moving it backwards and pushing requires a force-push, and their copies still have the commits you removed. Use <code>revert</code> instead.</p>
+
+    <h2 id="revert">git revert: undo by adding a commit</h2>
+    <p><code>git revert</code> creates a new commit whose changes are the exact opposite of an earlier one. History is not rewritten, so it is safe on shared branches like <code>main</code>.</p>
+<pre><span class="k">git revert 72c5f10</span>               <span class="c"># opens the editor for the message</span>
+<span class="k">git revert --no-edit 72c5f10</span>     <span class="c"># uses the default "Revert ..." message</span>
+<span class="k">git revert --no-commit HEAD~3..HEAD</span>   <span class="c"># undo the last three, then commit once</span>
+<span class="k">git commit -m</span> "Revert the CSV export"</pre>
+    <p>Reverting a <strong>merge commit</strong> needs <code>-m 1</code> to say which parent is the mainline (usually the first: the branch you merged into):</p>
+<pre><span class="k">git revert -m 1</span> 9f2c1ab</pre>
+    <p>One catch: after reverting a merge, merging the same branch again will not bring those changes back, because git sees them as already merged. To reintroduce the feature, revert the revert commit.</p>
+
+    <h2 id="cherry-pick">git cherry-pick: copy a commit</h2>
+    <p><code>git cherry-pick</code> applies the change from an existing commit onto your current branch as a new commit. The classic use is moving a bug fix from <code>main</code> to a release branch without merging everything else.</p>
+<pre><span class="k">git switch release/1.4</span>
+<span class="k">git cherry-pick -x 4e7d0c2</span>      <span class="c"># -x notes the original hash in the message</span>
+<span class="k">git cherry-pick</span> a1b2c3d e4f5a6b  <span class="c"># several commits, applied in the order given</span>
+<span class="k">git cherry-pick</span> A^..B            <span class="c"># a range from A to B, including A</span></pre>
+    <p>Note that <code>A..B</code> <em>excludes</em> <code>A</code>; add <code>^</code> to include it. On a conflict, fix the files, <code>git add</code> them and run <code>git cherry-pick --continue</code>, or <code>git cherry-pick --abort</code> to cancel. The copy is a different commit with a different hash, so the same change then exists twice in history; prefer merging when you want <em>all</em> of a branch.</p>
+    <p>To undo a cherry-pick you just made and have not pushed, <code>git reset --hard HEAD~1</code> removes it. If it is pushed, revert it.</p>
+
+    <h2 id="reflog">git reflog: getting lost work back</h2>
+    <p>Every time <code>HEAD</code> moves, by a commit, checkout, reset, rebase or merge, git writes a line to the <em>reflog</em>. It is your local undo history:</p>
+<pre><span class="k">git reflog</span>
+<span class="o">3a9b6d4 (HEAD -&gt; main) HEAD@{0}: reset: moving to HEAD~2
+9f2c1ab HEAD@{1}: commit: Add export button
+72c5f10 HEAD@{2}: commit: Fix date parsing in log view
+3a9b6d4 (HEAD -&gt; main) HEAD@{3}: checkout: moving from feature to main</span></pre>
+    <p>Here a hard reset removed two commits. <code>HEAD@{1}</code> is where the branch was just before it, so either of these brings them back:</p>
+<pre><span class="k">git reset --hard HEAD@{1}</span>       <span class="c"># move the branch back</span>
+<span class="k">git branch rescue 9f2c1ab</span>       <span class="c"># or keep them on a new branch</span></pre>
+    <p>The same works after a rebase that went wrong: find the <code>rebase (start)</code> entry, take the entry directly below it (the position just before the rebase began), and reset to that. <code>git reflog show feature</code> lists only the moves of the <code>feature</code> branch, which is often easier to read.</p>
+    <p><strong>Deleted a branch?</strong> <code>git branch -D</code> prints the hash it pointed at, for example <code>Deleted branch feature (was 4e7d0c2).</code> Recreate it with <code>git branch feature 4e7d0c2</code>. If that message is gone, search the reflog for <code>checkout: moving from feature</code>.</p>
+    <p>Limits worth knowing: the reflog is local to your clone and is not pushed. By default git keeps entries for 90 days, and 30 days for commits no longer reachable from any branch, before garbage collection may remove them. And it only records commits, so uncommitted edits lost to <code>reset --hard</code> are not in it. (Changes that were <em>staged</em> may still be found with <code>git fsck --lost-found</code>, which writes unreferenced file contents into <code>.git/lost-found/</code>, but do not rely on it.)</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>The graph shows exactly which commit you are about to move to, which takes most of the guesswork out of <code>HEAD~3</code>-style arithmetic.</p>
+      <ol class="steps">
+        <li><strong>Reset:</strong> right-click the commit you want your current branch to point at, choose reset, and pick <strong>soft</strong>, <strong>mixed</strong> or <strong>hard</strong>. A hard reset asks for confirmation in a modal dialog. The uncommitted-changes row at the top shows what a soft or mixed reset left behind.</li>
+        <li><strong>Revert:</strong> right-click a commit and choose <strong>revert</strong>. The new revert commit appears at the top of your branch.</li>
+        <li><strong>Cherry-pick:</strong> check out the target branch, then right-click the commit on another lane and choose <strong>cherry-pick</strong>. Use find to locate it by subject, author or hash.</li>
+        <li><strong>Reflog recovery:</strong> Mergeline draws branches, tags and stashes, not the reflog, so commits that nothing points to are not in the graph. Find the hash with <code>git reflog</code> in the terminal, run <code>git branch rescue &lt;hash&gt;</code>, then click <em>Refresh</em>. The rescued commits appear with a <code>rescue</code> badge, ready to merge, cherry-pick or reset to.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html" aria-current="page">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

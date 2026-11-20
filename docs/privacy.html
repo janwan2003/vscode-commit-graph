@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy | Mergeline</title>
+<meta name="description" content="Mergeline collects nothing and makes no network requests of its own. Git commands run on your machine; fetch and push go to your own remotes, only when you ask.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/privacy.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Privacy policy | Mergeline">
+<meta property="og:description" content="Mergeline collects nothing: no telemetry, no analytics, no account, no network requests of its own.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/privacy.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Privacy policy</h1>
+    <p class="small">Last updated 20 November 2026. Applies to the Mergeline extension and to this website.</p>
+
+    <div class="note"><p><strong>Short version:</strong> Mergeline collects nothing and makes no network requests of its own. It runs git on your computer. Fetch and push reach your own remotes, and only when you ask for them.</p></div>
+
+    <h2>The extension</h2>
+    <ul>
+      <li><strong>No telemetry or analytics.</strong> Mergeline does not record or report which commands you use, how often you open the graph, errors, repository names, or anything about your machine.</li>
+      <li><strong>No account.</strong> There is no sign-in, licence key or registration, so there is no personal data about you to hold.</li>
+      <li><strong>No network requests of its own.</strong> Mergeline has no server. It does not check for updates, ping anything, or download avatars or other images. The graph view loads no remote scripts, fonts or styles.</li>
+      <li><strong>Git runs locally.</strong> To draw the graph, Mergeline runs git commands such as <code>git log</code>, <code>git for-each-ref</code>, <code>git status</code> and <code>git show</code> in your workspace. Their output is shown in the editor and is not sent anywhere.</li>
+      <li><strong>Remotes only when you ask.</strong> A few actions talk to a remote because that is their whole purpose: <em>Fetch</em>, pushing a branch or tag, and deleting a branch or tag on the remote. They go to the remotes configured in your repository (for example <code>origin</code>), and they run only when you choose them. When VS Code&rsquo;s built-in git extension is available, push and fetch go through it, so authentication uses your existing credential helper or the editor&rsquo;s sign-in prompt. Mergeline never sees or stores your credentials.</li>
+      <li><strong>Your git configuration still applies.</strong> Because Mergeline runs real git, anything you have set up in git runs too: hooks such as <code>pre-push</code>, credential helpers, and so on. Those are yours, not Mergeline&rsquo;s.</li>
+      <li><strong>Local state.</strong> Settings live in your editor&rsquo;s settings like any other extension&rsquo;s. Anything Mergeline remembers between sessions stays in the editor&rsquo;s local storage on your computer.</li>
+    </ul>
+
+    <h2>Your editor and the extension registry</h2>
+    <p>VS Code, VSCodium, Cursor and Windsurf have their own telemetry settings, and VS Code&rsquo;s git extension can fetch on its own if its <code>git.autofetch</code> setting is on. Extension registries count downloads. Those belong to the editor or the registry, not to Mergeline, and their own privacy policies cover them.</p>
+
+    <h2>This website</h2>
+    <p>This site is static HTML hosted on GitHub Pages. It sets no cookies, has no analytics or forms, and loads no third-party scripts, fonts or trackers. As the host, GitHub may process technical data such as IP addresses in its server logs; see the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>.</p>
+
+    <h2>Check it yourself</h2>
+    <p>Mergeline is open source under the MIT licence. The full source is on <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>, so you can confirm everything above by reading the code or by watching the extension&rsquo;s network traffic.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the new version will be published on this page with a new date, and the change will be visible in the repository history.</p>
+
+    <h2>Contact</h2>
+    <p>For privacy questions, open an issue at <a href="https://github.com/janwan2003/vscode-commit-graph/issues">github.com/janwan2003/vscode-commit-graph/issues</a>. Issues are public, so leave out repository contents, remote URLs and tokens you would not want published.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html" aria-current="page">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

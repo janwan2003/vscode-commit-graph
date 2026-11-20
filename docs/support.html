@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support and troubleshooting | Mergeline</title>
+<meta name="description" content="Get help with Mergeline: report bugs on GitHub, and fix common problems such as git not found on PATH, workspace trust, and slow loading in very large repositories.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/support.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Support and troubleshooting | Mergeline">
+<meta property="og:description" content="Report a bug, and fix the common problems: git not on PATH, workspace trust, very large repositories.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/support.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html" aria-current="page">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Support</h1>
+    <p>Mergeline is supported through GitHub issues. Search the <a href="https://github.com/janwan2003/vscode-commit-graph/issues?q=is%3Aissue">existing issues</a> first, and if nothing matches, <a href="https://github.com/janwan2003/vscode-commit-graph/issues/new">open a new one</a>. Bug reports, questions and feature requests are all welcome there.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#git-not-found">Git is not found</a></li>
+        <li><a href="#trust">Workspace trust</a></li>
+        <li><a href="#large-repos">Large repositories</a></li>
+        <li><a href="#no-button">The button is missing</a></li>
+        <li><a href="#wrong-repo">Wrong or missing repository</a></li>
+        <li><a href="#stale">Graph looks out of date</a></li>
+        <li><a href="#interactive-rebase">Interactive rebase editor</a></li>
+        <li><a href="#report">How to report a bug</a></li>
+      </ul>
+    </div>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+
+    <h3 id="git-not-found">&ldquo;git: command not found&rdquo;, or the graph stays empty</h3>
+    <p>Mergeline needs git installed on the machine where your files are. Open a terminal <em>inside the editor</em> and run:</p>
+<pre>git --version</pre>
+    <p>If that fails, git is missing or not on the <code>PATH</code> the editor sees:</p>
+    <ul>
+      <li><strong>Windows:</strong> install Git for Windows from <a href="https://git-scm.com/downloads">git-scm.com</a> and keep the installer option that adds git to <code>PATH</code>.</li>
+      <li><strong>macOS:</strong> run <code>xcode-select --install</code> for Apple&rsquo;s command line tools, or install git with Homebrew (<code>brew install git</code>).</li>
+      <li><strong>Linux:</strong> install it with your package manager, for example <code>sudo apt install git</code> or <code>sudo dnf install git</code>.</li>
+    </ul>
+    <p>Then <strong>quit the editor completely and start it again</strong>. The editor reads <code>PATH</code> when it starts, so a new install is not visible to a window that was already open. On macOS, an editor launched from the Dock may not see <code>PATH</code> changes made only in your shell profile; launching it once from a terminal (<code>code .</code>) is a quick way to check whether that is the cause.</p>
+    <p>In a remote window (Remote SSH, WSL, containers) Mergeline runs on the remote side, so git must be installed <em>there</em>, not only on your local computer.</p>
+
+    <h3 id="trust">Mergeline is disabled, or says the workspace is not trusted</h3>
+    <p>Mergeline runs git commands in your workspace, and git can run hooks and other programs configured in a repository. For that reason it does not run in Restricted Mode, the mode VS Code uses for folders you have not trusted yet. To grant trust:</p>
+    <ol>
+      <li>Open the Command Palette and run <strong>Workspaces: Manage Workspace Trust</strong>.</li>
+      <li>Choose <strong>Trust</strong> (or trust the parent folder if you keep many repositories in one place).</li>
+    </ol>
+    <p>Only trust folders whose contents you are comfortable running. If the Mergeline buttons do not appear after you grant trust, run <strong>Developer: Reload Window</strong>.</p>
+
+    <h3 id="large-repos">The first load is slow in a very large repository</h3>
+    <p>Mergeline draws only the rows on screen and loads history in batches, so scrolling should stay smooth even at 100,000 commits. The first batch is the part you wait for. Things that help, in order:</p>
+    <ul>
+      <li><strong>Load fewer commits first.</strong> Set <code>mergeline.initialCommits</code> lower in your settings. The default is 500 and the minimum is 50. More commits load as you scroll, or when you click <em>Load more</em>.
+<pre>// settings.json
+"mergeline.initialCommits": 200</pre></li>
+      <li><strong>Hide what you do not need.</strong> Turn off remote-tracking branches with the remotes toggle in the toolbar (or <code>"mergeline.showRemoteBranches": false</code>), or use the branch filter to show one branch. Hiding stashes (<code>mergeline.showStashes</code>) and the uncommitted-changes row (<code>mergeline.showUncommitted</code>) also saves a little work; the uncommitted row needs a <code>git status</code>, which is slow in huge working trees.</li>
+      <li><strong>Let git speed itself up.</strong> Git can keep a commit-graph file that makes history walks much faster. Write one now, and have git keep it current on every fetch:
+<pre>git commit-graph write --reachable
+git config fetch.writeCommitGraph true</pre>
+        Or run <code>git maintenance start</code> once, which schedules this and other background upkeep for the repository.</li>
+      <li><strong>Prune old remote branches.</strong> <code>git fetch --prune</code> removes remote-tracking branches that were deleted on the server, which shortens the ref list Mergeline has to draw.</li>
+    </ul>
+
+    <h3 id="no-button">I cannot see the Mergeline button</h3>
+    <p>The button in the Source Control title bar appears only when the git provider is active, which means the open folder (or a folder inside it) must be a git repository. If the title bar is crowded, the button may be inside the <strong>&hellip;</strong> overflow menu. The status-bar button can be turned off with <code>mergeline.statusBarButton</code>, so check that setting too. The command <strong>Mergeline: Show Commit Graph</strong> works either way.</p>
+
+    <h3 id="wrong-repo">The graph shows the wrong repository, or one is missing</h3>
+    <p>Use the repository picker in Mergeline&rsquo;s toolbar. It lists every workspace folder and the nested repositories VS Code&rsquo;s git extension has found. If a nested repository is missing from VS Code&rsquo;s own Source Control view too, check the editor&rsquo;s <code>git.repositoryScanMaxDepth</code> and <code>git.autoRepositoryDetection</code> settings, or open that folder directly.</p>
+
+    <h3 id="stale">The graph looks out of date</h3>
+    <p>Remote branches are only as fresh as your last fetch. Click <em>Fetch</em> in the toolbar, then <em>Refresh</em>. If you changed the repository from a terminal, <em>Refresh</em> (or the command <strong>Mergeline: Refresh Commit Graph</strong>) reloads it.</p>
+
+    <h3 id="interactive-rebase">Interactive rebase opens an editor I do not want</h3>
+    <p>Interactive rebase runs <code>git rebase -i</code> in the editor&rsquo;s integrated terminal, so git opens its todo list in your configured git editor. To edit it in a VS Code tab instead, set:</p>
+<pre>git config --global core.editor "code --wait"</pre>
+    <p>Use <code>codium --wait</code> or <code>cursor --wait</code> for those editors. Save and close the tab to let the rebase continue.</p>
+
+    <h2 id="report">How to report a bug</h2>
+    <ol>
+      <li>Update to the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest release</a> and check that the problem still happens.</li>
+      <li>Open a <a href="https://github.com/janwan2003/vscode-commit-graph/issues/new">new issue</a> and include:
+        <ul>
+          <li>the Mergeline version, your editor and its version (VS Code: <strong>Help &rarr; About</strong>), your operating system, and the output of <code>git --version</code>;</li>
+          <li>whether you are in a local, Remote SSH, WSL or container window;</li>
+          <li>what you did, what you expected, and what happened instead, with the exact error message;</li>
+          <li>any errors from <strong>Help &rarr; Toggle Developer Tools &rarr; Console</strong>;</li>
+          <li>for drawing problems, a screenshot and a rough description of the history (for example &ldquo;octopus merge of four branches&rdquo;). A small public repository that shows the problem is ideal.</li>
+        </ul>
+      </li>
+      <li><strong>Remove private details first.</strong> Issues are public. Blur commit messages, author names, branch names and remote URLs you would not want published.</li>
+    </ol>
+    <p>Please do not post security problems with exploit details in a public issue. Open an issue asking for a private contact channel instead, without the details.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html" aria-current="page">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

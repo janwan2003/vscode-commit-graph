@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://janwan2003.github.io/vscode-commit-graph/sitemap.xml
