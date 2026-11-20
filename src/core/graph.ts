@@ -2,6 +2,8 @@
 // Output: per row, the node's column and colour plus the line segments in the top
 // half (row top edge → node centre) and bottom half (node centre → row bottom edge).
 
+import { colorChar } from './colors';
+
 export interface LayoutInput {
   sha: string;
   parents: string[];
@@ -20,7 +22,8 @@ export interface Row {
 /**
  * Compact form of a Row sent to the webview (see media/rows.js for the decoder).
  * [col, color, lanes, into, diag, fresh]:
- * - lanes: the lanes open below this row, one char each: '.' for a free lane, else its colour digit.
+ * - lanes: the lanes open below this row, one char each: '.' for a free lane, else its colour
+ *   ('0'..'9' for the palette, 'a'..'z' for custom colours 10..35 from mergeline.branchColors).
  *   The previous row's `lanes` (or the starting state) gives the lanes entering this row.
  * - into: entering lanes that end in this node (drawn as top segments [i, col]); every other
  *   entering lane passes straight through the top half.
@@ -42,7 +45,7 @@ export interface Layout {
 
 function laneString(lanes: (string | null)[], colors: number[]): string {
   let s = '';
-  for (let i = 0; i < lanes.length; i++) s += lanes[i] === null ? '.' : String(colors[i]);
+  for (let i = 0; i < lanes.length; i++) s += lanes[i] === null ? '.' : colorChar(colors[i]);
   return s;
 }
 
@@ -65,10 +68,17 @@ export interface LayoutState {
   home: Map<string, number>;
   /** Per pinned lane, the sha its line expects next (null once the line has ended). */
   expect: (string | null)[];
+  /**
+   * Branch colours (setting mergeline.branchColors): sha → colour for commits a coloured branch points at.
+   * A line that starts at one of them gets that colour instead of the next one in the cycle.
+   */
+  tipColor: Map<string, number>;
+  /** Per pinned lane, its colour (default: the lane number). */
+  pinColor: number[];
 }
 
 export function newLayoutState(): LayoutState {
-  return { lanes: [], colors: [], nextColor: 0, width: 0, tips: [], home: new Map(), expect: [] };
+  return { lanes: [], colors: [], nextColor: 0, width: 0, tips: [], home: new Map(), expect: [], tipColor: new Map(), pinColor: [] };
 }
 
 const PALETTE = 10;
@@ -143,9 +153,11 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
   const alloc = (sha: string): number => {
     const i = free();
     lanes[i] = sha;
-    colors[i] = P + (st.nextColor++ % (PALETTE - P));
+    const fixed = st.tipColor.get(sha);
+    colors[i] = fixed ?? P + (st.nextColor++ % (PALETTE - P));
     return i;
   };
+  const pinColor = (h: number): number => st.pinColor[h] ?? h;
   /** The pinned lane `sha` may go into now: its line's lane, when that line expects it next. */
   const pinLane = (sha: string): number => {
     const h = home.get(sha);
@@ -167,7 +179,7 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
       if (h >= 0) {
         grow(h + 1);
         lanes[h] = c.sha;
-        colors[h] = h;
+        colors[h] = pinColor(h);
         col = h;
       } else col = alloc(c.sha);
     }
@@ -199,7 +211,7 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
       if (lanes[h] === p) joins.add(h);
       else {
         lanes[h] = p;
-        colors[h] = h;
+        colors[h] = pinColor(h);
         if (h !== col) fresh.add(h);
       }
       return true;

@@ -2,6 +2,11 @@
 // Loaded by the webview as a script and by the unit tests as a CommonJS module.
 (function (root) {
   'use strict';
+  /** Colour index of one lane character: '0'..'9' → 0..9, 'a'..'z' → 10..35, '.' → -1. */
+  function code(s, i) {
+    const ch = s.charCodeAt(i);
+    return ch >= 97 ? ch - 87 : ch >= 48 ? ch - 48 : -1;
+  }
   /**
    * @param {string} above lanes entering the row (the previous row's lanes string, or the layout's start)
    * @param {[number, number, string, number[], number[], number[]]} p packed row
@@ -12,12 +17,12 @@
     const top = [];
     const bot = [];
     for (let i = 0; i < above.length; i++) {
-      const ch = above.charCodeAt(i) - 48; // '.' is negative
+      const ch = code(above, i);
       if (ch < 0) continue;
       top.push(into.indexOf(i) >= 0 ? [i, col, ch] : [i, i, ch]);
     }
     for (let i = 0; i < lanes.length; i++) {
-      const ch = lanes.charCodeAt(i) - 48;
+      const ch = code(lanes, i);
       if (ch < 0 || fresh.indexOf(i) >= 0) continue;
       bot.push([i, i, ch]);
     }

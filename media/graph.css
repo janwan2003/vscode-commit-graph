@@ -44,6 +44,8 @@ select:focus, input:focus, button:focus-visible, #scroller:focus-visible { outli
 #scroller { flex: 1; overflow: auto; position: relative; outline: none; }
 #rows { position: absolute; left: 0; right: 0; top: 0; }
 #rows .row { position: absolute; left: 0; right: 0; cursor: default; }
+/* mergeline.rowColors: before :hover/.sel/.cmp/.drop so those still win (same specificity, later rule). */
+#rows.rc-tint .row { background: color-mix(in srgb, var(--rc) 11%, transparent); }
 #rows .row:hover { background: var(--vscode-list-hoverBackground); }
 #rows .row.sel { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 #rows .row.sel .c-date, #rows .row.sel .c-hash { color: inherit; }
@@ -70,6 +72,10 @@ svg .n-stash { fill: var(--vscode-editor-background); stroke-width: 1.5; }
 .badge.branch { border-color: var(--lane-0); color: var(--vscode-foreground); background: color-mix(in srgb, var(--lane-0) 18%, transparent); }
 .badge.branch.current { font-weight: 700; background: color-mix(in srgb, var(--lane-0) 34%, transparent); }
 .badge.remote { border-color: var(--lane-9); border-style: dashed; color: var(--vscode-descriptionForeground); }
+.badge.branch.bc { border-color: var(--bc); background: color-mix(in srgb, var(--bc) 18%, transparent); }
+.badge.branch.bc.current { background: color-mix(in srgb, var(--bc) 34%, transparent); }
+.badge.remote.bc { border-color: var(--bc); }
+#rows.rc-stripe .row .c-desc { box-shadow: inset 3px 0 0 var(--rc); }
 .badge .twin { font-size: 10px; padding: 0 5px; border-radius: 7px; border: 1px dashed var(--lane-9); color: var(--vscode-descriptionForeground); font-weight: 400; }
 .badge.tag { border-color: var(--lane-3); background: color-mix(in srgb, var(--lane-3) 18%, transparent); border-radius: 3px; }
 .badge.tag::before { content: '◆'; font-size: 8px; color: var(--lane-3); }

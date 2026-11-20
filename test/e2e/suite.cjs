@@ -255,6 +255,68 @@ exports.run = async function run() {
     await packed((pk) => mainLine.every((s) => colOf(pk, s) === 0), 'back to default');
   });
 
+  await check('branch colours: setting colours lines and badges, the branch menu sets and removes a colour (real right-click), bad values warn; row colours from the header menu', async () => {
+    const cfg = () => vscode.workspace.getConfiguration('mergeline');
+    const w = vscode.window;
+    const orig = { pick: w.showQuickPick, warn: w.showWarningMessage };
+    const pong = async (ok, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && ok(panel.lastPong) && panel.lastPong; }, 10000, what);
+    const rowOf = (sha) => panel.lastData.commits.findIndex((c) => c.sha === sha);
+    const node = (p, sha) => (p.nodeColors.find((x) => x.startsWith(rowOf(sha) + ' ')) || '').split(' ')[1];
+    const fix = git('rev-parse', 'hotfix/crash'), feat = git('rev-parse', 'feature/search'), head = git('rev-parse', 'HEAD');
+    try {
+      // Setting: hotfix/* by glob in a hex colour, feature/search by palette name. feature/search's tip is only reached as
+      // a merge parent, so this also covers lines opened for a merge's second parent.
+      await cfg().update('branchColors', { 'hotfix/*': '#ff0000', 'feature/search': 'purple' }, vscode.ConfigurationTarget.Global);
+      let p = await pong((x) => node(x, fix) === '#ff0000' && node(x, feat) === 'var(--lane-4)', 'hotfix red, feature purple');
+      const featParent = git('rev-parse', 'feature/search~1');
+      assert.equal(node(p, featParent), 'var(--lane-4)', 'the feature line keeps its colour below the tip');
+      assert.ok(p.badgeColors.includes('hotfix/crash #ff0000 rgb(255, 0, 0)'), p.badgeColors.join(' | '));
+      // Real right-click on the main badge → "Set branch colour…" → the quick pick (stubbed) answers green.
+      let pickTitle = '';
+      w.showQuickPick = async (items, o) => { const arr = await items; pickTitle = o.title + ': ' + arr.map((i) => i.label).join(', '); return arr.find((i) => i.value === 'green'); };
+      await panel.testPost({ type: 'context', selector: '.badge[data-ref="main"]' });
+      p = await pong((x) => /Set branch colour…/.test(x.menuText), 'branch menu');
+      await panel.testPost({ type: 'menuPick', label: 'Set branch colour…' });
+      await until(() => (cfg().get('branchColors') || {}).main === 'green', 10000, 'main green in the setting');
+      assert.match(pickTitle, /^Colour for main: 🟦 blue, 🟥 red, 🟩 green/);
+      assert.match(pickTitle, /Custom colour…/);
+      // main is pinned (default setting): its pinned column, the working-tree row and the HEAD node turn green.
+      p = await pong((x) => node(x, head) === 'var(--lane-2)' && (x.nodeColors[0] || '').split(' ')[1] === 'var(--lane-2)', 'main line green');
+      for (const s of git('rev-list', '--first-parent', 'main').split('\n')) assert.equal(node(p, s), 'var(--lane-2)', 'main line ' + s);
+      // The menu now says "Change", and "Automatic" removes the entry.
+      w.showQuickPick = async (items) => (await items).find((i) => i.value === null);
+      await panel.testPost({ type: 'context', selector: '.badge[data-ref="main"]' });
+      await pong((x) => /Change branch colour…/.test(x.menuText), 'menu says change');
+      await panel.testPost({ type: 'menuPick', label: 'Change branch colour…' });
+      await until(() => !('main' in (cfg().get('branchColors') || {})), 10000, 'main colour removed');
+      // A bad value is skipped with a warning; the good one still applies.
+      let warned = '';
+      w.showWarningMessage = async (msg) => { warned = msg; return undefined; };
+      await cfg().update('branchColors', { 'hotfix/*': 'red;background:url(x)', 'feature/*': '#00ff00' }, vscode.ConfigurationTarget.Global);
+      await until(() => /branchColors entries were skipped: "hotfix\/\*"/.test(warned), 10000, 'warning');
+      p = await pong((x) => node(x, feat) === '#00ff00' && node(x, fix) !== '#ff0000', 'feature green, hotfix automatic');
+      assert.ok(!/url\(/.test(JSON.stringify(p.nodeColors)));
+      // Row colours: real right-click on the column header → "Row colours: tint by branch" → the setting, then the rows.
+      await panel.testPost({ type: 'context', selector: '#header' });
+      await pong((x) => /✓ Row colours: none/.test(x.menuText), 'header menu');
+      await panel.testPost({ type: 'menuPick', label: ' Row colours: tint by branch' });
+      await until(() => cfg().get('rowColors') === 'tint', 10000, 'rowColors tint');
+      p = await pong((x) => /rc-tint/.test(x.rowsClass), 'rows tinted');
+      const featRow = p.nodeColors.find((x) => x.startsWith(rowOf(feat) + ' '));
+      assert.match(featRow, /#00ff00 /, 'row carries its node colour: ' + featRow);
+      assert.doesNotMatch(featRow.split(' #00ff00 ')[1], /^rgba\(0, 0, 0, 0\)/, 'tinted background: ' + featRow);
+      await cfg().update('rowColors', 'stripe', vscode.ConfigurationTarget.Global);
+      p = await pong((x) => /rc-stripe/.test(x.rowsClass), 'rows striped');
+      const striped = p.nodeColors.find((x) => x.startsWith(rowOf(feat) + ' '));
+      assert.match(striped, /rgb\(0, 255, 0\) 3px 0px 0px 0px inset$/, 'stripe in the row colour: ' + striped);
+    } finally {
+      w.showQuickPick = orig.pick;
+      w.showWarningMessage = orig.warn;
+      await cfg().update('branchColors', undefined, vscode.ConfigurationTarget.Global);
+      await cfg().update('rowColors', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
   await check('author filter (real clicks in the checklist, rewritten parents, menu), notes (marks, details, editor), hidden branches (hide, unhide)', async () => {
     const pong = async (ok, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && ok(panel.lastPong) && panel.lastPong; }, 10000, what);
     const click = (selector) => panel.testPost({ type: 'click', selector });

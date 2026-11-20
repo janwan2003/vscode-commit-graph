@@ -6,6 +6,7 @@ import { readLog, readFileHistory, searchLog, readState, readStashes, insertStas
 import * as fs from 'node:fs';
 import { layout, LayoutState, newLayoutState, pinBranches, extendPins } from '../core/graph';
 import { pinnedTips } from '../core/pins';
+import { colorRules, cssColor, nameColor, refColors, tipColors, PALETTE_NAMES as PALETTE } from '../core/colors';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
@@ -164,12 +165,55 @@ export class GraphPanel implements vscode.Disposable {
       dateFormat: cfg.get('dateFormat', 'relative'),
       commitOrder: cfg.get('commitOrder', 'date'),
       dimOtherCommits: cfg.get('dimOtherCommits', false),
+      rowColors: cfg.get('rowColors', 'none'),
       showAvatars: this.avatarsOn(),
       issueLinks: links.rules,
       layout: this.ctx.globalState.get('mergeline.layout') ?? null,
     };
   }
   private linkProblems = '';
+  private colorProblems = '';
+  private warnColors(problems: string[]) {
+    const sig = problems.join('; ');
+    if (sig && sig !== this.colorProblems) vscode.window.showWarningMessage(`Mergeline: some mergeline.branchColors entries were skipped: ${sig}`);
+    this.colorProblems = sig;
+  }
+
+  /**
+   * Sets or removes one branch name or glob in mergeline.branchColors (`color` null = remove), at the most
+   * specific level that already sets the setting, else in user settings. Asks for the colour when `color` is undefined.
+   */
+  private async setBranchColor(pattern: string, color?: string | null) {
+    const cfg = vscode.workspace.getConfiguration('mergeline');
+    const cur = cfg.get<unknown>('branchColors', {});
+    const map: Record<string, unknown> = cur && typeof cur === 'object' && !Array.isArray(cur) ? { ...(cur as Record<string, unknown>) } : {};
+    if (color === undefined) {
+      const SWATCH: Record<string, string> = { blue: '🟦', red: '🟥', green: '🟩', yellow: '🟨', purple: '🟪', orange: '🟧' };
+      type Item = vscode.QuickPickItem & { value: string | null };
+      const items: Item[] = PALETTE.map((n) => ({ label: `${SWATCH[n] ?? '⬜'} ${n}`, description: map[pattern] === n ? 'current' : undefined, value: n }));
+      items.push({ label: '$(edit) Custom colour…', description: '#hex, rgb() or hsl()', value: '' });
+      if (pattern in map) items.push({ label: '$(discard) Automatic (remove the colour)', value: null });
+      const pick = await vscode.window.showQuickPick(items, { title: `Colour for ${pattern}`, placeHolder: 'Palette colours follow the light or dark theme' });
+      if (!pick) return;
+      color = pick.value;
+      if (color === '') {
+        const typed = await vscode.window.showInputBox({
+          title: `Colour for ${pattern}`,
+          prompt: 'A #hex colour, rgb(…) or hsl(…), or a palette name',
+          value: typeof map[pattern] === 'string' ? (map[pattern] as string) : '#',
+          validateInput: (v) => (cssColor(v) ? null : 'Not a colour Mergeline accepts, e.g. #e5534b or rgb(229, 83, 75)'),
+        });
+        if (!typed) return;
+        color = typed.trim();
+      }
+    }
+    if (color === null) delete map[pattern];
+    else if (cssColor(color)) map[pattern] = color;
+    else return;
+    const i = cfg.inspect<unknown>('branchColors');
+    const target = i?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : i?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    await cfg.update('branchColors', Object.keys(map).length ? map : undefined, target);
+  }
   private avatarsOn() {
     return vscode.workspace.getConfiguration('mergeline').get<boolean>('showAvatars', false);
   }
@@ -298,8 +342,9 @@ export class GraphPanel implements vscode.Disposable {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
     const pinSetting = cfg.get<unknown>('pinnedBranches', []);
+    const colorSetting = cfg.get<unknown>('branchColors', {});
     const notes = commits.filter((c) => noted.has(c.sha)).map((c) => c.sha);
-    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, opts.exclude, worktrees, op, bisect, names, web, pinSetting, noted.size]);
+    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, opts.exclude, worktrees, op, bisect, names, web, pinSetting, colorSetting, noted.size]);
     const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha), notes]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
@@ -321,6 +366,10 @@ export class GraphPanel implements vscode.Disposable {
     const uncRow = commits[0]?.sha === UNCOMMITTED ? { sha: UNCOMMITTED, parent: commits[0].parents[0] } : undefined;
     const pins = pinnedTips(pinSetting, state.refs, commits.map((c) => c.sha), uncRow);
     const kept = pinBranches(st, commits, pins.tips);
+    const rules = colorRules(colorSetting);
+    this.warnColors(rules.problems);
+    st.tipColor = tipColors(rules, state.refs, uncRow ? { sha: UNCOMMITTED, branch: state.branch } : undefined);
+    st.pinColor = kept.map((t, k) => nameColor(rules, pins.names[pins.tips.indexOf(t)]) ?? k);
     const lay = layout(commits, st);
     this.layState = st;
     this.lastSent = { kind: 'data', rows: commits.length };
@@ -344,6 +393,9 @@ export class GraphPanel implements vscode.Disposable {
       firstParent: opts.firstParent,
       pinned: pins.names.filter((_, i) => kept.includes(pins.tips[i])),
       pinPatterns: Array.isArray(pinSetting) ? pinSetting.filter((x) => typeof x === 'string') : [],
+      colors: rules.colors,
+      refColors: refColors(rules, state.refs),
+      colorPatterns: rules.rules.map((r) => r.pattern),
       web,
       worktrees,
       op,
@@ -533,6 +585,13 @@ export class GraphPanel implements vscode.Disposable {
         break;
       case 'openPullRequest':
         await this.openPullRequest(String(m.ref ?? ''), m.refType === 'remote' ? 'remote' : 'head', typeof m.remote === 'string' ? m.remote : undefined);
+        break;
+      case 'branchColor':
+        // A branch name or glob for mergeline.branchColors; the configuration listener refreshes the graph.
+        if (typeof m.pattern === 'string' && m.pattern.trim()) await this.setBranchColor(m.pattern.trim(), m.color === null ? null : typeof m.color === 'string' ? m.color : undefined);
+        break;
+      case 'rowColors':
+        if (['none', 'stripe', 'tint'].includes(m.value)) await vscode.workspace.getConfiguration('mergeline').update('rowColors', m.value, vscode.ConfigurationTarget.Global);
         break;
       case 'pin':
         if (typeof m.name === 'string' && m.name) await this.setListSetting('pinnedBranches', m.name, !!m.on);

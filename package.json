@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "Visualization",
     "Other"
   ],
-  "keywords": ["git graph", "git patch", "format-patch", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "fixup commit", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
+  "keywords": ["git graph", "branch colors", "git patch", "format-patch", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
@@ -169,6 +169,19 @@
       "items": { "type": "string" },
       "default": ["main", "master", "develop"],
       "markdownDescription": "Branches that keep their own straight column on the left of the graph, with a fixed colour, instead of moving between columns (useful for git-flow `main` and `develop`). Each entry is a branch name or a pattern where `*` matches anything, e.g. `release/*`; earlier entries get the leftmost columns, at most 4. A local branch and its remote-tracking branch (`main`, `origin/main`) share one column. Right-click a branch in the graph to pin or unpin it. Set to `[]` for the plain layout."
+    },
+    "mergeline.branchColors": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "default": {},
+      "markdownDescription": "A fixed graph colour per branch, e.g. `{\"main\": \"red\", \"develop\": \"blue\", \"release/*\": \"orange\", \"feature/*\": \"#2da44e\"}`. Keys are branch names or patterns where `*` matches anything (including `/`); they apply to local and remote-tracking branches (`origin/main`). Values are palette names that follow the light or dark theme (`blue`, `red`, `green`, `yellow`, `purple`, `cyan`, `pink`, `lime`, `orange`, `grey`) or a `#hex`, `rgb()` or `hsl()` colour. The line that starts at a coloured branch, and its badge, use that colour; earlier entries win when a commit has several branches. Right-click a branch to set its colour."
+    },
+    "mergeline.rowColors": {
+      "type": "string",
+      "enum": ["none", "stripe", "tint"],
+      "enumDescriptions": ["Rows are not coloured.", "A stripe in the commit's graph colour at the left of its description.", "The whole row is tinted with the commit's graph colour."],
+      "default": "none",
+      "markdownDescription": "Colour each commit row by its line in the graph, so you can tell which branch a commit is on without following the line. Also in the column header's right-click menu."
     },
     "mergeline.hiddenBranches": {
       "type": "array",

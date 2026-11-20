@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.0 (2026-11-20)
+
+- **Branch colours.** Give a branch its own colour that stays the same however the graph is laid out: the new setting `mergeline.branchColors` takes branch names or patterns, for example `{"main": "blue", "develop": "purple", "release/*": "orange", "feature/*": "green", "hotfix/*": "#e5534b"}`. The line that starts at a coloured branch and the branch's badge use its colour; a pattern also covers remote branches (`origin/main`), and a pinned branch's column takes its colour. Palette names follow the light or dark theme, and `#hex`, `rgb()` and `hsl()` colours work too. Or right-click a branch → **Set branch colour…** (or **Set colour of all feature/… branches…**) and pick a colour; **Automatic** removes it. Branches without a colour keep cycling through the palette as before.
+- **Row colours.** The new setting `mergeline.rowColors`, also in the column header's right-click menu, colours each row by the line its commit is on: `stripe` puts a thin bar in that colour at the left of the description, `tint` shades the whole row. You can see which branch a commit belongs to without following its line back to the graph.
 ## 0.16.0 (2026-11-20)
 
 - **Save commits as patches.** Right-click a commit → **Save as a patch…** writes it the way `git format-patch` does (`0001-Fix-the-parser.patch`, with author, date and message), and **Copy as a patch** puts the same text on the clipboard, ready to paste into a chat or an issue. A merge commit is saved as its diff against the first parent. Select a commit and Ctrl/Cmd-click another on the same line → **Save commits a…b as patches…** saves the whole series (both ends included) in one file. Right-click a branch → **Save commits not on “main” as patches…**, or use the link in the **Changes since it split** pane.

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git graph branch colors in VS Code: one fixed color per branch | Mergeline</title>
+<meta name="description" content="Give main, develop and feature/* their own color in a VS Code git graph, color whole rows by branch, and set git log --graph colors with log.graphColors.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-graph-branch-colors-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git graph branch colors in VS Code: one fixed color per branch">
+<meta property="og:description" content="Why a branch changes color halfway down a git graph, how to color git log --graph, VS Code&rsquo;s Source Control Graph, Git Graph and GitLens, and fixed colors per branch name in Mergeline.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-graph-branch-colors-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Git graph branch colors in VS Code</h1>
+    <p>In most git graphs a branch has no color of its own. The tool hands out colors to <em>columns</em> as lines start, so <code>main</code> can be blue in one screenshot and pink in the next, and a commit far from the graph is hard to place. This page shows what each tool lets you change, with the exact setting names, and how to give a branch name a color that stays.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#why">Why a branch changes color</a></li>
+        <li><a href="#git">Colors in <code>git log --graph</code></a></li>
+        <li><a href="#builtin">VS Code&rsquo;s Source Control Graph</a></li>
+        <li><a href="#extensions">Git Graph and GitLens</a></li>
+        <li><a href="#mergeline">A fixed color per branch in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Use</th></tr></thead>
+        <tbody>
+          <tr><td>Change the line colors of <code>git log --graph</code></td><td><code>git config --global log.graphColors "red,blue,#ff8800"</code></td></tr>
+          <tr><td>Change the color of branch names in <code>git log</code></td><td><code>git config --global color.decorate.branch "magenta bold"</code></td></tr>
+          <tr><td>Change the 5 line colors of VS Code&rsquo;s Source Control Graph</td><td><code>workbench.colorCustomizations</code> &rarr; <code>scmGraph.foreground1</code>&hellip;<code>scmGraph.foreground5</code></td></tr>
+          <tr><td>Change the line colors in the Git Graph extension</td><td>Setting <code>git-graph.graph.colours</code> (a list, used in turn)</td></tr>
+          <tr><td>Make <code>main</code> always red and every <code>feature/*</code> branch green</td><td>Mergeline: setting <code>mergeline.branchColors</code>, or right-click a branch &rarr; <strong>Set branch colour&hellip;</strong></td></tr>
+          <tr><td>See which branch a commit is on without following the line</td><td>Mergeline: <code>mergeline.rowColors</code> <code>"stripe"</code> or <code>"tint"</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran the git commands with git 2.53 in a throwaway repository and read the VS Code color names from VS Code 1.147&rsquo;s own files and the extensions&rsquo; published <code>package.json</code> (2026-11-20).</p>
+
+    <h2 id="why">Why a branch changes color</h2>
+    <p>Git and most graph views pick a color for each line when the line starts, from a fixed list, in turn. The color belongs to the line&rsquo;s position in the drawing, not to the branch name. Three things follow:</p>
+    <ul>
+      <li><strong>The same branch gets a different color</strong> after a fetch or a new branch, because the lines start in a different order.</li>
+      <li><strong>Two unrelated branches can share a color</strong> once the list runs out (Git Graph&rsquo;s default list has 12 colors, VS Code&rsquo;s built-in graph 5).</li>
+      <li><strong>A branch can change color halfway down.</strong> Where a branch was merged and its line ends, the commits below it continue in another line, with that line&rsquo;s color.</li>
+    </ul>
+    <p>A fixed color per branch needs the tool to know which branch a line belongs to: the line that starts at the commit a branch points to.</p>
+
+    <h2 id="git">Colors in <code>git log --graph</code></h2>
+<pre><span class="k">git config --global</span> log.graphColors "red,blue"
+<span class="k">git log --graph --oneline</span>
+<span class="o">*   b7c8a28 merge
+|\        &larr; first line red, second blue, then red again
+| * 40f45c3 two
+* | c05e940 three
+|/</span></pre>
+    <ul>
+      <li><strong><code>log.graphColors</code></strong> is a comma-separated list used in turn for new lines. Names (<code>red</code>, <code>bold blue</code>) and <code>#rrggbb</code> both work: <code>#ff8800</code> came out as a 24-bit terminal color. An unknown name is skipped with <code>warning: ignored invalid color 'nosuchcolor' in log.graphColors</code>.</li>
+      <li><strong>Branch and tag names</strong> in <code>--decorate</code> output have their own keys: <code>color.decorate.branch</code>, <code>color.decorate.remoteBranch</code>, <code>color.decorate.tag</code>, <code>color.decorate.HEAD</code>. With <code>color.decorate.branch "magenta bold"</code>, <code>(HEAD -&gt; main)</code> showed <code>main</code> in bold magenta.</li>
+      <li><strong>No per-branch line color.</strong> Git has no setting that ties a line color to a branch name.</li>
+      <li>Colors only appear on a terminal, or with <code>--color=always</code> when you pipe the output.</li>
+    </ul>
+
+    <h2 id="builtin">VS Code&rsquo;s Source Control Graph</h2>
+    <p>The graph in the Source Control view (VS Code 1.147) draws its lines in five theme colors, <code>scmGraph.foreground1</code> to <code>scmGraph.foreground5</code> (defaults <code>#FFB000</code>, <code>#DC267F</code>, <code>#994F00</code>, <code>#40B0A6</code>, <code>#B66DFF</code>), and the current, remote and base branch in <code>scmGraph.historyItemRefColor</code>, <code>scmGraph.historyItemRemoteRefColor</code> and <code>scmGraph.historyItemBaseRefColor</code>. Change them in <code>settings.json</code>:</p>
+<pre>"workbench.colorCustomizations": {
+  "scmGraph.foreground1": "#4b9ce2",
+  "scmGraph.historyItemRefColor": "#e5534b"
+}</pre>
+    <p>That changes the palette for every repository. It cannot say &ldquo;<code>develop</code> is blue&rdquo;.</p>
+
+    <h2 id="extensions">Git Graph and GitLens</h2>
+    <ul>
+      <li><strong>Git Graph</strong> has the setting <code>git-graph.graph.colours</code>: a list of 12 colors (hex or <code>rgb()</code>) used in turn. A fixed color per branch is its open issue <a href="https://github.com/mhutchie/vscode-git-graph/issues/254">#254</a> (22 &#x1F44D;, opened February 2020) and <a href="https://github.com/mhutchie/vscode-git-graph/issues/809">#809</a>; Git Graph has had no release since 2021.</li>
+      <li><strong>GitLens</strong>&rsquo; Commit Graph draws its lanes in theme colors <code>gitlens.graphLane1Color</code> to <code>gitlens.graphLane10Color</code>, set the same way through <code>workbench.colorCustomizations</code>.</li>
+    </ul>
+
+    <section class="in-app" id="mergeline">
+      <h2>A fixed color per branch in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.17 a branch name or pattern can have its own color, and rows can show the color of their line.</p>
+<pre>"mergeline.branchColors": {
+  "main": "blue",
+  "release/*": "orange",
+  "feature/*": "green",
+  "hotfix/*": "#e5534b"
+}</pre>
+      <ul>
+        <li><strong>Keys</strong> are branch names or patterns where <code>*</code> matches anything, including <code>/</code>. They apply to local branches and to remote branches under any remote, so <code>main</code> also colors <code>origin/main</code>. If a commit has several branches, the earlier entry wins.</li>
+        <li><strong>Values</strong> are palette names that adapt to light and dark themes (<code>blue</code>, <code>red</code>, <code>green</code>, <code>yellow</code>, <code>purple</code>, <code>cyan</code>, <code>pink</code>, <code>lime</code>, <code>orange</code>, <code>grey</code>), or <code>#hex</code>, <code>rgb()</code> or <code>hsl()</code>. Anything else is skipped, with a warning naming the entry.</li>
+        <li><strong>What gets the color:</strong> the line that starts at the branch&rsquo;s newest commit, down its first parents (the commit it was made on top of) until it merges into another line, and the branch&rsquo;s badge. Branches you have not colored keep cycling through the palette.</li>
+        <li><strong>Without editing JSON:</strong> right-click a branch &rarr; <strong>Set branch colour&hellip;</strong> (palette, or <strong>Custom colour&hellip;</strong> for a hex value), or <strong>Set colour of all feature/&hellip; branches&hellip;</strong>; <strong>Automatic</strong> removes it.</li>
+        <li><strong>With pinned branches</strong> (<code>mergeline.pinnedBranches</code>, on by default for <code>main</code>, <code>master</code> and <code>develop</code>), the pinned column takes the branch&rsquo;s color, so <code>main</code> is one straight line in one color.</li>
+      </ul>
+      <figure class="shot"><img src="screenshot-colors.png" width="1280" height="800" loading="lazy" alt="Mergeline's commit graph in a dark theme. main's straight line on the left is blue, the release/1.1 line orange and both feature lines green, and the branch badges have the same colors. Each row has a thin stripe in its line's color at the left of the description."><figcaption><code>main</code> blue, <code>release/*</code> orange, <code>feature/*</code> green, with <code>"mergeline.rowColors": "stripe"</code>.</figcaption></figure>
+      <h3>Color whole rows by branch</h3>
+      <p>The setting <code>mergeline.rowColors</code> (also in the column header&rsquo;s right-click menu) colors every row by the line its commit is on, so the branch is visible next to the message, far from the graph: <code>"stripe"</code> draws a thin bar at the left of the description, <code>"tint"</code> shades the whole row. Selection, hover and find highlights still show on top.</p>
+      <figure class="shot"><img src="screenshot-colors-tint.png" width="1280" height="800" loading="lazy" alt="The same graph in a light theme with rowColors set to tint: rows on main are shaded light blue, the release row light orange and the feature rows light green."><figcaption><code>"mergeline.rowColors": "tint"</code> in a light theme.</figcaption></figure>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Why is my main branch a different color every time I open the graph?</summary>
+      <p>Colors go to lines in the order they start, so a new branch or a fetch shifts them. Give <code>main</code> a fixed color (Mergeline&rsquo;s <code>mergeline.branchColors</code>) or pin it to its own column.</p>
+    </details>
+    <details>
+      <summary>Can my whole team use the same branch colors?</summary>
+      <p>Yes. Put <code>mergeline.branchColors</code> in the repository&rsquo;s <code>.vscode/settings.json</code>. Once the setting is there, the branch menu writes changes there too, instead of to your user settings.</p>
+    </details>
+    <details>
+      <summary>Does this change my git config?</summary>
+      <p>No. Mergeline&rsquo;s colors are VS Code settings. <code>git log --graph</code> in a terminal keeps using <code>log.graphColors</code>.</p>
+    </details>
+    <details>
+      <summary>Why does a feature branch&rsquo;s color stop partway down?</summary>
+      <p>Below the commit where the feature branch started, its history is the history of the branch it came from, drawn in that branch&rsquo;s line and color.</p>
+    </details>
+    <p>Related: <a href="visualize-git-branches-vscode.html">visualize git branches in VS Code</a>, <a href="git-flow-graph-vscode.html">a git flow graph with main and develop pinned</a>, <a href="filter-git-graph-by-branch.html">filter the graph by branch</a> and <a href="git-log-graph.html"><code>git log --graph</code></a>.</p>
+  </div>
+</main>
+
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html" aria-current="page">Branch colors</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -8,6 +8,7 @@ import { readLog, readState, readStashes, insertStashes, readChanges, readCommit
 import { avatarMap } from '../../src/core/misc';
 import { layout, newLayoutState, pinBranches } from '../../src/core/graph';
 import { pinnedTips } from '../../src/core/pins';
+import { colorRules, tipColors, refColors, nameColor } from '../../src/core/colors';
 
 const d = mkdtempSync(join(tmpdir(), 'mergeline-demo-'));
 let t = Math.floor(Date.now() / 1000) - 86400 * 45;
@@ -85,14 +86,18 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   // As the panel does with the default mergeline.pinnedBranches (PINS=none for the plain layout).
   const st = newLayoutState();
   const pins = process.env.PINS === 'none' ? { tips: [], names: [] } : pinnedTips(['main', 'master', 'develop'], state.refs, commits.map((x) => x.sha), commits[0]?.sha === '*' ? { sha: '*', parent: state.head! } : undefined);
-  pinBranches(st, commits, pins.tips);
+  const kept = pinBranches(st, commits, pins.tips);
+  // COLORS='{"main":"red",...}': as the panel does with mergeline.branchColors.
+  const rules = colorRules(process.env.COLORS ? JSON.parse(process.env.COLORS) : {});
+  st.tipColor = tipColors(rules, state.refs, commits[0]?.sha === '*' ? { sha: '*', branch: state.branch } : undefined);
+  st.pinColor = kept.map((t, k) => nameColor(rules, pins.names[pins.tips.indexOf(t)]) ?? k);
   const lay = layout(commits, st);
   const sel = log.find((x) => x.subject === "Merge branch 'feature/search'") ?? log[0];
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
   const signature = await readSignature(d, sel.sha);
   const out = {
-    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, pinned: pins.names, pinPatterns: process.env.PINS === 'none' ? [] : ['main', 'master', 'develop'], worktrees, filter: { branches: [], remotes: true, authors }, notes: commits.filter((x) => noted.has(x.sha)).map((x) => x.sha), branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
+    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, pinned: pins.names, pinPatterns: process.env.PINS === 'none' ? [] : ['main', 'master', 'develop'], worktrees, filter: { branches: [], remotes: true, authors }, notes: commits.filter((x) => noted.has(x.sha)).map((x) => x.sha), branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), colors: rules.colors, refColors: refColors(rules, state.refs), colorPatterns: rules.rules.map((r) => r.pattern), avatars: avatarMap(log.map((x) => x.email)) },
     details: { type: 'details', sha: sel.sha, info, signature, note: await readNote(d, sel.sha), from: info.parents[0], to: sel.sha, files },
     authors: await readAuthors(d, { max: 0 }),
     // TAGS=1 in shot.mjs: the commit tagged v1.0.0, with its tags.

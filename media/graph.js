@@ -282,9 +282,12 @@
       // Test hook (only the extension can post here): click an element, optionally with Ctrl.
       case 'find': { const f = $('#find'); f.value = m.q; f.dispatchEvent(new Event('input')); if (m.enter) f.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); break; }
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
+      // Test hooks: right-click an element; click the open menu's item with this label.
+      case 'context': { const el = document.querySelector(m.selector); if (el) { const b = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 2, clientY: b.top + 2 })); } break; }
+      case 'menuPick': { const mi = [...menu.querySelectorAll('.mi')].find((x) => x.textContent === m.label); if (mi) mi.dispatchEvent(new MouseEvent('click', { bubbles: true })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rowsClass: rowsEl.className, nodeColors: [...rowsEl.querySelectorAll('.row')].map((r) => { const n = r.querySelector('.c-graph svg > :last-child'); return r.dataset.i + ' ' + (n ? n.getAttribute('fill') || n.getAttribute('stroke') : '') + ' ' + (r.style.getPropertyValue('--rc') || '-') + ' ' + getComputedStyle(r).backgroundColor + ' ' + getComputedStyle(r.querySelector('.c-desc')).boxShadow; }), badgeColors: [...rowsEl.querySelectorAll('.badge.bc')].map((b) => b.dataset.ref + ' ' + b.style.getPropertyValue('--bc') + ' ' + getComputedStyle(b).borderTopColor), menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -470,6 +473,8 @@
       render();
     }]);
     items.push(null, ['Reset column widths', () => { applyLayout({ ...lay, w: {} }); saveLayout(); render(); }]);
+    const rcNow = settings.rowColors || 'none';
+    items.push(null, ...[['none', 'Row colours: none'], ['stripe', 'Row colours: stripe by branch'], ['tint', 'Row colours: tint by branch']].map(([v, label]) => [(rcNow === v ? '✓ ' : '\u2003') + label, () => vscode.postMessage({ type: 'rowColors', value: v })]));
     showMenu(items, e.clientX, e.clientY);
   });
   const split = $('#split');
@@ -511,7 +516,10 @@
   window.addEventListener('resize', () => render());
 
   const x = (c) => PAD + c * LANE;
-  const color = (i) => `var(--lane-${i % 10})`;
+  // 0..9: the theme palette; 10+: custom colours from mergeline.branchColors (validated CSS from the extension).
+  const color = (i) => (i >= 10 && data && data.colors && data.colors[i - 10]) || `var(--lane-${i % 10})`;
+  /** style attribute for a branch badge whose branch has a colour in mergeline.branchColors. */
+  const badgeColor = (name) => { const c = data.refColors && data.refColors[name]; return c ? ` style="--bc:${esc(c)}"` : ''; };
 
   function segPath(s, y0) {
     const xa = x(s[0]), xb = x(s[1]);
@@ -549,9 +557,9 @@
       const cur = r.name === data.branch;
       const twins = remotes.filter((rr) => rr.name.slice(rr.remote.length + 1) === r.name);
       twins.forEach((t) => used.add(t.name));
-      out.push(`<span class="badge branch${cur ? ' current' : ''}" data-ref="${esc(r.name)}" data-type="head" title="${cur ? 'Current branch ' : 'Branch '}${esc(r.name)}${wtByBranch.has(r.name) ? ' (checked out in worktree ' + esc(wtByBranch.get(r.name).path) + ')' : ''}. Drag onto another branch or commit to merge, rebase or move it.">${cur ? '● ' : ''}${esc(r.name)}${trackHtml(r)}${twins.map((t) => `<span class="twin" data-ref="${esc(t.name)}" data-type="remote" data-remote="${esc(t.remote)}" title="${esc(t.name)}">${esc(t.remote)}</span>`).join('')}</span>`);
+      out.push(`<span class="badge branch${cur ? ' current' : ''}${badgeColor(r.name) ? ' bc' : ''}"${badgeColor(r.name)} data-ref="${esc(r.name)}" data-type="head" title="${cur ? 'Current branch ' : 'Branch '}${esc(r.name)}${wtByBranch.has(r.name) ? ' (checked out in worktree ' + esc(wtByBranch.get(r.name).path) + ')' : ''}. Drag onto another branch or commit to merge, rebase or move it.">${cur ? '● ' : ''}${esc(r.name)}${trackHtml(r)}${twins.map((t) => `<span class="twin" data-ref="${esc(t.name)}" data-type="remote" data-remote="${esc(t.remote)}" title="${esc(t.name)}">${esc(t.remote)}</span>`).join('')}</span>`);
     }
-    for (const r of remotes) if (!used.has(r.name)) out.push(`<span class="badge remote" data-ref="${esc(r.name)}" data-type="remote" data-remote="${esc(r.remote)}" title="Remote branch ${esc(r.name)}. Drag onto a branch to merge it there.">${esc(r.name)}</span>`);
+    for (const r of remotes) if (!used.has(r.name)) out.push(`<span class="badge remote${badgeColor(r.name) ? ' bc' : ''}"${badgeColor(r.name)} data-ref="${esc(r.name)}" data-type="remote" data-remote="${esc(r.remote)}" title="Remote branch ${esc(r.name)}. Drag onto a branch to merge it there.">${esc(r.name)}</span>`);
     for (const w of wtBySha.get(c.sha) || []) out.push(`<span class="badge wt${w.prunable ? ' gone' : ''}" data-wt="${esc(w.path)}" title="Worktree at ${esc(w.path)}${w.branch ? ' on ' + esc(w.branch) : ' (detached)'}${w.prunable ? ': its folder is missing' : ''}${w.locked ? ', locked' : ''}">${esc(w.path.split(/[\\/]/).filter(Boolean).pop() || w.path)}</span>`);
     const bm = bisectBy.get(c.sha);
     if (bm) { const t = data.bisect.terms; const word = bm === 'bad' ? t[0] : bm === 'good' ? t[1] : 'skip'; out.push(`<span class="badge bisect ${bm}" title="git bisect: marked ${esc(word)}">${esc(word)}</span>`); }
@@ -606,6 +614,10 @@
     const last = Math.min(n, Math.ceil((scroller.scrollTop + scroller.clientHeight) / ROW) + 10);
     const matchSet = new Set(matches);
     const dim = settings.dimOtherCommits && data.head ? headReach() : null;
+    // Setting mergeline.rowColors: colour each row by its node's line (Git Graph issue #254).
+    const rc = settings.rowColors === 'stripe' || settings.rowColors === 'tint' ? settings.rowColors : '';
+    rowsEl.classList.toggle('rc-stripe', rc === 'stripe');
+    rowsEl.classList.toggle('rc-tint', rc === 'tint');
     let h = '';
     for (let i = first; i < last; i++) {
       const c = data.commits[i];
@@ -619,7 +631,7 @@
       if (c.parents.length > 1) cls.push('merge');
       if (i === dropIndex) cls.push('drop');
       if (dim && c.kind === 'commit' && !dim.has(c.sha)) cls.push('dim');
-      h += `<div class="${cls.join(' ')}" style="top:${i * ROW}px" data-i="${i}">
+      h += `<div class="${cls.join(' ')}" style="top:${i * ROW}px${rc ? ';--rc:' + color(row.color) : ''}" data-i="${i}">
         <div class="c-graph">${graphSvg(c, row)}</div>
         <div class="c-desc">${refBadges(c)}${noteSet.has(c.sha) ? '<span class="nt" title="This commit has a git note (shown in its details)">note</span>' : ''}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
         <div class="c-date" title="${c.kind === 'uncommitted' ? '' : esc(new Date(c.date * 1000).toString())}">${c.kind === 'uncommitted' ? '' : esc(fmtDate(c.date))}</div>
@@ -1428,6 +1440,7 @@
       null,
       ['Manage remote “' + remote + '”…', { action: 'manageRemotes', remote }],
       pinItem(name.slice(remote.length + 1)),
+      ...colorItems(name.slice(remote.length + 1)),
       ...hideItems(name.slice(remote.length + 1), false),
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
@@ -1451,6 +1464,7 @@
       ['Delete…', { ...r, action: 'deleteBranch' }, isCur ? 'disabled' : 'danger'],
       null,
       pinItem(name),
+      ...colorItems(name),
       ...hideItems(name, isCur),
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
@@ -1462,6 +1476,19 @@
     if (pats.includes(n)) return ['Unpin (stop keeping it in its own column)', () => vscode.postMessage({ type: 'pin', name: n, on: false })];
     if ((data.pinned || []).includes(n)) return ['Pinned by a pattern in mergeline.pinnedBranches', null, 'disabled'];
     return ['Pin to its own column on the left', () => vscode.postMessage({ type: 'pin', name: n, on: true })];
+  }
+
+  // Setting mergeline.branchColors: a fixed colour for a branch (or all branches with its prefix).
+  function colorItems(n) {
+    const set = (p) => () => vscode.postMessage({ type: 'branchColor', pattern: p });
+    const pats = data.colorPatterns || [];
+    const items = [[pats.includes(n) ? 'Change branch colour…' : 'Set branch colour…', set(n)]];
+    const k = n.indexOf('/');
+    if (k > 0) {
+      const g = n.slice(0, k) + '/*';
+      items.push([`${pats.includes(g) ? 'Change' : 'Set'} colour of all ${n.slice(0, k)}/… branches…`, set(g)]);
+    }
+    return items;
   }
 
   // Setting mergeline.hiddenBranches: globs left out of the graph when it shows all branches.
