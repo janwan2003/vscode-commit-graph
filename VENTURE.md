@@ -512,3 +512,6 @@ on the graph). The graph itself stays free.
   avatar exception, index card, README, screenshot-tags.png. Verified: 35/35 unit, 42/42 e2e ×2 on the packaged build (5 new checks: path
   search incl. the webview's Enter flow, tag details, issue links, avatars on/off, archive zip + tar.gz contents), Chromium renders dark/light,
   vsix installs as plainbyte.mergeline@0.11.0, docs link/HTML/meta check (32 pages, 0 real problems).
+  After push: CI for main (run 44760164798) and tag v0.11.0 (run 44760164614) green, unit 35/35 + e2e 42/42; Pages deployed; live index (v0.11,
+  `mergeline-0.11.0.vsix`), the three guides, screenshot-tags.png, privacy and sitemap (30 URLs) return 200; release asset byte-identical
+  (sha256 ff58d44c…); sitemap resubmitted (HTTP 204). Inbox: 0.11.0 line appended.
