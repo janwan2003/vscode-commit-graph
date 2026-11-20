@@ -59,7 +59,7 @@
         <div class="card"><h3>A readable table <span class="plus">not built in</span></h3><p>Columns for graph, description, date, author and short hash, under a header that stays put while you scroll. Dates can be relative, ISO or in your locale&rsquo;s format.</p></div>
         <div class="card"><h3>Built for big repositories</h3><p>Only the rows on screen are drawn. Mergeline loads the first 500 commits (configurable) and fetches more as you scroll, so it stays responsive on repositories with 100,000 commits.</p></div>
         <div class="card"><h3>Commit details <span class="plus">not built in</span></h3><p>The full message, author and committer, parents, and every changed file with lines added and removed. Click a file to open it in the editor&rsquo;s own diff view.</p></div>
-        <div class="card"><h3>File history</h3><p>Right-click any file in the Explorer, an editor tab or the editor and choose <strong>Show File History in Mergeline</strong>. The graph shows only the commits that touched it, still connected, with the file highlighted in each commit&rsquo;s details. Renames are not followed yet.</p></div>
+        <div class="card"><h3>File history</h3><p>Right-click any file in the Explorer, an editor tab or the editor and choose <strong>Show File History in Mergeline</strong>. The graph shows only the commits that touched it, still connected, with the file highlighted in each commit&rsquo;s details. Renamed and moved files are followed back through their old names.</p></div>
         <div class="card"><h3>Commit order: date or topology</h3><p>Sort by commit date, author date or topology from the toolbar or the <code>mergeline.commitOrder</code> setting. Topology order keeps each branch&rsquo;s commits together, which means fewer crossing lines on busy repositories.</p></div>
         <div class="card"><h3>Compare any two commits <span class="plus">not built in</span></h3><p><kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to list every file that differs between the two, and open each diff.</p></div>
         <div class="card"><h3>Find <span class="plus">not built in</span></h3><p>Search subjects, authors, hashes and branch or tag names, and step through matches with next and previous.</p></div>
@@ -102,11 +102,13 @@ cursor --install-extension mergeline-0.2.0.vsix</pre></li>
       <h2>Git guides</h2>
       <div class="grid">
         <div class="card"><h3><a href="visualize-git-branches-vscode.html">See a branch graph in VS Code</a></h3><p><code>git log --graph</code>, the built-in Source Control Graph, and when you want more.</p></div>
+        <div class="card"><h3><a href="git-log-graph.html"><code>git log --graph</code> reference</a></h3><p>The command, its flags, <code>--date-order</code> vs <code>--topo-order</code>, a <code>git lg</code> alias, and how to read the output.</p></div>
         <div class="card"><h3><a href="git-file-history-vscode.html">Git file history in VS Code</a></h3><p>Who changed a file and when: a file-history graph, <code>git log -- path</code>, <code>--follow</code>, blame and the pickaxe.</p></div>
         <div class="card"><h3><a href="git-rebase-vs-merge.html">Rebase or merge?</a></h3><p>What each does to your history, when to pick which, and how to recover from either.</p></div>
         <div class="card"><h3><a href="undo-git-reset-cherry-pick-revert.html">Undo in git: reset, revert, cherry-pick, reflog</a></h3><p>Soft, mixed and hard resets, safe reverts, copying commits, and getting lost work back.</p></div>
         <div class="card"><h3><a href="git-stash-guide.html">The git stash guide</a></h3><p>Push, list, apply, pop, drop, and turn a stash into a branch.</p></div>
         <div class="card"><h3><a href="git-graph-alternative.html">A maintained alternative to Git Graph</a></h3><p>The facts, the licence question, and how to switch.</p></div>
+        <div class="card"><h3><a href="git-graph-cursor-vscodium.html">A git graph in Cursor and VSCodium</a></h3><p>Why VS Code forks use Open VSX, how to install a <code>.vsix</code>, and what to check in a graph extension.</p></div>
       </div>
     </section>
 
@@ -126,7 +128,7 @@ cursor --install-extension mergeline-0.2.0.vsix</pre></li>
       </details>
       <details>
         <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
-        <p>Yes. They are built on VS Code and install the same <code>.vsix</code>. The right-click menus are drawn by Mergeline itself, so they do not depend on editor-specific menu APIs.</p>
+        <p>It is built for them: they run VS Code extensions and install the same <code>.vsix</code>, Mergeline uses only standard VS Code APIs, and its right-click menus are drawn by Mergeline itself, so they do not depend on editor-specific menu APIs. Our automated tests run in VS Code 1.147; if something misbehaves in a fork, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a>. See <a href="git-graph-cursor-vscodium.html">Git graph in Cursor and VSCodium</a>.</p>
       </details>
       <details>
         <summary>Can it break my repository?</summary>
@@ -154,11 +156,13 @@ cursor --install-extension mergeline-0.2.0.vsix</pre></li>
     </nav>
     <nav class="guides" aria-label="Guides">
       <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
       <a href="git-file-history-vscode.html">File history</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>
       <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
     </nav>
   </div>
 </footer>

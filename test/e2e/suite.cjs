@@ -87,7 +87,35 @@ exports.run = async function run() {
     const shas = new Set(d.commits.map((c) => c.sha));
     for (const c of d.commits) for (const p of c.parents) assert.ok(shas.has(p), 'parent of ' + c.subject + ' is in the list');
     await panel.testMessage({ type: 'filter', branch: '', remotes: true, path: '' });
-    assert.equal(panel.lastData.commits.filter((c) => c.kind === 'commit').length, 8, 'clearing the path shows everything again');
+    // A refresh already in flight defers this one, so wait for the data rather than assert at once.
+    await until(() => panel.lastData.commits.filter((c) => c.kind === 'commit').length === 8, 10000, 'clearing the path shows everything again');
+  });
+
+  await check('file history follows a rename (parser.txt was src.txt)', async () => {
+    await vscode.commands.executeCommand('mergeline.fileHistory', vscode.Uri.file(root + '/parser.txt'));
+    const d = await until(() => panel.lastData.names.length === 2 && panel.lastData, 10000, 'rename-following history');
+    assert.deepEqual(d.names, ['parser.txt', 'src.txt']);
+    assert.deepEqual(d.commits.map((c) => c.subject), ['Rename src.txt to parser.txt', 'Parser: handle empty input', 'Add parser skeleton']);
+    const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && /also as/.test(panel.lastPong.pathbar) && panel.lastPong; }, 10000, 'path bar shows the old name');
+    assert.match(pong.pathbar, /parser\.txt.*also as src\.txt/);
+    await panel.testMessage({ type: 'filter', branch: '', remotes: true, path: '' });
+  });
+
+  await check('find in all history: search beyond the loaded page, load up to the match and select it', async () => {
+    await vscode.workspace.getConfiguration('mergeline').update('initialCommits', 3, vscode.ConfigurationTarget.Workspace);
+    await until(() => panel.lastData.commits.filter((c) => c.kind === 'commit').length === 3, 10000, 'small page');
+    const first = git('rev-list', '--max-parents=0', 'HEAD');
+    await panel.testMessage({ type: 'searchHistory', q: 'initial COMMIT' });
+    const h = panel.lastHistory;
+    assert.equal(h.total, 1);
+    assert.equal(h.matches[0].sha, first);
+    assert.ok(!panel.lastData.commits.some((c) => c.sha === first), 'not loaded before');
+    await panel.testMessage({ type: 'loadTo', sha: first, index: h.matches[0].index });
+    await until(() => panel.lastData.commits.some((c) => c.sha === first), 10000, 'loaded after loadTo');
+    const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.selected === first && panel.lastPong; }, 10000, 'webview selects the match');
+    assert.ok(pong.details !== undefined);
+    await vscode.workspace.getConfiguration('mergeline').update('initialCommits', undefined, vscode.ConfigurationTarget.Workspace);
+    await until(() => panel.lastData.commits.filter((c) => c.kind === 'commit').length === 8, 10000, 'page size restored');
   });
 
   await check('commit order: topology keeps a branch together, saved as a setting', async () => {

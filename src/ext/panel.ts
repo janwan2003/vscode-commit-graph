@@ -2,7 +2,7 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, Commit, RepoState, CommitOrder } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, Commit, RepoState, CommitOrder } from '../core/gitlog';
 import { layout } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
@@ -25,7 +25,8 @@ export class GraphPanel implements vscode.Disposable {
   /** Last data posted to the webview (tests read it). */
   lastPong: any;
   lastDetails: any;
-  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number } | undefined;
+  lastHistory: any;
+  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[] } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
     if (GraphPanel.current) {
@@ -62,6 +63,7 @@ export class GraphPanel implements vscode.Disposable {
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('mergeline')) {
+          if (e.affectsConfiguration('mergeline.initialCommits')) this.max = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
           this.postSettings();
           this.refresh(true);
         }
@@ -77,11 +79,12 @@ export class GraphPanel implements vscode.Disposable {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${w.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${w.cspSource} data:; font-src ${w.cspSource};">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${media('graph.css')}"><title>Mergeline</title></head>
-<body><div id="app"></div><script nonce="${nonce}" src="${media('graph.js')}"></script></body></html>`;
+<body><div id="app"></div><script nonce="${nonce}" src="${media('rows.js')}"></script><script nonce="${nonce}" src="${media('graph.js')}"></script></body></html>`;
   }
 
   private post(m: any) {
     if (m?.type === 'details') this.lastDetails = m;
+    if (m?.type === 'history') this.lastHistory = m;
     return this.panel.webview.postMessage(m);
   }
 
@@ -165,13 +168,22 @@ export class GraphPanel implements vscode.Disposable {
     const showStash = cfg.get<boolean>('showStashes', true) && !fileMode;
     const showUnc = cfg.get<boolean>('showUncommitted', true) && !fileMode;
     const order = cfg.get<CommitOrder>('commitOrder', 'date');
+    const opts = this.logOptions(order);
+    let names: string[] = [];
+    let raw = 0;
     const [commits0, state, stashes, unc] = await Promise.all([
-      readLog(root, { max: this.max + 1, branches: this.filter.branch ? [this.filter.branch] : undefined, remotes: this.filter.remotes, order, paths: fileMode ? [this.filter.path!] : undefined }),
+      fileMode
+        ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
+            names = h.names;
+            raw = h.raw;
+            return h.commits;
+          })
+        : readLog(root, { ...opts, max: this.max + 1 }).then((c) => ((raw = c.length), c)),
       readState(root),
       showStash ? readStashes(root) : Promise.resolve([]),
       showUnc ? readStatusCount(root) : Promise.resolve(0),
     ]);
-    const hasMore = commits0.length > this.max;
+    const hasMore = raw > this.max;
     let commits = hasMore ? commits0.slice(0, this.max) : commits0;
     commits = insertStashes(commits, stashes);
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
@@ -181,21 +193,41 @@ export class GraphPanel implements vscode.Disposable {
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
     const lay = layout(commits);
-    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc };
+    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names };
     this.post({
       type: 'data',
       repo: root,
       commits,
-      rows: lay.rows,
+      packed: lay.packed,
+      start: lay.start,
       width: lay.width,
       refs: state.refs,
       head: state.head,
       branch: state.branch,
       hasMore,
       filter: this.filter,
+      names,
       order,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
     });
+  }
+
+  private logOptions(order: CommitOrder) {
+    return { max: this.max, branches: this.filter.branch ? [this.filter.branch] : undefined, remotes: this.filter.remotes, order };
+  }
+
+  /** Find box "All history": search every commit the graph could show, not just the loaded ones. */
+  private async searchHistory(q: string) {
+    const root = this.repo;
+    if (!root) return;
+    const order = vscode.workspace.getConfiguration('mergeline').get<CommitOrder>('commitOrder', 'date');
+    const opts = { ...this.logOptions(order), paths: this.filter.path ? (this.lastData?.names.length ? this.lastData.names : [this.filter.path]) : undefined };
+    try {
+      const res = await searchLog(root, opts, q, this.lastData?.state.refs ?? []);
+      this.post({ type: 'history', q, ...res });
+    } catch (e) {
+      this.post({ type: 'history', q, matches: [], total: 0, error: String((e as Error)?.message ?? e) });
+    }
   }
 
   private async onMessage(m: any) {
@@ -218,6 +250,20 @@ export class GraphPanel implements vscode.Disposable {
         this.max += vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
         await this.refresh(true);
         break;
+      case 'searchHistory':
+        await this.searchHistory(String(m.q ?? ''));
+        break;
+      case 'loadTo': {
+        // Load enough pages to include row `index` (a history search match), then reveal it.
+        const page = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
+        const want = Math.ceil((Number(m.index) + 1 + 50) / page) * page;
+        if (want > this.max) {
+          this.max = want;
+          await this.refresh(true);
+        }
+        this.post({ type: 'reveal', sha: m.sha });
+        break;
+      }
       case 'filter':
         this.filter = { branch: m.branch || null, remotes: !!m.remotes, path: m.path === undefined ? this.filter.path : m.path || null };
         await this.refresh(true);

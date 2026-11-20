@@ -20,8 +20,8 @@ account, has no paid tier and sends no telemetry.
 - **Fast**: only visible rows are rendered. The first 500 commits load at once and more load as you scroll. On a 100,000-commit repository the first page is ready in about 0.35 s.
 - **Details**: click a commit to see its full message, author, committer, parents and changed files with +/− counts and renames. Click a file to open it in VS Code's diff editor.
 - **Compare**: Ctrl/Cmd-click a second commit to see every file that changed between the two. This works with the working tree too.
-- **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches.
-- **File history**: right-click a file (Explorer, editor tab or editor) → **Show File History in Mergeline** to see only the commits that touched it, still drawn as a connected graph. Renames are not followed yet.
+- **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches. **All history** (or Enter when nothing loaded matches) searches every commit the graph can show, not just the loaded ones (`git log --grep` / `--author`, hash prefix, ref names), and loads as far as needed to show the match.
+- **File history**: right-click a file (Explorer, editor tab or editor) → **Show File History in Mergeline** to see only the commits that touched it, still drawn as a connected graph. Renamed or moved files are followed back through their old names (shown in the bar above the graph).
 - **Filter**: show one branch, or hide remote branches.
 - **Order**: date, topology or author date. Topology keeps each branch's commits together, which makes busy histories much narrower.
 - **Keyboard**: ↑/↓ move between commits, Esc closes the details pane.

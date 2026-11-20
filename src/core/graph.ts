@@ -17,9 +17,33 @@ export interface Row {
   bot: Seg[];
 }
 
+/**
+ * Compact form of a Row sent to the webview (see media/rows.js for the decoder).
+ * [col, color, lanes, into, diag, fresh]:
+ * - lanes: the lanes open below this row, one char each: '.' for a free lane, else its colour digit.
+ *   The previous row's `lanes` (or the starting state) gives the lanes entering this row.
+ * - into: entering lanes that end in this node (drawn as top segments [i, col]); every other
+ *   entering lane passes straight through the top half.
+ * - diag: bottom-half segments that are not straight, flattened [a, b, c, a, b, c, ...].
+ * - fresh: open lanes below that start at the node (drawn only by `diag`); every other open
+ *   lane is a straight bottom-half line.
+ * Straight pass-through lines are most of a wide graph, so this is several times smaller.
+ */
+export type PackedRow = [col: number, color: number, lanes: string, into: number[], diag: number[], fresh: number[]];
+
 export interface Layout {
   rows: Row[];
+  /** The same rows in compact form. */
+  packed: PackedRow[];
+  /** Lanes entering the first row of this call, in the `lanes` string format. */
+  start: string;
   width: number; // max number of columns used
+}
+
+function laneString(lanes: (string | null)[], colors: number[]): string {
+  let s = '';
+  for (let i = 0; i < lanes.length; i++) s += lanes[i] === null ? '.' : String(colors[i]);
+  return s;
 }
 
 /**
@@ -41,7 +65,9 @@ const PALETTE = 10;
 
 export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState()): Layout {
   const rows: Row[] = [];
+  const packed: PackedRow[] = [];
   const { lanes, colors } = st;
+  const start = laneString(lanes, colors);
   const free = (): number => {
     const i = lanes.indexOf(null);
     if (i >= 0) return i;
@@ -59,6 +85,8 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
   for (const c of commits) {
     const top: Seg[] = [];
     const bot: Seg[] = [];
+    const into: number[] = [];
+    const diag: number[] = [];
     const before = lanes.slice();
     let col = before.indexOf(c.sha);
     if (col < 0) col = alloc(c.sha); // branch tip: nothing above it
@@ -68,6 +96,7 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
       if (l === null) continue;
       if (l === c.sha) {
         top.push([i, col, colors[i]]);
+        into.push(i);
         if (i !== col) lanes[i] = null; // merges into the node
       } else top.push([i, i, colors[i]]);
     }
@@ -98,21 +127,30 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
     }
     for (let i = 0; i < lanes.length; i++) {
       if (lanes[i] === null) continue;
-      if (fresh.has(i)) bot.push([col, i, colors[i]]);
-      else if (i === col) bot.push([col, col, color]);
+      if (fresh.has(i)) {
+        bot.push([col, i, colors[i]]);
+        diag.push(col, i, colors[i]);
+      } else if (i === col) bot.push([col, col, color]);
       else {
         bot.push([i, i, colors[i]]);
-        if (joins.has(i)) bot.push([col, i, colors[i]]);
+        if (joins.has(i)) {
+          bot.push([col, i, colors[i]]);
+          diag.push(col, i, colors[i]);
+        }
       }
     }
-    if (folded >= 0) bot.push([folded, col, colors[folded]]);
+    if (folded >= 0) {
+      bot.push([folded, col, colors[folded]]);
+      diag.push(folded, col, colors[folded]);
+    }
     while (lanes.length && lanes[lanes.length - 1] === null) {
       lanes.pop();
       colors.pop();
     }
     st.width = Math.max(st.width, lanes.length, col + 1, before.length);
     rows.push({ col, color, top, bot });
+    packed.push([col, color, laneString(lanes, colors), into, diag, [...fresh].filter((i) => lanes[i] !== null)]);
   }
-  return { rows, width: st.width };
+  return { rows, packed, start, width: st.width };
 }
 

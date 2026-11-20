@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, countStatus, readStatusCount } from '../src/core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, countStatus, readStatusCount } from '../src/core/gitlog';
 import { layout, newLayoutState, Row } from '../src/core/graph';
 
 function sh(cwd: string, ...args: string[]) {
@@ -232,4 +232,100 @@ test('layout: lanes waiting for the same commit collapse into one', () => {
   // own lane down to b, so the graph narrows row by row (it used to stay 4 wide).
   assert.deepEqual(lay.rows.map((r) => r.top.length), [0, 2, 3, 4, 3, 2, 1]);
   assert.equal(lay.rows[6].top.length, 1, 'only one line reaches the base');
+});
+
+// The webview decoder (plain JS, also loaded as a script by the webview).
+// @ts-expect-error plain JS module without type declarations
+import rowsJs from '../media/rows.js';
+const { unpackRow } = rowsJs as { unpackRow: (above: string, p: unknown) => Row };
+
+function unpackAll(lay: { packed: unknown[]; start: string }): Row[] {
+  let above = lay.start;
+  return lay.packed.map((p: any) => {
+    const r = unpackRow(above, p);
+    above = p[2];
+    return r;
+  });
+}
+const norm = (rows: Row[]) => rows.map((r) => ({ col: r.col, color: r.color, top: [...r.top].map(String).sort(), bot: [...r.bot].map(String).sort() }));
+
+test('packed rows decode to exactly the full rows (fixture, pages, random DAGs)', async () => {
+  const d = makeFixture();
+  try {
+    const commits = await readLog(d, { max: 100 });
+    const full = layout(commits);
+    assert.deepEqual(norm(unpackAll(full)), norm(full.rows));
+    const st = newLayoutState();
+    const a = layout(commits.slice(0, 4), st);
+    const b = layout(commits.slice(4), st);
+    assert.equal(b.start, a.packed[a.packed.length - 1][2]);
+    assert.deepEqual(norm([...unpackAll(a), ...unpackAll(b)]), norm(full.rows));
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+  // Random DAGs: parents always come later in the list (children before parents),
+  // with merges, octopus merges, many branch tips and shared parents.
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let trial = 0; trial < 200; trial++) {
+    const n = 5 + Math.floor(rnd() * 120);
+    const commits = Array.from({ length: n }, (_, i) => {
+      const parents: string[] = [];
+      const k = i === n - 1 ? 0 : rnd() < 0.15 ? 2 + Math.floor(rnd() * 2) : 1;
+      for (let j = 0; j < k; j++) parents.push('c' + (i + 1 + Math.floor(rnd() * Math.min(12, n - i - 1))));
+      return { sha: 'c' + i, parents };
+    });
+    const lay = layout(commits);
+    assert.deepEqual(norm(unpackAll(lay)), norm(lay.rows), `trial ${trial}`);
+  }
+});
+
+test('searchLog finds commits by message, author, hash and ref with their graph positions', async () => {
+  const d = makeFixture();
+  try {
+    const all = await readLog(d, { max: 100 });
+    const pos = (sha: string) => all.findIndex((c) => c.sha === sha);
+    const st = await readState(d);
+    const one = await searchLog(d, { max: 1 }, 'HOTFIX one', st.refs);
+    assert.equal(one.total, 1);
+    const hot = all.find((c) => c.subject === 'hotfix one')!;
+    assert.deepEqual(one.matches, [{ sha: hot.sha, index: pos(hot.sha) }]);
+    // Author (case-insensitive): every commit is by Ada; results are in graph order.
+    const ada = await searchLog(d, { max: 1 }, 'ada@EXAMPLE', st.refs);
+    assert.deepEqual(ada.matches.map((m) => m.index), all.map((_, i) => i));
+    // Hash prefix and ref name (tag v0.1 points at "second").
+    const second = all.find((c) => c.subject === 'second')!;
+    assert.deepEqual((await searchLog(d, { max: 1 }, second.sha.slice(0, 8), st.refs)).matches.map((m) => m.sha), [second.sha]);
+    assert.deepEqual((await searchLog(d, { max: 1 }, 'v0.1', st.refs)).matches.map((m) => m.sha), [second.sha]);
+    // Fixed string, not a regex; limit caps the list but not the total.
+    assert.equal((await searchLog(d, { max: 1 }, 'f.*e', st.refs)).total, 0);
+    const capped = await searchLog(d, { max: 1 }, 'ada', st.refs, 3);
+    assert.equal(capped.matches.length, 3);
+    assert.equal(capped.total, all.length);
+    // Branch-limited: hotfix is not on feature.
+    assert.equal((await searchLog(d, { max: 1, branches: ['feature'] }, 'hotfix one')).total, 0);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('file history follows renames and skips a new file that reused the old name', async () => {
+  const d = makeFixture();
+  try {
+    commit(d, 'b.txt', 'new b'); // unrelated file at c.txt's old name
+    commit(d, 'c.txt', 'edit c');
+    const h = await readFileHistory(d, { max: 100 }, 'c.txt');
+    assert.deepEqual(h.names, ['c.txt', 'b.txt']);
+    assert.deepEqual(h.commits.map((c) => c.subject), ['edit c', 'rename b to c', 'main three']);
+    const shas = new Set(h.commits.map((c) => c.sha));
+    for (const c of h.commits) for (const p of c.parents) assert.ok(shas.has(p), 'parent of ' + c.subject + ' is listed');
+    assert.equal(h.commits[0].parents[0], h.commits[1].sha, 'parent rewritten past the dropped "new b" commit');
+    checkContinuity(layout(h.commits).rows);
+    // A file that was never renamed: same as a plain path-limited log.
+    const a = await readFileHistory(d, { max: 100 }, 'a.txt');
+    assert.deepEqual(a.names, ['a.txt']);
+    assert.deepEqual(a.commits, await readLog(d, { max: 100, paths: ['a.txt'] }));
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
 });

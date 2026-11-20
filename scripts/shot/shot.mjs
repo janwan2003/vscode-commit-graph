@@ -42,7 +42,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
     }, 50);
   }
 } });
-</script><script>${readFileSync('media/graph.js', 'utf8')}</script></body></html>`;
+</script><script>${readFileSync('media/rows.js', 'utf8')}</script><script>${readFileSync('media/graph.js', 'utf8')}</script></body></html>`;
 writeFileSync(join(tmp, 'h.html'), html);
 const common = ['--headless', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--window-size=1280,800', '--virtual-time-budget=3000'];
 execFileSync(chrome, [...common, `--screenshot=${out}`, 'file://' + join(tmp, 'h.html')], { stdio: 'ignore' });

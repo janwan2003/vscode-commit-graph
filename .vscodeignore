@@ -1,6 +1,7 @@
 **
 !dist/extension.js
 !media/graph.js
+!media/rows.js
 !media/graph.css
 !media/icon.png
 !media/tab.svg

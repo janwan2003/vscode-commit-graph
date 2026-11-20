@@ -57,7 +57,7 @@
         <li><strong>Go back.</strong> Click <strong>Show all commits</strong> in the banner to return to the full graph.</li>
       </ol>
       <p>Stashes and the uncommitted-changes row are hidden in this mode, because they cannot be filtered by path. The branch filter and the remotes toggle still apply.</p>
-      <p class="note warn"><strong>Limitation:</strong> renames are not followed yet. If the file was renamed or moved, its history stops at the commit that did it. To see what came before, run the command on the old path (if a file still exists there), or use <code>git log --follow</code> in a terminal, described below.</p>
+      <p class="note"><strong>Renames are followed</strong> (since 0.3.0). If the file was renamed or moved, Mergeline finds its earlier names with <code>git log --follow</code> and keeps going; the bar above the graph shows them (&ldquo;also as &hellip;&rdquo;). A different file that later reused an old name is left out. Like <code>--follow</code> itself, this relies on git&rsquo;s similarity guess, described below.</p>
     </section>
 
     <h2 id="log"><code>git log</code> for one file</h2>
@@ -106,7 +106,7 @@
     </details>
     <details>
       <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
-      <p>Yes. They are built on VS Code and install the same <code>.vsix</code>. Download it from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>). Listings on the VS Code Marketplace and Open VSX are coming soon.</p>
+      <p>It is built for them (they install the same <code>.vsix</code>, and Mergeline uses only standard VS Code APIs); our automated tests run in VS Code 1.147. Download it from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>). Listings on the VS Code Marketplace and Open VSX are coming soon.</p>
     </details>
   </div>
 </main>
@@ -121,11 +121,13 @@
     </nav>
     <nav class="guides" aria-label="Guides">
       <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
       <a href="git-file-history-vscode.html" aria-current="page">File history</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>
       <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
     </nav>
   </div>
 </footer>

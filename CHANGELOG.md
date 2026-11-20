@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 (2026-11-20)
+
+- **Find in all history.** The find box searches only the loaded commits; when the repository has more, an **All history** button (or Enter when nothing loaded matches) searches every commit the graph can show: message, author name or email, hash prefix and ref names, case-insensitive. Stepping to a match that is not loaded yet loads the graph down to it and selects it.
+- **File history follows renames.** If the file was renamed or moved, its history continues under the old names (shown as "also as …" above the graph). A different file that later reused an old name is left out, and the graph stays connected across the commits that are dropped.
+- **Much smaller graph data.** Rows are sent in a compact form and the webview rebuilds the straight lines itself. On git.git's first 5,000 commits the graph part of each refresh drops from 6.58 MB to 0.57 MB, and the whole message from 8.0 MB to 2.0 MB.
+- Fixed: changing `mergeline.initialCommits` now applies straight away instead of after switching repositories.
+
 ## 0.2.0 (2026-11-20)
 
 - **File history.** Right-click a file in the Explorer, an editor tab or the editor, and choose **Show File History in Mergeline**. The graph then shows only the commits that touched that file, still connected as a graph, and the details pane highlights the file. **Show all commits** goes back.

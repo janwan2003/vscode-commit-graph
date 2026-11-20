@@ -95,9 +95,10 @@ export interface LogOptions {
 
 export type CommitOrder = 'date' | 'topo' | 'author-date';
 
-export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
+/** git log arguments for the revisions, order and paths in `o` (no format or count). */
+function logArgs(o: LogOptions, extra: string[]): string[] {
   const order = o.order === 'topo' ? '--topo-order' : o.order === 'author-date' ? '--author-date-order' : '--date-order';
-  const args = ['-c', 'log.showSignature=false', 'log', order, '--no-color', `--max-count=${o.max}`, `--format=${LOG_FORMAT}`];
+  const args = ['-c', 'log.showSignature=false', 'log', order, '--no-color', ...extra];
   // With a pathspec, --parents turns on parent rewriting so %P names the nearest
   // ancestor that touched the path and the graph stays connected.
   if (o.paths && o.paths.length) args.push('--parents');
@@ -110,13 +111,117 @@ export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
   if (o.extraRevs) args.push(...o.extraRevs);
   args.push('--');
   if (o.paths) args.push(...o.paths.map((p) => ':(literal)' + p));
+  return args;
+}
+
+const EMPTY_REPO = /unknown revision|bad revision|bad default revision|does not have any commits/;
+
+export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
   try {
-    return parseLog(await git(cwd, args));
+    return parseLog(await git(cwd, logArgs(o, [`--max-count=${o.max}`, `--format=${LOG_FORMAT}`])));
   } catch (e) {
     // Empty repository: HEAD does not resolve.
-    if (e instanceof GitError && /unknown revision|bad revision|bad default revision|does not have any commits/.test(e.message)) return [];
+    if (e instanceof GitError && EMPTY_REPO.test(e.message)) return [];
     throw e;
   }
+}
+
+export interface FileHistory {
+  commits: Commit[];
+  /** Every name the file had (newest first); one entry when it was never renamed. */
+  names: string[];
+  /** Commits read before filtering; more than the caller's page size means there are more. */
+  raw: number;
+}
+
+/**
+ * History of one file across renames. `git log --follow` finds the file's earlier
+ * names and the commits that touched it; the graph comes from a log limited to all
+ * those names (so parents are rewritten and lanes stay connected), keeping only the
+ * commits `--follow` found. That drops unrelated files that later reused an old
+ * name. Parents that point at a dropped commit are replaced by its own parents.
+ */
+export async function readFileHistory(cwd: string, o: LogOptions, file: string): Promise<FileHistory> {
+  const follow = { ...o, paths: [file] };
+  let namesOut = '';
+  let shasOut = '';
+  try {
+    [namesOut, shasOut] = await Promise.all([
+      git(cwd, logArgs(follow, ['--follow', '-M', '--format=', '--name-only', '-z'])),
+      git(cwd, logArgs(follow, ['--follow', '-M', '--format=%H'])),
+    ]);
+  } catch (e) {
+    if (!(e instanceof GitError && EMPTY_REPO.test(e.message))) throw e;
+  }
+  const names = [file];
+  for (const n of namesOut.split('\0')) {
+    const t = n.replace(/^\n+/, '');
+    if (t && !names.includes(t)) names.push(t);
+  }
+  if (names.length === 1) {
+    const commits = await readLog(cwd, follow);
+    return { commits, names, raw: commits.length };
+  }
+  const keep = new Set(shasOut.split('\n').filter(Boolean));
+  const all = await readLog(cwd, { ...o, paths: names });
+  const bySha = new Map(all.map((c) => [c.sha, c]));
+  const resolve = (sha: string, seen: Set<string>, out: string[]) => {
+    if (seen.has(sha)) return;
+    seen.add(sha);
+    const c = bySha.get(sha);
+    if (keep.has(sha) || !c) {
+      if (!out.includes(sha)) out.push(sha); // kept, or not loaded yet (beyond this page)
+      return;
+    }
+    for (const p of c.parents) resolve(p, seen, out);
+  };
+  const commits: Commit[] = [];
+  for (const c of all) {
+    if (!keep.has(c.sha)) continue;
+    const parents: string[] = [];
+    const seen = new Set<string>();
+    for (const p of c.parents) resolve(p, seen, parents);
+    commits.push({ ...c, parents });
+  }
+  return { commits, names, raw: all.length };
+}
+
+export interface HistoryMatch {
+  sha: string;
+  /** Position in the full log for the same options (0 = first row), so the caller knows how much to load. */
+  index: number;
+}
+
+/**
+ * Find commits anywhere in the history shown by `o`, not just the loaded page: message
+ * (`--grep`), author name or email (`--author`), hash prefix, and ref names in `refs`.
+ * Case-insensitive, fixed string. Returns at most `limit` matches in graph order.
+ */
+export async function searchLog(cwd: string, o: LogOptions, query: string, refs: Ref[] = [], limit = 2000): Promise<{ matches: HistoryMatch[]; total: number }> {
+  const q = query.trim();
+  if (!q) return { matches: [], total: 0 };
+  const run = (extra: string[]) => git(cwd, logArgs(o, ['--format=%H', ...extra])).catch((e) => {
+    if (e instanceof GitError && EMPTY_REPO.test(e.message)) return '';
+    throw e;
+  });
+  const [all, msg, author] = await Promise.all([run([]), run(['-i', '-F', `--grep=${q}`]), run(['-i', '-F', `--author=${q}`])]);
+  const hit = new Set<string>();
+  for (const out of [msg, author]) for (const h of out.split('\n')) if (h) hit.add(h);
+  const lq = q.toLowerCase();
+  for (const r of refs) if (r.name.toLowerCase().includes(lq)) hit.add(r.sha);
+  const hex = /^[0-9a-f]{4,40}$/.test(lq);
+  const matches: HistoryMatch[] = [];
+  let total = 0;
+  let index = 0;
+  for (const h of all.split('\n')) {
+    if (!h) continue;
+    if (hit.has(h) || (hex && h.startsWith(lq))) {
+      total++;
+      if (matches.length < limit) matches.push({ sha: h, index });
+    }
+    index++;
+  }
+  return { matches, total };
 }
 
 export function parseRefs(out: string): Ref[] {

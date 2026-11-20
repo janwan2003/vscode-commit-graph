@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",

@@ -21,6 +21,10 @@
   let matchPos = -1;
   let loadingMore = false;
   let details = null;
+  /** History search results for query `q`: { q, matches: [{sha, index}], total }; null when off. */
+  let hist = null;
+  let histPending = null; // query sent, answer not back yet
+  let pendingReveal = null; // sha to select once it is loaded
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const short = (s) => (s && s.length === 40 ? s.slice(0, 7) : s || '');
@@ -35,7 +39,7 @@
     <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
     <span class="grow"></span>
     <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref)" spellcheck="false" aria-label="Find">
-      <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span></span>
+      <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span><button id="findall" title="Search the whole history (message, author, hash, ref), not just the loaded commits" hidden>All history</button></span>
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
     <button id="refresh" title="Refresh">Refresh</button>
   </div>
@@ -67,10 +71,22 @@
   $('#fetch').addEventListener('click', () => vscode.postMessage({ type: 'action', action: 'fetch' }));
   $('#find').addEventListener('input', () => runFind(true));
   $('#find').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') step(e.shiftKey ? -1 : 1);
+    if (e.key === 'Enter') {
+      // Nothing among the loaded commits: look through the whole history instead.
+      if (!matches.length && !hist && data && data.hasMore && e.target.value.trim()) searchAll();
+      else step(e.shiftKey ? -1 : 1);
+    }
     if (e.key === 'Escape') { e.target.value = ''; runFind(false); scroller.focus(); }
   });
   $('#next').addEventListener('click', () => step(1));
+  $('#findall').addEventListener('click', searchAll);
+  function searchAll() {
+    const q = $('#find').value.trim();
+    if (!q) return;
+    histPending = q;
+    $('#count').textContent = 'searching…';
+    vscode.postMessage({ type: 'searchHistory', q });
+  }
   $('#prev').addEventListener('click', () => step(-1));
   function sendFilter() {
     vscode.postMessage({ type: 'filter', branch: $('#branch').value, remotes: $('#remotes').checked });
@@ -84,9 +100,11 @@
       case 'repos': repos = m.repos; currentRepo = m.repo; fillRepos(); break;
       case 'data': setData(m); break;
       case 'details': showDetails(m); break;
+      case 'history': gotHistory(m); break;
+      case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent }); break;
     }
   });
 
@@ -109,6 +127,7 @@
   function setData(m) {
     const repoChanged = !data || data.repo !== m.repo;
     data = m;
+    rowCache = new Map();
     loadingMore = false;
     $('#msg').hidden = true;
     refsBySha = new Map();
@@ -125,7 +144,7 @@
     $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
     const pb = $('#pathbar');
     if (m.filter.path) {
-      pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code><span class="pb-n">${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
+      pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code>${m.names && m.names.length > 1 ? `<span class="pb-n" title="${esc(m.names.slice(1).join('\n'))}">also as ${m.names.slice(1, 3).map((n) => `<code>${esc(n)}</code>`).join(', ')}${m.names.length > 3 ? ` +${m.names.length - 3}` : ''}</span>` : ''}<span class="pb-n">${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
       pb.hidden = false;
     } else pb.hidden = true;
     if (repoChanged) { selected = null; compareSha = null; closeDetails(); scroller.scrollTop = 0; }
@@ -139,7 +158,20 @@
     if (lm) lm.addEventListener('click', loadMore);
     if (!m.commits.length) showMsg(m.filter.path ? 'No commits touch this file on the shown branches. It may be new or untracked.' : 'This repository has no commits yet.');
     runFind(false);
+    if (pendingReveal && indexBySha.has(pendingReveal)) { const r = pendingReveal; pendingReveal = null; select(r, true); }
     render();
+  }
+
+  // Rows arrive packed (see media/rows.js); decode the visible ones on demand.
+  let rowCache = new Map();
+  function rowAt(i) {
+    let r = rowCache.get(i);
+    if (!r) {
+      r = MergelineRows.unpackRow(i ? data.packed[i - 1][2] : data.start, data.packed[i]);
+      if (rowCache.size > 2000) rowCache = new Map();
+      rowCache.set(i, r);
+    }
+    return r;
   }
 
   function graphWidth() {
@@ -227,7 +259,7 @@
     let h = '';
     for (let i = first; i < last; i++) {
       const c = data.commits[i];
-      const row = data.rows[i];
+      const row = rowAt(i);
       const cls = ['row'];
       if (c.sha === selected) cls.push('sel');
       if (c.sha === compareSha) cls.push('cmp');
@@ -307,8 +339,8 @@
     if (m.error) head += `<div class="d-err">${esc(m.error)}</div>`;
     const add = m.files.reduce((n, f) => n + (f.additions || 0), 0);
     const del = m.files.reduce((n, f) => n + (f.deletions || 0), 0);
-    const focus = data.filter && data.filter.path;
-    const files = m.files.map((f, k) => `<li class="file${focus && (f.path === focus || f.oldPath === focus) ? ' focus' : ''}" data-k="${k}" title="${esc(STATUS[f.status] || f.status)}: open diff">
+    const focus = data.filter && data.filter.path ? (data.names && data.names.length ? data.names : [data.filter.path]) : null;
+    const files = m.files.map((f, k) => `<li class="file${focus && (focus.includes(f.path) || focus.includes(f.oldPath)) ? ' focus' : ''}" data-k="${k}" title="${esc(STATUS[f.status] || f.status)}: open diff">
         <span class="st st-${esc(f.status)}">${esc(f.status)}</span>
         <span class="fp">${f.oldPath ? esc(f.oldPath) + ' → ' : ''}${esc(f.path)}</span>
         <span class="ad">${f.additions == null ? (f.status === 'U' ? '' : 'bin') : `<i class="plus">+${f.additions}</i> <i class="minus">−${f.deletions}</i>`}</span></li>`).join('');
@@ -334,23 +366,57 @@
 
   // ---------- find ----------
   function runFind(jump) {
-    const q = $('#find').value.trim().toLowerCase();
+    const raw = $('#find').value.trim();
+    const q = raw.toLowerCase();
+    if (hist && hist.q !== raw) hist = null;
     matches = [];
-    if (q && data) {
+    if (hist) {
+      for (const m of hist.matches) { const i = indexBySha.get(m.sha); if (i !== undefined) matches.push(i); }
+    } else if (q && data) {
       data.commits.forEach((c, i) => {
         const refs = (refsBySha.get(c.sha) || []).map((r) => r.name).join(' ');
         if (c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.sha.startsWith(q) || refs.toLowerCase().includes(q) || (c.stashRef || '').includes(q)) matches.push(i);
       });
     }
-    matchPos = matches.length ? 0 : -1;
-    $('#count').textContent = q ? (matches.length ? `1/${matches.length}` : 'none') : '';
+    if (!hist || jump) matchPos = (hist ? hist.matches.length : matches.length) ? 0 : -1;
+    updateCount();
+    $('#findall').hidden = !(q && data && data.hasMore && !hist);
     if (jump && matches.length) scrollTo(matches[0]);
     render();
   }
+  function updateCount() {
+    const q = $('#find').value.trim();
+    let t = '';
+    if (hist) {
+      const n = hist.matches.length;
+      t = n ? `${matchPos + 1}/${hist.total} in history` : 'none in history';
+      if (hist.total > n) t += ` (first ${n})`;
+    } else if (q) t = matches.length ? `${matchPos + 1}/${matches.length}${data && data.hasMore ? ' loaded' : ''}` : (data && data.hasMore ? 'none loaded' : 'none');
+    $('#count').textContent = t;
+  }
+  function gotHistory(m) {
+    if (m.q !== histPending || m.q !== $('#find').value.trim()) return;
+    histPending = null;
+    hist = { q: m.q, matches: m.matches, total: m.total };
+    runFind(false);
+    matchPos = -1;
+    if (m.error) $('#count').textContent = 'search failed';
+    else if (hist.matches.length) step(1);
+  }
   function step(d) {
+    if (hist) {
+      const n = hist.matches.length;
+      if (!n) return;
+      matchPos = (matchPos + d + n) % n;
+      updateCount();
+      const m = hist.matches[matchPos];
+      if (indexBySha.has(m.sha)) select(m.sha, true);
+      else { pendingReveal = m.sha; $('#count').textContent = `loading ${m.index + 1} commits…`; vscode.postMessage({ type: 'loadTo', sha: m.sha, index: m.index }); }
+      return;
+    }
     if (!matches.length) return;
     matchPos = (matchPos + d + matches.length) % matches.length;
-    $('#count').textContent = `${matchPos + 1}/${matches.length}`;
+    updateCount();
     select(data.commits[matches[matchPos]].sha, true);
   }
 

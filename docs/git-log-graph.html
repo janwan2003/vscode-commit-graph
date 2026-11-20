@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git log --graph: the command, its flags, and how to read the output | Mergeline</title>
+<meta name="description" content="A practical reference for git log --graph --oneline --all: --decorate, --date-order vs --topo-order, --first-parent, --simplify-by-decoration, a path filter, a git lg alias, and how to read the *, |, / and \ in the output.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-log-graph.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git log --graph: the command, its flags, and how to read the output">
+<meta property="og:description" content="git log --graph --oneline --all explained flag by flag, with real output, a git lg alias, and how to read the ASCII graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-log-graph.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1><code>git log --graph</code>: the command, its flags, and how to read it</h1>
+    <p>Git can draw your branch history as text, right in the terminal, with no tools beyond git itself. The command most people want is:</p>
+<pre><span class="k">git log --graph --oneline --all</span></pre>
+    <p>This page explains what each part of that does, the flags that change which commits appear and in what order, how to save your favourite combination as an alias, and how to read the characters in the output. Every example below was produced by running the command on a small test repository with two branches, a merge, an unmerged fix branch and two tags. The output is pasted as git printed it, apart from colours and trailing spaces.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#basic">The basic command</a></li>
+        <li><a href="#read">Reading the ASCII graph</a></li>
+        <li><a href="#which">Choosing which commits</a></li>
+        <li><a href="#order">Commit order</a></li>
+        <li><a href="#format">A custom format and a <code>git lg</code> alias</a></li>
+        <li><a href="#limits">When the terminal graph gets hard to read</a></li>
+        <li><a href="#mergeline">The same graph in VS Code</a></li>
+      </ul>
+    </div>
+
+    <h2 id="basic">The basic command</h2>
+<pre><span class="k">git log --graph --oneline --decorate --all</span>
+<span class="o">* 69ba820 (HEAD -&gt; main, tag: v0.2.0) Bump version to 0.2.0
+| * f43a99f (fix/typo) Fix typo in README
+|/
+*   f767072 Merge branch 'feature/search'
+|\
+| * 1e5371a (feature/search) Highlight matches
+| * bd15499 Add search box
+* | 962fa80 Fix config defaults
+|/
+* dbe5f6d (tag: v0.1.0) Add config loader
+* b68fa30 Initial commit</span></pre>
+    <ul>
+      <li><code>--graph</code> draws the lines to the left of each commit. It also turns on <em>parent rewriting</em>: when some commits are hidden (by a path or another filter), the ones that remain are drawn as if connected directly, so the graph does not fall apart.</li>
+      <li><code>--oneline</code> prints one line per commit: the abbreviated hash and the subject. It is shorthand for <code>--pretty=oneline --abbrev-commit</code>.</li>
+      <li><code>--all</code> starts from every ref under <code>refs/</code> plus <code>HEAD</code>: local branches, remote-tracking branches, tags, and the latest stash, which shows up as a small merge-shaped commit labelled <code>refs/stash</code>. Without it you see only the history of the branch you are on, which is why <code>fix/typo</code> would be missing from the example.</li>
+      <li><code>--decorate</code> prints the branch and tag names in brackets. Git&rsquo;s default for <code>log.decorate</code> is <em>auto</em>, which shows them only when the output goes to a terminal. If you pipe the output to a file, <code>less</code> or another command, the names disappear unless you pass <code>--decorate</code> yourself.</li>
+    </ul>
+    <p>Long output opens in a pager. Press <kbd>q</kbd> to leave it, or limit the number of commits with <code>-n 30</code>.</p>
+
+    <h2 id="read">Reading the ASCII graph</h2>
+    <p>Read it from the top: the newest commits come first, and every commit appears below all of its children.</p>
+    <ul>
+      <li><strong><code>*</code> is a commit.</strong> The column it sits in is the line of history it belongs to in this drawing.</li>
+      <li><strong><code>|</code> is a line of history passing by.</strong> On the row <code>* | 962fa80</code>, the commit is in the left column while the right-hand line (the feature branch) continues past it.</li>
+      <li><strong><code>\</code> under a commit marks a merge.</strong> <code>*&nbsp;&nbsp;&nbsp;f767072</code> followed by <code>|\</code> means that commit has two parents. The straight line down on the left leads to its first parent (<code>962fa80</code>, the branch that was checked out during the merge); the <code>\</code> leads to its second parent (<code>1e5371a</code>, the branch merged in). Extra spaces after the <code>*</code> leave room for that fork.</li>
+      <li><strong><code>/</code> marks where a branch started.</strong> Reading upwards, <code>|/</code> above <code>dbe5f6d</code> means the right-hand line splits off from that commit. Both the feature branch and <code>main</code>&rsquo;s own commit <code>962fa80</code> have <code>dbe5f6d</code> as their parent.</li>
+    </ul>
+    <p>The example also shows that a branch name is only a label. <code>feature/search</code> still points at <code>1e5371a</code> even though <code>main</code> already contains it, while <code>fix/typo</code> sits on a line that never rejoins: that work has not been merged.</p>
+
+    <h2 id="which">Choosing which commits to show</h2>
+    <p>Instead of <code>--all</code>, you can name the starting points: <code>--branches</code> for local branches, <code>--remotes</code> for remote-tracking branches, <code>--tags</code> for tags, or any mix of branch names. A range such as <code>main..fix/typo</code> shows the commits reachable from <code>fix/typo</code> but not from <code>main</code>; on the test repository it prints just <code>f43a99f</code>, which is what a merge of <code>fix/typo</code> would bring in.</p>
+    <h3><code>--first-parent</code></h3>
+<pre><span class="k">git log --graph --oneline --decorate --first-parent</span>
+<span class="o">* 69ba820 (HEAD -&gt; main, tag: v0.2.0) Bump version to 0.2.0
+* f767072 Merge branch 'feature/search'
+* 962fa80 Fix config defaults
+* dbe5f6d (tag: v0.1.0) Add config loader
+* b68fa30 Initial commit</span></pre>
+    <p>At each merge, git follows only the first parent, so the commits that came in from the feature branch drop out. On a <code>main</code> branch where every change arrives through a merged pull request, this gives one line per merge, which is a compact changelog.</p>
+    <h3><code>--simplify-by-decoration</code></h3>
+<pre><span class="k">git log --graph --oneline --decorate --all --simplify-by-decoration</span>
+<span class="o">* 69ba820 (HEAD -&gt; main, tag: v0.2.0) Bump version to 0.2.0
+| * f43a99f (fix/typo) Fix typo in README
+|/
+* 1e5371a (feature/search) Highlight matches
+* dbe5f6d (tag: v0.1.0) Add config loader
+* b68fa30 Initial commit</span></pre>
+    <p>Only commits that a branch or tag points to are kept, plus a few that git adds so the history still makes sense (here, the root commit). On a big repository this shrinks the graph to a map of where branches and releases are. Notice the trade-off: the merge commit is gone, so <code>1e5371a</code> appears directly below the tip of <code>main</code>, and the graph no longer shows that a merge happened at all.</p>
+    <h3>One path: <code>-- &lt;path&gt;</code></h3>
+    <p>Put a file or directory after <code>--</code> to keep only commits that changed it. On the test repository, <code>git log --graph --oneline --all -- src/config.js</code> prints three commits in a straight line: the merge is left out because its copy of the file is identical to the copy in one of its parents, so the merge itself did not change it. The <a href="git-file-history-vscode.html">file history guide</a> covers this in depth, including <code>--follow</code> for renamed files.</p>
+
+    <h2 id="order">Commit order: <code>--date-order</code> and <code>--topo-order</code></h2>
+    <p>Git never prints a commit before its children. Within that rule, there are several orders. According to git&rsquo;s documentation, <code>--graph</code> uses <code>--topo-order</code> unless told otherwise: commits from one line of history stay together, as in the first example, where both feature-branch commits appear before <code>962fa80</code>. With <code>--date-order</code>, commits are sorted by commit timestamp instead:</p>
+<pre><span class="k">git log --graph --oneline --all --date-order</span>
+<span class="o">* 69ba820 Bump version to 0.2.0
+| * f43a99f Fix typo in README
+|/
+*   f767072 Merge branch 'feature/search'
+|\
+| * 1e5371a Highlight matches
+* | 962fa80 Fix config defaults
+| * bd15499 Add search box
+|/
+* dbe5f6d Add config loader
+* b68fa30 Initial commit</span></pre>
+    <p>Here <code>962fa80</code> (4 November) sits between the two feature commits (3 and 5 November), which is when it actually happened. Date order is better for &ldquo;what was going on that week&rdquo;; topological order is better for &ldquo;what did this branch contain&rdquo;, and on a busy repository it produces far fewer crossing lines. <code>--author-date-order</code> sorts by author date, which differs from commit date after a rebase or cherry-pick: rebasing rewrites the commit date but keeps the original author date.</p>
+
+    <h2 id="format">A custom format and a <code>git lg</code> alias</h2>
+    <p><code>--oneline</code> leaves out who made a commit and when. A format string adds them. Save it as an alias so you never type it again:</p>
+<pre><span class="k">git config --global alias.lg</span> "log --graph --all --date=short --format='%C(auto)%h%d %s %C(dim)%an, %ad'"
+<span class="k">git lg</span>
+<span class="o">* 69ba820 (HEAD -&gt; main, tag: v0.2.0) Bump version to 0.2.0 Ana Dev, 2026-11-08
+| * f43a99f (fix/typo) Fix typo in README Ana Dev, 2026-11-07
+|/
+*   f767072 Merge branch 'feature/search' Ana Dev, 2026-11-06
+|\
+| * 1e5371a (feature/search) Highlight matches Ana Dev, 2026-11-05
+| * bd15499 Add search box Ana Dev, 2026-11-03
+* | 962fa80 Fix config defaults Ana Dev, 2026-11-04
+|/
+* dbe5f6d (tag: v0.1.0) Add config loader Ana Dev, 2026-11-02
+* b68fa30 Initial commit Ana Dev, 2026-11-01</span></pre>
+    <p>The placeholders: <code>%h</code> is the short hash, <code>%d</code> the branch and tag names, <code>%s</code> the subject, <code>%an</code> the author name and <code>%ad</code> the author date in the style set by <code>--date</code>. <code>%C(auto)</code> colours the hash and names the way git normally would, and <code>%C(dim)</code> greys out the rest of the line. Swap <code>%ad</code> for <code>%ar</code> to get &ldquo;3 days ago&rdquo; instead of a date. Anything you type after the alias is added to the command, so <code>git lg -n 20</code>, <code>git lg --first-parent</code> and <code>git lg -- src/</code> all work.</p>
+
+    <h2 id="limits">When the terminal graph gets hard to read</h2>
+    <p>On a small repository the text graph is perfect. It is exact, it works over SSH, and you can pipe it into other commands. It gets harder as the history grows:</p>
+    <ul>
+      <li><strong>Width.</strong> Every branch that is open at the same time needs its own column. With a dozen active branches the graph pushes the commit subjects off the right edge of the screen, and lines that cross each other are drawn with <code>/</code> and <code>\</code> characters that are easy to mistrack.</li>
+      <li><strong>Length.</strong> A few hundred commits fill many screens. Finding where a branch started means scrolling and matching columns by eye.</li>
+      <li><strong>Nothing to click.</strong> To see what a commit changed you copy its hash into <code>git show</code>; to act on it you copy the hash again into <code>git merge</code>, <code>git rebase</code> or <code>git reset</code>.</li>
+      <li><strong>Stale remotes.</strong> Remote-tracking branches only move when you fetch, so run <code>git fetch --all --prune</code> first or the graph shows an old picture.</li>
+    </ul>
+    <p>The flags above help a lot with the first two. For the rest, a graphical view earns its place. The <a href="visualize-git-branches-vscode.html">branch graph guide</a> compares the terminal, VS Code&rsquo;s built-in Source Control Graph and a graph extension side by side.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>The same graph in VS Code, with Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed extension that draws this graph inside VS Code (and editors built on it, such as VSCodium and Cursor) and keeps the git options you just learned within reach:</p>
+      <ul>
+        <li><strong>Order menu.</strong> The toolbar&rsquo;s <em>Order</em> menu has <em>Date</em>, <em>Topology</em> and <em>Author date</em>. Mergeline passes <code>--date-order</code>, <code>--topo-order</code> or <code>--author-date-order</code> to git, so they behave exactly as described above. The <code>mergeline.commitOrder</code> setting sets the default.</li>
+        <li><strong>All refs, or one branch.</strong> By default the graph starts from all branches, tags and remote-tracking branches (Mergeline passes <code>--branches --tags --remotes</code>, close to <code>--all</code>), plus stashes and a row for uncommitted changes. The branch filter shows a single branch, and the <em>Remotes</em> toggle hides remote-tracking branches, the graphical version of dropping <code>--remotes</code>.</li>
+        <li><strong>File history.</strong> Right-click a file and choose <strong>Show File History in Mergeline</strong> for the equivalent of <code>git log --graph -- &lt;path&gt;</code>: only the commits that touched the file, still connected through rewritten parents, and followed back through renames.</li>
+        <li><strong>Columns and details.</strong> Author, date and hash get their own columns, so there is no format string to remember. Click a commit for its full message and changed files, and open any file in the diff editor.</li>
+        <li><strong>Actions.</strong> Right-click a commit or branch to check out, merge, rebase, cherry-pick, revert or reset, with a confirmation before each one.</li>
+      </ul>
+      <p>To install, search for <em>Mergeline</em> in the Extensions view once it is listed on the VS Code Marketplace and Open VSX. Until then, download the <code>.vsix</code> from the latest GitHub release and run <strong>Extensions: Install from VSIX&hellip;</strong>, or <code>code --install-extension mergeline-0.2.0.vsix</code> (<a href="./#install">full steps</a>; for Cursor and VSCodium see <a href="git-graph-cursor-vscodium.html">installing in VS Code forks</a>). Then open the graph with <strong>Mergeline: Show Commit Graph</strong>.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">Download the .vsix</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html" aria-current="page">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

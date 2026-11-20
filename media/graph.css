@@ -21,9 +21,13 @@ select:focus, input:focus, button:focus-visible, #scroller:focus-visible { outli
 #toolbar .tb { display: flex; align-items: center; gap: 5px; color: var(--vscode-descriptionForeground); }
 #toolbar select { max-width: 220px; }
 #toolbar .grow { flex: 1; }
+/* The order hint gives way first, so the toolbar stays on one line as long as it can. */
+#orderhint { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#toolbar .grow { min-width: 0; }
 .find { display: flex; align-items: center; gap: 2px; }
-.find input { width: 240px; }
+.find input { width: 200px; }
 .find button { padding: 2px 6px; font-size: 10px; }
+#findall { margin-left: 4px; font-size: 11px; padding: 2px 6px; }
 #count { min-width: 44px; padding-left: 4px; color: var(--vscode-descriptionForeground); font-size: 12px; }
 
 #main { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git graph in Cursor, VSCodium and Windsurf: Open VSX and .vsix install | Mergeline</title>
+<meta name="description" content="How to get a git graph extension in Cursor, VSCodium, Windsurf or Gitpod: why VS Code forks use Open VSX instead of Microsoft's Marketplace, how to install a .vsix in each, and what to check before you pick one.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-graph-cursor-vscodium.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="A git graph in Cursor, VSCodium and other VS Code forks">
+<meta property="og:description" content="Why forks install extensions from Open VSX, how to install a .vsix in each editor, and what to look for in a git graph extension there.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-graph-cursor-vscodium.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>A git graph in Cursor, VSCodium and other VS Code forks</h1>
+    <p>Cursor, VSCodium, Windsurf and Gitpod all look like VS Code, and most VS Code extensions run in them unchanged. Where they differ is the shop. When you search the Extensions view in one of these editors, you are not searching Microsoft&rsquo;s Visual Studio Marketplace but a different registry, usually Open VSX. That explains why an extension you know from VS Code is sometimes missing, sometimes listed by a different publisher, and sometimes several versions behind. This guide explains how that works, how to install an extension that is not listed at all, and what to check before you settle on a git graph extension in a fork.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#why">Why forks use Open VSX</a></li>
+        <li><a href="#vsix">Installing a .vsix in each editor</a></li>
+        <li><a href="#choose">Choosing a git graph extension</a></li>
+        <li><a href="#mergeline">Mergeline in a fork</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="why">Why forks install extensions from Open VSX</h2>
+    <p>The Visual Studio Marketplace is Microsoft&rsquo;s service, and its terms of use limit what it may be used with. They list Visual Studio, Visual Studio Code, GitHub Codespaces, Azure DevOps and their successors as the &ldquo;In-Scope Products and Services&rdquo;, and say that Marketplace offerings may be installed and used only with those products. An editor built from VS Code&rsquo;s open-source code is not on that list, so a fork that wants a built-in extension store needs a different one.</p>
+    <p><a href="https://open-vsx.org">Open VSX</a> fills that role. It is a vendor-neutral, open-source extension registry run under the Eclipse Foundation, and it speaks the same protocol as Microsoft&rsquo;s gallery, so an editor only has to point at a different URL. Here is what the editors themselves document:</p>
+    <ul>
+      <li><strong>VSCodium</strong> sets Open VSX as its extension gallery in its <code>product.json</code>, and its documentation cites Microsoft&rsquo;s terms as the reason.</li>
+      <li><strong>Cursor</strong> uses Open VSX for third-party extensions, routed through its own marketplace proxy that scans extensions before offering them. For a few popular extensions that are not on Open VSX it publishes its own replacement builds.</li>
+      <li><strong>Windsurf</strong> downloads extensions from an Open VSX mirror by default, and lets you change the marketplace URLs in its settings.</li>
+      <li><strong>Gitpod</strong> (now Ona) built OpenVSCode Server, the browser version of VS Code it ships, with Open VSX as the configured gallery.</li>
+    </ul>
+    <p class="small">Sources, read 20 November 2026: the Visual Studio Marketplace Terms of Use; VSCodium&rsquo;s <code>docs/extensions.md</code>; Cursor&rsquo;s help page on extensions; Windsurf&rsquo;s advanced configuration and recommended-extensions pages; the <code>product.json</code> in the <code>gitpod-io/openvscode-server</code> repository.</p>
+    <p>What this means in practice: an extension shows up in a fork&rsquo;s Extensions view only if its author, or someone else, has published it to Open VSX. Publishing there is a separate step from publishing to Microsoft&rsquo;s Marketplace, with a separate account, and not every author does it. Cursor&rsquo;s own documentation points out a second consequence: the same <code>publisher.name</code> ID can belong to a different publisher, or different code, on Open VSX than on the Marketplace. Treat an extension ID the way you would treat a package dependency, and check who published it.</p>
+
+    <h2 id="vsix">Installing a .vsix in each editor</h2>
+    <p>Every extension is distributed as a single <code>.vsix</code> file, which is a zip archive with a manifest. Registries are a convenient way to find and update those files, but you can always install one directly. Many authors attach the <code>.vsix</code> to each GitHub release for exactly this reason. All of these editors share VS Code&rsquo;s extension machinery, so the steps are nearly identical.</p>
+    <h3>From the Command Palette (any editor)</h3>
+    <ol>
+      <li>Download the <code>.vsix</code> file.</li>
+      <li>Open the Command Palette with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> (<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS).</li>
+      <li>Run <strong>Extensions: Install from VSIX&hellip;</strong> and pick the file. The same entry is in the <strong>&hellip;</strong> menu at the top of the Extensions view.</li>
+    </ol>
+    <p>In VSCodium, Cursor and Windsurf this is the whole process. In a browser-based editor such as Gitpod, the editor runs on a remote machine, so first put the file into the workspace (drag it into the Explorer, or download it there from a terminal with <code>curl -LO</code>), then run the same command and choose it.</p>
+    <h3>From a terminal</h3>
+    <p>Each editor&rsquo;s command-line launcher accepts the same flag, if you have it on your <code>PATH</code>:</p>
+<pre><span class="k">code --install-extension</span> mergeline-0.2.0.vsix     <span class="c"># VS Code</span>
+<span class="k">codium --install-extension</span> mergeline-0.2.0.vsix   <span class="c"># VSCodium</span>
+<span class="k">cursor --install-extension</span> mergeline-0.2.0.vsix   <span class="c"># Cursor</span></pre>
+    <p>This is handy in a setup script or a dev container, where you want the same extensions every time without clicking.</p>
+    <p>One thing to keep in mind: an extension installed from a file stays at that version until you install a newer file. If the extension is later listed in your editor&rsquo;s registry, install it from the Extensions view instead, and updates will arrive like any other extension&rsquo;s.</p>
+
+    <h2 id="choose">What to look for in a git graph extension on Open VSX</h2>
+    <p>A git graph is something you open many times a day and trust with operations such as reset and rebase, so it is worth a few minutes of checking. These questions apply to any extension in a fork:</p>
+    <ul>
+      <li><strong>Is it maintained?</strong> Open the listing on <a href="https://open-vsx.org">open-vsx.org</a> and look at the version and its date, then at the project&rsquo;s release history. Compare the Open VSX version with the extension&rsquo;s own latest release: a listing can lag behind the Marketplace if the author publishes there by hand. Sometimes an old date simply reflects the project&rsquo;s history. The Git Graph listing on Open VSX, for example, is version 1.30.0 from 2021 (Open VSX API, read 20 November 2026), which matches that extension&rsquo;s latest release anywhere.</li>
+      <li><strong>Who published it?</strong> Check that the Open VSX publisher is the same person or organisation as the source repository, and that the listing links back to it. Open VSX marks publishers who have verified ownership of their namespace.</li>
+      <li><strong>Does it work without telemetry?</strong> Many people choose VSCodium precisely because it ships with telemetry off. An extension can still send data of its own, so read its privacy notes or source, and prefer one that sends nothing or clearly follows the editor&rsquo;s telemetry setting.</li>
+      <li><strong>Does it need anything Microsoft-only?</strong> Some extensions depend on other extensions that exist only on the Marketplace, or on menus and APIs that behave differently in forks. A graph that draws its own right-click menus and uses only standard extension APIs is less likely to break.</li>
+      <li><strong>Can it be forked?</strong> If the licence allows forks to be published, someone can keep the extension going if its author stops. The <a href="git-graph-alternative.html">Git Graph alternative guide</a> explains why that matters.</li>
+      <li><strong>Does it handle your setup?</strong> Remote windows, multi-root workspaces, worktrees and large repositories all trip up some tools. Try it on your biggest repository before relying on it.</li>
+    </ul>
+    <p>Whichever extension you pick, the terminal graph is always there as a fallback. The <a href="git-log-graph.html"><code>git log --graph</code> reference</a> covers the flags that make it readable.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Use Mergeline in Cursor, VSCodium or Windsurf</h2>
+      <p>Mergeline is a free, MIT-licensed git graph built for VS Code and the editors built on it. It uses only standard VS Code extension APIs (no proposed APIs), draws its own right-click menus, needs VS Code 1.85 or an editor built on it, and sends no telemetry. So far it has been tested in VS Code 1.147; if something behaves differently in your editor, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a>.</p>
+      <ol class="steps">
+        <li><strong>Install it.</strong> Once Mergeline is listed on Open VSX and the VS Code Marketplace, search for <em>Mergeline</em> in the Extensions view. Until then, download the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and install it with <strong>Extensions: Install from VSIX&hellip;</strong> or one of the commands above.</li>
+        <li><strong>Open a git repository and trust it.</strong> Mergeline runs git commands, so it is disabled in Restricted Mode. Git must be on your <code>PATH</code>, on the remote machine if you work in a remote window.</li>
+        <li><strong>Open the graph</strong> with the Mergeline button in the Source Control title bar, the <strong>Graph</strong> button in the status bar, or <strong>Mergeline: Show Commit Graph</strong> from the Command Palette.</li>
+        <li><strong>Work from the graph.</strong> Every branch, tag and stash appears in coloured lanes. Click a commit for its details and per-file diffs, right-click it to check out, merge, rebase, cherry-pick, revert or reset, and right-click any file and choose <strong>Show File History in Mergeline</strong> to see only the commits that touched it (<a href="git-file-history-vscode.html">file history guide</a>).</li>
+      </ol>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">Download the .vsix</a>
+        <a class="btn secondary" href="./#features">See all features</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Is Mergeline on Open VSX yet?</summary>
+      <p>Not yet. The Open VSX and VS Code Marketplace listings are being set up. Until they are live, the <code>.vsix</code> on GitHub releases is the way to install it. Once a listing is live, install from the Extensions view so you get updates.</p>
+    </details>
+    <details>
+      <summary>Can I point VSCodium or Cursor at Microsoft&rsquo;s Marketplace instead?</summary>
+      <p>The registry URL is a setting in these editors, and some people change it. Microsoft&rsquo;s terms, though, limit Marketplace offerings to Microsoft&rsquo;s own products, so that is a question for you and those terms. Installing an extension&rsquo;s <code>.vsix</code> from its own release page avoids it entirely.</p>
+    </details>
+    <details>
+      <summary>Do I need the built-in Git extension?</summary>
+      <p>Mergeline runs git itself to draw the graph. For push, pull and fetch it goes through the editor&rsquo;s built-in Git extension when that is available, so your usual credential prompts work. Editors built on VS Code normally ship that extension, since it is part of VS Code&rsquo;s open-source code.</p>
+    </details>
+    <details>
+      <summary>Where do I start if I just want a quick look at the branches?</summary>
+      <p>Run <code>git log --graph --oneline --all</code> in the integrated terminal, or read <a href="visualize-git-branches-vscode.html">three ways to see a branch graph in VS Code</a>.</p>
+    </details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-cursor-vscodium.html" aria-current="page">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
