@@ -105,14 +105,18 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.2.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`, checked 2026-11-20).
+**Mergeline 0.3.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`, checked 2026-11-20, session 3).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 and v0.2.0
-  (`mergeline-0.2.0.vsix`, 34.7 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0, v0.2.0 and v0.3.0
+  (`mergeline-0.3.0.vsix`, 38 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  6 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
-  merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code), 404 and sitemap.
+  8 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
+  merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
+  git graph in Cursor/VSCodium/Windsurf), 404 and sitemap (11 URLs).
+- **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
+  `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
+  Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
 - Features: graph with lanes, merges, branches, remotes, tags, stashes and an
   uncommitted row; virtualised table with a pinned header; details pane with diffs;
   Ctrl/Cmd-click compare; find; branch filter; remotes toggle; fetch; auto-refresh; multi-repo.
@@ -121,6 +125,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   menu (date / topology / author date, setting `mergeline.commitOrder`), lane collapsing (two lanes
   waiting for the same commit merge, as in `git log --graph`), clipped-lane nodes pinned to the edge,
   and a hint to try topology order when a date-ordered graph is wider than 20 lanes.
+  **0.3.0 added:** find in all history (toolbar **All history**, or Enter when nothing loaded matches:
+  `git log --grep`/`--author`, hash prefix, ref names; stepping to an unloaded match loads down to it and
+  selects it), file history that follows renames (`git log --follow` names; unrelated files that reused an
+  old name are dropped and parents rewritten across them), packed graph rows (`PackedRow` in
+  `src/core/graph.ts`, decoded by `media/rows.js`), and a fix: `mergeline.initialCommits` applies at once.
   Right-click actions on commits, branches, remote branches, tags, stashes and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -138,6 +147,19 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     146 → 117 lanes after lane collapsing; master only: 108 → 71 (date) and 29 (topology).
     Layout of all 86,366 commits takes 2.8 s and the payload would be 174 MB; the first page of 500
     is 1.2 MB, 5,000 is 8.0 MB.
+- Verified 2026-11-20 (session 3), on the minified packaged 0.3.0 build:
+  - `pnpm typecheck` clean; `pnpm test`: 13/13 (new: packed rows decode to exactly the full rows on the
+    fixture, across pages and on 200 random DAGs; `searchLog` by message/author/hash/ref with positions;
+    `readFileHistory` across a rename with a new file reusing the old name).
+  - `node scripts/e2e.mjs`: 22/22 in VS Code 1.147, five runs in a row after fixing a test race
+    (an assertion made before a deferred refresh landed). New checks: rename-following file history
+    with the "also as" bar in the webview, and history search → `loadTo` → the webview selects the match.
+  - Payload, git.git first 5,000 commits (`scripts/bench.ts` on a `--filter=tree:0` clone, 86,366 commits):
+    graph data 6.58 → 0.57 MB, whole message 8.03 → 2.03 MB; all 86,366 commits 174 → 36 MB.
+  - Rendering unchanged: the same git.git payload (500 commits) rendered by the 0.2.0 and 0.3.0 webviews in
+    headless Chromium is pixel-identical below the toolbar (PIL `ImageChops.difference`, 1280×755 px).
+  - After push: CI and Pages succeeded for 47af3a6; live new guides return 200; the v0.3.0 asset
+    downloads byte-identical (sha256 62a4abf3…); `code --install-extension` lists `plainbyte.mergeline@0.3.0`.
 - Not verified: Cursor, VSCodium and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); rename following in file history
@@ -150,22 +172,25 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 - 2026-11-20 (session 2): `mergeline-0.1.0.vsix` 2 downloads (`gh api .../releases`; possibly our own
   checks); repo 0 stars, 0 forks; traffic views 0 (`gh api .../traffic/views`). Still no store listing.
 
+- 2026-11-20 (session 3): release downloads v0.1.0 2, v0.2.0 1, v0.3.0 0; 0 stars, 0 forks; traffic
+  views 0 (`gh api .../releases`, `.../traffic/views`). Search Console property just added; search analytics
+  returns no rows yet (expected: 4-8 weeks).
+
 ## Next steps
 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
-   (inbox, 2026-11-20). Then publish with the commands in `store/LISTING.md`. This is
-   the validation channel; nothing else counts until it is done.
-2. **Payload size on wide graphs:** rows carry every pass-through lane segment, so git.git's
-   first 5,000 commits are 8 MB per refresh. Send only lane changes (or a compact string
-   encoding) and let the webview rebuild straight segments. This matters for big monorepos.
-3. File history: follow renames (run `git log --follow --format=%H -- path` for the sha set and
-   the older path, then show both paths' commits).
-4. Search all history (not just loaded commits): `git log --grep/--author/-S` from the find box.
-5. Test in VSCodium or Cursor (Open VSX users are the core audience).
-6. Features users ask for that are still missing: drag-and-drop branch to merge or
-   rebase, avatars (opt-in; needs network, off by default), worktree badges, resizable columns.
-7. After store launch: record installs and ratings weekly in `## Metrics`; submit to
-   awesome-vscode style lists (they require a Marketplace link); add Search Console for the site (operator).
+   (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
+   This is the validation channel; nothing else counts until it is done.
+2. Test in VSCodium or Cursor (Open VSX users are the core audience). Neither is installed here; a
+   VSCodium tarball (~100 MB) in /tmp would fit the disk budget if deleted after.
+3. Features users ask for that are still missing: resizable columns, drag-and-drop branch to merge or
+   rebase, worktree badges, avatars (opt-in; needs network, off by default).
+4. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
+   already resumable) for repos where users scroll deep.
+5. History search positions in file-history mode are approximate (they come from the multi-name log, not
+   the filtered one); fine for small file histories, revisit if users report misses.
+6. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
+   and ratings in `## Metrics` and submit to awesome-vscode style lists (they need a Marketplace link).
 
 ## Monetization plan
 
@@ -195,3 +220,9 @@ on the graph). The graph itself stays free.
   20/20 e2e on the packaged build, vsix install, headless-Chromium renders (dark, light, git.git).
   After push: CI and Pages runs for c841f3e succeeded; the live guide page returns 200; the v0.2.0
   release asset downloads byte-identical to the local build.
+- 2026-11-20 builder (session 3): store tokens still absent. Set up Search Console (verified, property added,
+  sitemap submitted). Built 0.3.0: find in all history, rename-following file history, packed graph rows
+  (git.git 5,000 commits: graph data 6.58 → 0.57 MB), `initialCommits` fix; two new guides (`git log --graph`,
+  Cursor/VSCodium) and removed an FAQ claim of fork testing we had not done. Verified: 13/13 unit, 22/22 e2e
+  ×5 on the packaged build, pixel-identical render vs 0.2.0, vsix install, CI + Pages green for 47af3a6,
+  live pages 200, release asset byte-identical.

@@ -7,7 +7,7 @@ The VS Code Marketplace and Open VSX both render README.md as the listing page. 
   change `publisher` in package.json; the ID must match the publisher account.
 - **Display name:** Mergeline — Git Graph, History & Branch Actions
 - **Short description:** see `description` in package.json.
-- **Categories:** SCM Providers, Visualization, Other. **Keywords:** in package.json (17 of the 30 the Marketplace allows).
+- **Categories:** SCM Providers, Visualization, Other. **Keywords:** in package.json (19 of the 30 the Marketplace allows).
 - **Icon:** media/icon.png (256×256). **Screenshots:** docs/screenshot.png and docs/screenshot-menu.png.
 - **Privacy policy:** https://janwan2003.github.io/vscode-commit-graph/privacy.html
 - **Support:** https://janwan2003.github.io/vscode-commit-graph/support.html
