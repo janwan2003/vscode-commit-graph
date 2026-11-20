@@ -190,6 +190,21 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     (header 0 px, row cells `display:none`); double-click resets Date to 120; file menu lists 8 entries and posts
     `copyPath`; splitter drag 271 → 371 px; End selects the last row; layout messages posted. Looked at the PNGs:
     hidden column, taller details, and (with a GitHub `web` payload) `#128`, `#97`, the URL and "Open on GitHub" as links.
+- Verified 2026-11-20 (session 5), on the minified packaged 0.5.0 build:
+  - `pnpm typecheck` clean; `pnpm test` 15/15 (new: `parseWorktrees` on `-z` and newline porcelain with detached/locked/prunable/bare,
+    `readWorktrees` from the main and a linked worktree, `mergeBase`, three-dot changes).
+  - `node scripts/e2e.mjs` in VS Code 1.147: 28/28, twice on the packaged build (plus once in development). New checks: merge-base
+    details (`base`, `mergeBase`, only the branch's file), `rebaseBranch` of a non-checked-out branch, `mergeInto` a non-current branch
+    (`--no-ff` → 2 parents), `moveBranch`; `addWorktree` for a branch → folder exists on that branch, `lastData.worktrees` has it, the
+    webview renders its badge (read back from the DOM), `removeWorktree` deletes it.
+  - Headless Chromium (`INTERACT=1 node scripts/shot/shot.mjs`): dragging feature/dark-mode shows the ghost and the drop highlight;
+    dropping on `main` lists Merge/Rebase/Move/Compare/Changes-since, dropping on a plain commit lists Rebase/Move/Compare/Changes-since
+    (no merge); picking items posts `rebaseBranch` and a `details` with `base: true`; the selection is unchanged by the drop; worktree
+    badge menu has Open/Copy path/Remove. Looked at the PNGs (dark and light drop menu, worktree badge `acme-app-release`).
+  - `code --install-extension mergeline-0.5.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.5.0`.
+  - After push: CI (two runs) and Pages succeeded for 28b9853; live index (shows v0.5), new guide, drag screenshot, compare guide and
+    sitemap (14 URLs) return 200; the v0.5.0 release asset is byte-identical (sha256 02a78c0b…); sitemap resubmitted (HTTP 204).
+  - Not run this session: VSCodium (not installed; 610 MB extracted, disk had 3.6 GB free).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -198,6 +213,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 5): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 0; 0 stars, 0 forks; traffic views 0
+  (`gh api .../releases`, `.../traffic/views`). Search Console: no rows (2026-10-20 → 2026-11-20); sitemap still pending
+  (`sitemaps.list`), resubmitted with 14 URLs.
 
 - 2026-11-20 (session 4): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 0; 0 stars, 0 forks; traffic views 0
   (`gh api .../releases`, `.../traffic/views`). Search Console: search analytics returns no rows (2026-10-20 →
@@ -218,12 +237,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
 2. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
-   already resumable) for repos where users scroll deep.
-3. Features users ask for that are still missing: drag-and-drop branch to merge or rebase, worktree badges,
-   avatars (opt-in; needs network, off by default), a "compare with merge base" (three-dot) option next to
-   Compare with current branch.
+   already resumable via `LayoutState`; stashes whose base is in the new page and the uncommitted row need care).
+3. Still missing that users ask for: avatars (opt-in; needs network, off by default), a commit search by changed path,
+   and a "pull request" overlay later. Drag-and-drop could also accept a tag or a commit row as the source (cherry-pick on drop).
 4. Add VSCodium as a second CI e2e target (download the tarball, `node scripts/e2e.mjs <codium>`; 610 MB
-   extracted, so CI only, not locally every session).
+   extracted, so CI only, not locally every session). The CI workflow currently runs typecheck, unit tests and package only.
 5. History search positions in file-history mode are approximate (they come from the multi-name log, not
    the filtered one); fine for small file histories, revisit if users report misses.
 6. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
@@ -272,3 +290,8 @@ on the graph). The graph itself stays free.
   After push: CI (two runs) and Pages succeeded for 4f8121c; the two new guides, index (shows v0.4) and sitemap
   (13 URLs) return 200 live; the v0.4.0 release asset downloads byte-identical (sha256 f2dd9ae4…); sitemap resubmitted
   to Search Console (HTTP 204, still pending).
+- 2026-11-20 builder (session 5): store tokens still absent. Built 0.5.0: drag a branch onto a branch/commit to merge, rebase, move or
+  compare; worktree badges and create/open/remove/prune from the graph; "changes since it split from" (merge-base) compare. New guide
+  (git worktrees in VS Code, written by a subagent and checked against the code), drag screenshot, fixed the broken homepage tagline
+  (`v0.2<middot; v0.4`). Verified: 15/15 unit, 28/28 e2e ×2 on the packaged build in VS Code 1.147, headless-Chromium drag/drop
+  script, vsix install. After push: CI ×2 and Pages green for 28b9853, live pages 200, release asset byte-identical, sitemap resubmitted.
