@@ -53,3 +53,10 @@ export function branchUrl(r: WebRepo, branch: string): string {
   if (r.forge === 'bitbucket') return `${r.base}/branch/${b}`;
   return `${r.base}/tree/${b}`;
 }
+
+/** The forge's "open a pull request" page for `branch` (GitLab: merge request). The forge picks the base branch. */
+export function pullRequestUrl(r: WebRepo, branch: string): string {
+  if (r.forge === 'gitlab') return `${r.base}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${encodeURIComponent(branch)}`;
+  if (r.forge === 'bitbucket') return `${r.base}/pull-requests/new?source=${encodeURIComponent(branch)}`;
+  return `${r.base}/compare/${branch.split('/').map(encodeURIComponent).join('/')}?expand=1`;
+}

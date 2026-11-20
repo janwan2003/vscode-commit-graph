@@ -3,7 +3,7 @@
 (function () {
   const out = { posted: [] };
   const orig = window.__post;
-  window.__onPost = (m) => { if (m.type === 'layout' || m.type === 'fileAction' || m.type === 'details' || m.type === 'action') out.posted.push(m); };
+  window.__onPost = (m) => { if (m.type === 'layout' || m.type === 'fileAction' || m.type === 'details' || m.type === 'action' || m.type === 'filter') out.posted.push(m); };
   const $ = (s) => document.querySelector(s);
   const ev = (el, type, x, y, extra) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, ...extra }));
   const hideAll = () => document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
@@ -82,10 +82,50 @@
       const wtb = document.querySelector('#rows .badge.wt');
       out.wtBadge = wtb && wtb.textContent;
       if (wtb) { const wr = wtb.getBoundingClientRect(); ev(wtb, 'contextmenu', wr.left + 5, wr.top + 5); out.wtMenu = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent); hideAll(); }
+      // 11. Drag a commit from another branch (release/1.1, not merged) onto the HEAD row: cherry-pick.
+      hideAll();
+      const rowBy = (subj) => [...document.querySelectorAll('#rows .row')].find((x) => x.querySelector('.subj') && x.querySelector('.subj').textContent === subj);
+      const dragRow = (from, to) => {
+        const f = from.querySelector('.c-date').getBoundingClientRect(), t = to.querySelector('.c-date').getBoundingClientRect();
+        ev(from.querySelector('.c-date'), 'mousedown', f.left + 10, f.top + 8);
+        ev(document, 'mousemove', f.left + 10, f.top + 20);
+        const g = !$('#ghost').hidden && $('#ghost').textContent;
+        ev(document, 'mousemove', t.left + 10, t.top + 8);
+        ev(document.elementFromPoint(t.left + 10, t.top + 8), 'mouseup', t.left + 10, t.top + 8);
+        return g;
+      };
+      const n0 = out.posted.length;
+      out.commitGhost = dragRow(rowBy('Changelog for 1.1'), rowBy('Sync: debounce writes'));
+      out.cherryMenu = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent);
+      [...document.querySelectorAll('#menu .mi')].find((m) => m.textContent.startsWith('Cherry-pick')).click();
+      // 12. Drag HEAD onto the commit two below it (both on the editable line): squash into / move after.
+      dragRow(rowBy('Sync: debounce writes'), rowBy('Show sync status in the toolbar'));
+      out.placeMenu = [...document.querySelectorAll('#menu .mi')].map((m) => m.textContent + (m.classList.contains('disabled') ? ' [disabled]' : ''));
+      [...document.querySelectorAll('#menu .mi')].find((m) => m.textContent.startsWith('Squash')).click();
+      // 13. Branch checklist: tick feature/search, then "Current branch", then Esc.
+      $('#branchbtn').click();
+      out.bpop = { open: !$('#bpop').hidden, items: document.querySelectorAll('#blist .bp-item').length };
+      const box = [...document.querySelectorAll('#blist input')].find((i) => i.value === 'feature/search');
+      box.click();
+      out.bpop.btn1 = $('#branchbtn').textContent;
+      $('#bfind').value = 'rel'; $('#bfind').dispatchEvent(new Event('input'));
+      out.bpop.filtered = [...document.querySelectorAll('#blist .bp-item')].map((l) => l.textContent.trim());
+      document.querySelector('#bpop [data-q="cur"]').click();
+      out.bpop.btn2 = $('#branchbtn').textContent;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      out.bpop.closedByEsc = $('#bpop').hidden;
+      out.posted2 = out.posted.slice(n0).map((m) => (m.type === 'filter' ? 'filter ' + JSON.stringify(m.branches) : m.type + ' ' + (m.action || '') + (m.fold !== undefined ? ' fold=' + m.fold : '') + (m.target ? ' target=' + m.target.slice(0, 7) : '')));
+      // 14. Ctrl+H selects the HEAD commit.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', ctrlKey: true, bubbles: true }));
+      const sel = document.querySelector('#rows .row.sel .subj');
+      out.ctrlH = sel && sel.textContent;
+      // 15. Dimming: commits outside HEAD's history.
+      window.postMessage({ type: 'settings', settings: { dateFormat: 'relative', dimOtherCommits: true } }, '*');
       // 7. Keyboard: End selects the last row.
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
       out.endSelected = !!document.querySelector('#rows .row.sel');
     } catch (e) { out.error = String(e && e.stack || e); }
-    setTimeout(() => { document.title = 'INTERACT ' + JSON.stringify(out); }, 50);
+    setTimeout(() => { out.dimmed = [...document.querySelectorAll('#rows .row.dim .subj')].map((x) => x.textContent); document.title = 'INTERACT ' + JSON.stringify(out); }, 50);
   }, 400);
 })();

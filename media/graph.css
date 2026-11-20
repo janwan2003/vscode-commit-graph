@@ -177,3 +177,23 @@ button:disabled { opacity: .5; cursor: default; }
 #dlg-n { min-height: 1.2em; color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)) !important; }
 .dlg-btns { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .dlg-btns .hint { flex: 1; }
+
+/* Branch checklist */
+#branchbtn { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#branchbtn::after { content: ' ▾'; opacity: .7; }
+#branchbtn.on { border-color: var(--vscode-focusBorder); }
+#bpop { position: fixed; z-index: 12; width: 290px; max-height: 60vh; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #8886)); border-radius: 5px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, #0005); }
+#bpop[hidden] { display: none; }
+#bpop input[type=search] { width: 100%; box-sizing: border-box; }
+#bpop .bp-quick { display: flex; gap: 6px; }
+#blist { overflow-y: auto; min-height: 0; flex: 1; }
+#blist .bp-item { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+#blist .bp-item:hover { background: var(--vscode-list-hoverBackground); }
+#blist .bp-item span { overflow: hidden; text-overflow: ellipsis; }
+#blist .bp-item.cur span { font-weight: 600; }
+.bp-hint { font-size: 11px; }
+
+/* Commits that are not in HEAD's history (setting mergeline.dimOtherCommits) */
+.row.dim .c-desc, .row.dim .c-date, .row.dim .c-author, .row.dim .c-hash { opacity: .45; }
+.row.dim .c-graph svg { opacity: .55; }
+.row.dim.sel .c-desc, .row.dim.sel .c-date, .row.dim.sel .c-author, .row.dim.sel .c-hash, .row.dim.sel .c-graph svg { opacity: 1; }

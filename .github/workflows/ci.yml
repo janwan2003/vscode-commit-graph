@@ -11,3 +11,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm package
+  e2e:
+    # The end-to-end suite in a real, headless VS Code (latest stable), on the packaged build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: pnpm package
+      - name: Download VS Code
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/vscode.tar.gz" https://update.code.visualstudio.com/latest/linux-x64/stable
+          tar -xzf "$RUNNER_TEMP/vscode.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/VSCode-linux-x64/bin/code" --version
+      - run: node scripts/e2e.mjs "$RUNNER_TEMP/VSCode-linux-x64/code"

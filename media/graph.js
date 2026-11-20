@@ -41,7 +41,7 @@
   document.getElementById('app').innerHTML = `
   <div id="toolbar">
     <label class="tb">Repo <select id="repo" title="Repository"></select></label>
-    <label class="tb">Branch <select id="branch" title="Show only this branch"></select></label>
+    <span class="tb">Branches <button id="branchbtn" class="secondary drop" title="Show only some branches" aria-haspopup="true" aria-expanded="false">All</button></span>
     <label class="tb chk"><input type="checkbox" id="remotes"> Remotes</label>
     <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
     <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
@@ -61,6 +61,9 @@
   <div id="split" hidden title="Drag to resize the details pane (double-click: reset)"></div>
   <div id="details" hidden></div>
   <div id="menu" hidden role="menu"></div>
+  <div id="bpop" hidden role="dialog" aria-label="Branches to show"><input id="bfind" type="search" placeholder="Filter branches" spellcheck="false" aria-label="Filter branches">
+    <div class="bp-quick"><button type="button" data-q="all" class="secondary">All branches</button><button type="button" data-q="cur" class="secondary">Current branch</button></div>
+    <div id="blist"></div><div class="hint bp-hint">Tick branches to show only their history.</div></div>
   <div id="dlg" hidden role="dialog" aria-modal="true" aria-labelledby="dlg-t"><form id="dlg-f">
     <div id="dlg-t"></div>
     <label for="dlg-s">Subject</label><input id="dlg-s" type="text" spellcheck="true" autocomplete="off">
@@ -78,11 +81,10 @@
 
   // ---------- toolbar ----------
   $('#repo').addEventListener('change', (e) => vscode.postMessage({ type: 'setRepo', repo: e.target.value }));
-  $('#branch').addEventListener('change', sendFilter);
   $('#remotes').addEventListener('change', sendFilter);
   $('#order').addEventListener('change', (e) => vscode.postMessage({ type: 'order', order: e.target.value }));
   $('#pathbar').addEventListener('click', (e) => {
-    if (e.target.closest('#clearpath')) vscode.postMessage({ type: 'filter', branch: $('#branch').value, remotes: $('#remotes').checked, path: '' });
+    if (e.target.closest('#clearpath')) vscode.postMessage({ type: 'filter', branches: selBranches, remotes: $('#remotes').checked, path: '' });
   });
   $('#opbar').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-op]');
@@ -112,8 +114,63 @@
   }
   $('#prev').addEventListener('click', () => step(-1));
   function sendFilter() {
-    vscode.postMessage({ type: 'filter', branch: $('#branch').value, remotes: $('#remotes').checked });
+    vscode.postMessage({ type: 'filter', branches: selBranches, remotes: $('#remotes').checked });
   }
+
+  // ---------- branch checklist (show only some branches) ----------
+  /** Branches ticked in the checklist; empty = all. */
+  let selBranches = [];
+  const bpop = $('#bpop');
+  function branchLabel() {
+    const b = $('#branchbtn');
+    b.textContent = !selBranches.length ? 'All' : selBranches.length === 1 ? selBranches[0] : `${selBranches.length} branches`;
+    b.title = selBranches.length ? 'Showing only: ' + selBranches.join(', ') : 'Show only some branches';
+    b.classList.toggle('on', selBranches.length > 0);
+  }
+  function fillBranchList() {
+    if (!data) return;
+    const q = $('#bfind').value.trim().toLowerCase();
+    const sel = new Set(selBranches);
+    // Ticked branches that no longer exist stay listed so they can be unticked.
+    const all = [...new Set([...data.branches, ...selBranches])];
+    const shown = all.filter((b) => !q || b.toLowerCase().includes(q));
+    $('#blist').innerHTML = shown.length
+      ? shown.map((b) => `<label class="bp-item${b === data.branch ? ' cur' : ''}" title="${esc(b)}"><input type="checkbox" value="${esc(b)}"${sel.has(b) ? ' checked' : ''}> <span>${esc(b)}</span></label>`).join('')
+      : '<div class="hint">No branch matches.</div>';
+    bpop.querySelector('[data-q="cur"]').disabled = !data.branch;
+  }
+  function openBranches() {
+    const r = $('#branchbtn').getBoundingClientRect();
+    bpop.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 300)) + 'px';
+    bpop.style.top = r.bottom + 4 + 'px';
+    bpop.hidden = false;
+    $('#branchbtn').setAttribute('aria-expanded', 'true');
+    $('#bfind').value = '';
+    fillBranchList();
+    $('#bfind').focus();
+  }
+  function closeBranches() { bpop.hidden = true; $('#branchbtn').setAttribute('aria-expanded', 'false'); }
+  $('#branchbtn').addEventListener('click', () => (bpop.hidden ? openBranches() : closeBranches()));
+  $('#bfind').addEventListener('input', fillBranchList);
+  $('#bfind').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeBranches(); $('#branchbtn').focus(); }
+    if (e.key === 'Enter') { const first = $('#blist input'); if (first) { first.checked = !first.checked; first.dispatchEvent(new Event('change', { bubbles: true })); } }
+  });
+  $('#blist').addEventListener('change', (e) => {
+    const v = e.target.value;
+    selBranches = e.target.checked ? [...selBranches.filter((b) => b !== v), v] : selBranches.filter((b) => b !== v);
+    branchLabel();
+    sendFilter();
+  });
+  bpop.querySelector('.bp-quick').addEventListener('click', (e) => {
+    const q = e.target.closest('[data-q]');
+    if (!q) return;
+    selBranches = q.dataset.q === 'cur' && data && data.branch ? [data.branch] : [];
+    branchLabel();
+    fillBranchList();
+    sendFilter();
+  });
+  document.addEventListener('mousedown', (e) => { if (!bpop.hidden && !bpop.contains(e.target) && !e.target.closest('#branchbtn')) closeBranches(); });
 
   // ---------- messages ----------
   window.addEventListener('message', (ev) => {
@@ -128,7 +185,7 @@
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -167,9 +224,9 @@
       if (w.head) { if (!wtBySha.has(w.head)) wtBySha.set(w.head, []); wtBySha.get(w.head).push(w); }
       if (w.branch) wtByBranch.set(w.branch, w);
     }
-    const bsel = $('#branch');
-    bsel.innerHTML = `<option value="">All branches</option>` + m.branches.map((b) => `<option>${esc(b)}</option>`).join('');
-    bsel.value = m.filter.branch || '';
+    selBranches = m.filter.branches || [];
+    branchLabel();
+    if (!bpop.hidden) fillBranchList();
     $('#remotes').checked = m.filter.remotes;
     if (m.order) $('#order').value = m.order;
     $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
@@ -373,6 +430,7 @@
     const first = Math.max(0, Math.floor(scroller.scrollTop / ROW) - 10);
     const last = Math.min(n, Math.ceil((scroller.scrollTop + scroller.clientHeight) / ROW) + 10);
     const matchSet = new Set(matches);
+    const dim = settings.dimOtherCommits && data.head ? headReach() : null;
     let h = '';
     for (let i = first; i < last; i++) {
       const c = data.commits[i];
@@ -385,6 +443,7 @@
       if (c.kind !== 'commit') cls.push('k-' + c.kind);
       if (c.parents.length > 1) cls.push('merge');
       if (i === dropIndex) cls.push('drop');
+      if (dim && c.kind === 'commit' && !dim.has(c.sha)) cls.push('dim');
       h += `<div class="${cls.join(' ')}" style="top:${i * ROW}px" data-i="${i}">
         <div class="c-graph">${graphSvg(c, row)}</div>
         <div class="c-desc">${refBadges(c)}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
@@ -654,8 +713,14 @@
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#find').focus(); $('#find').select(); return; }
     if (!$('#dlg').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } return; }
-    if (e.key === 'Escape') { if (!menu.hidden) hideMenu(); else if (!detailsEl.hidden) closeDetails(); return; }
+    if (e.key === 'Escape') { if (!bpop.hidden) closeBranches(); else if (!menu.hidden) hideMenu(); else if (!detailsEl.hidden) closeDetails(); return; }
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+      // Jump to the checked-out commit.
+      e.preventDefault();
+      if (data && data.head && indexBySha.has(data.head)) select(data.head, true);
+      return;
+    }
     const page = Math.max(1, Math.floor(scroller.clientHeight / ROW) - 1);
     const MOVE = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page };
     if ((e.key in MOVE || e.key === 'Home' || e.key === 'End') && data && data.commits.length) {
@@ -728,6 +793,22 @@
       ['Copy hash', { ...base, action: 'copyHash' }],
       ['Copy subject', { ...base, action: 'copySubject' }],
     ];
+  }
+
+  /** Loaded commits reachable from HEAD (its history). Used to dim the rest and to offer cherry-pick on drop. */
+  let reach = null, reachFor = null;
+  function headReach() {
+    if (reachFor === data) return reach;
+    reachFor = data;
+    reach = new Set();
+    const stack = data.head ? [data.head] : [];
+    while (stack.length) {
+      const sha = stack.pop();
+      if (reach.has(sha) || !indexBySha.has(sha)) continue;
+      reach.add(sha);
+      for (const p of data.commits[indexBySha.get(sha)].parents) stack.push(p);
+    }
+    return reach;
   }
 
   // ---------- edit history (reword, drop, squash) ----------
@@ -875,7 +956,7 @@
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }],
       ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
       ['Check out in new worktree…', { ...r, action: 'addWorktree' }],
-      ...(data.web && remote === data.web.remote ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: webBranch(name.slice(remote.length + 1)) })]] : []),
+      ...(data.web && remote === data.web.remote ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: webBranch(name.slice(remote.length + 1)) })], ['Create pull request on ' + data.web.name + '…', () => vscode.postMessage({ type: 'openPullRequest', ref: name, refType: 'remote', remote })]] : []),
       null,
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
       null,
@@ -892,6 +973,7 @@
       null,
       ['Push…', { ...r, action: 'pushBranch' }],
       ...(isCur ? [['Pull', { ...r, action: 'pull' }]] : []),
+      ...(data.web ? [['Create pull request on ' + data.web.name + '…', () => vscode.postMessage({ type: 'openPullRequest', ref: name, refType: 'head' })]] : []),
       ['Rename…', { ...r, action: 'renameBranch' }],
       ['Delete…', { ...r, action: 'deleteBranch' }, isCur ? 'disabled' : 'danger'],
       null,
@@ -910,8 +992,8 @@
     ];
   }
 
-  // ---------- drag and drop: a branch badge onto another branch or commit ----------
-  let drag = null; // { name, type, remote, sha, x0, y0, active }
+  // ---------- drag and drop: a branch badge, or a commit row, onto another branch or commit ----------
+  let drag = null; // { name, type ('head' | 'remote' | 'commit'), remote, sha, x0, y0, active }
   let justDropped = false;
   const ghost = document.createElement('div');
   ghost.id = 'ghost';
@@ -920,7 +1002,15 @@
   rowsEl.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !data) return;
     const b = e.target.closest('[data-ref]');
-    if (!b || (b.dataset.type !== 'head' && b.dataset.type !== 'remote')) return;
+    if (!b || (b.dataset.type !== 'head' && b.dataset.type !== 'remote')) {
+      // A commit row (not a tag, stash or the working tree): cherry-pick, move or squash on drop.
+      const row = e.target.closest('.row');
+      if (!row || e.target.closest('[data-wt], [data-kind]')) return;
+      const c = data.commits[+row.dataset.i];
+      if (!c || c.kind !== 'commit') return;
+      drag = { name: `${short(c.sha)} ${c.subject.length > 40 ? c.subject.slice(0, 40) + '…' : c.subject}`, type: 'commit', sha: c.sha, c, x0: e.clientX, y0: e.clientY, active: false };
+      return;
+    }
     const row = b.closest('.row');
     e.preventDefault(); // no text selection while dragging
     drag = { name: b.dataset.ref, type: b.dataset.type, remote: b.dataset.remote, sha: data.commits[+row.dataset.i].sha, x0: e.clientX, y0: e.clientY, active: false };
@@ -940,6 +1030,8 @@
       if (Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < 6) return;
       drag.active = true;
       hideMenu();
+      const ws = window.getSelection();
+      if (ws) ws.removeAllRanges();
       document.body.classList.add('dragging');
       ghost.textContent = drag.name;
       ghost.hidden = false;
@@ -969,8 +1061,32 @@
     if (items) showMenu(items, e.clientX, e.clientY);
   });
 
+  /**
+   * Menu shown when commit `s` is dropped on row `t`. On the current branch: squash into it or move
+   * next to it (both commits on the editable line); from elsewhere onto the current branch: cherry-pick.
+   */
+  function commitDropItems(s, t) {
+    const c = t.c, cur = data.branch;
+    if (c.sha === s.sha) return null;
+    const curL = cur ? `“${cur}”` : 'HEAD';
+    const items = [];
+    const onHead = t.ref ? t.ref === cur && t.refType === 'head' : c.sha === data.head;
+    const set = editableSet();
+    if (!data.op && set.has(s.sha) && set.has(c.sha)) {
+      const m = { action: 'placeCommit', sha: s.sha, subject: s.c.subject, target: c.sha, targetSubject: c.subject, current: cur };
+      items.push([`Squash ${short(s.sha)} into ${short(c.sha)}…`, { ...m, fold: true }]);
+      items.push([`Move ${short(s.sha)} to right after ${short(c.sha)}…`, { ...m, fold: false }, s.c.parents[0] === c.sha ? 'disabled' : '']);
+    } else if (onHead && !headReach().has(s.sha)) {
+      items.push([`Cherry-pick ${short(s.sha)} onto ${curL}`, { action: 'cherryPick', sha: s.sha, subject: s.c.subject, parents: s.c.parents }, data.op ? 'disabled' : '']);
+    }
+    if (items.length) items.push(null);
+    items.push([`Compare ${short(s.sha)} with ${t.ref && t.refType !== 'tag' ? `“${t.ref}”` : short(c.sha)}`, () => compare(s.sha, c.sha)]);
+    return items;
+  }
+
   /** Menu shown when branch `s` is dropped on row `t`: merge, rebase, move, compare. Null when it is a no-op. */
   function dropItems(s, t) {
+    if (s.type === 'commit') return commitDropItems(s, t);
     const cur = data.branch;
     const c = t.c;
     // Target: the branch badge under the pointer, else the current branch when this is the HEAD row, else the commit.

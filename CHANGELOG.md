@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 (2026-11-20)
+
+- **Show only some branches.** The toolbar's branch filter is now a checklist: tick any number of local or remote branches to see only their history together. **Current branch** shows just the checked-out one, **All branches** clears it, and a search box narrows long lists. It replaces the old single-branch dropdown.
+- **Drag a commit.** Drag a commit row from another branch onto the current branch's badge or the HEAD row to **cherry-pick** it. Drag a commit on your branch onto another commit on it to **squash it into that commit** or **move it to right after it**, anywhere on the branch, not just next to its neighbour. These use the same safety as the other history edits (autostash, a warning for pushed commits, Undo, and the Continue/Skip/Abort bar on a conflict). Nothing runs until you pick an item from the menu that opens on drop.
+- **Create pull request.** Branch menus gain **Create pull request on GitHub…** (or GitLab, Bitbucket). It opens the forge's new pull request (merge request) page for that branch in your browser. A local branch uses the branch it tracks; one that is not pushed yet is offered a push first. Mergeline still makes no network requests itself and needs no sign-in.
+- **Dim other commits.** New setting `mergeline.dimOtherCommits` (off by default) fades commits that are not in the checked-out branch's history, so your branch's line stands out.
+- **Ctrl/Cmd+H** jumps to the checked-out commit.
+
 ## 0.7.0 (2026-11-20)
 
 - **Rebase, merge, cherry-pick or revert in progress? The graph says so.** When one of them has stopped (usually on a conflict), whether Mergeline started it or you did in a terminal, a bar above the graph shows what is happening: for example "Rebasing main onto feature/x — step 2 of 5, stopped at 1a2b3c4 “subject” · 2 conflicted files". Its buttons **Continue**, **Skip** (not for merges), **Abort** and **Source Control** do the obvious thing. Continue never opens an editor (git keeps the message it prepared), refuses while files are still unmerged, and asks again if a staged file still contains conflict markers. Abort and Skip ask first. `git am` is recognised too.

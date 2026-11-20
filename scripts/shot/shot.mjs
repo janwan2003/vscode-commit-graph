@@ -57,6 +57,12 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
         ev(document, 'mousemove', d.left + 8, d.top + 8);
         ev(document.elementFromPoint(d.left + 8, d.top + 8), 'mouseup', d.left + 8, d.top + 8);
       }, 140);
+      // BRANCHES=1: the branch checklist open with two branches ticked, commits off HEAD dimmed.
+      if (${process.env.BRANCHES === '1'}) setTimeout(() => {
+        window.postMessage({ type: 'settings', settings: { dateFormat: 'relative', dimOtherCommits: true } }, '*');
+        document.querySelector('#branchbtn').click();
+        for (const v of ['main', 'release/1.1']) { const i = [...document.querySelectorAll('#blist input')].find((x) => x.value === v); if (i) i.click(); }
+      }, 140);
       // DIALOG=1: the commit message editor, open. DIALOG=2: edit it and save; the posted message goes in the title.
       if (${!!process.env.DIALOG}) setTimeout(() => window.postMessage({ type: 'message', sha: P.data.head, message: P.data.commits.find((c) => c.sha === P.data.head).subject + '\\n\\nThe dark palette now follows the editor theme.\\nFixes #128.' }, '*'), 100);
       if (${process.env.DIALOG === '2'}) setTimeout(() => {

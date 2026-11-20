@@ -12,6 +12,11 @@ export type RewriteOp =
   | { kind: 'move'; sha: string; dir: 'older' | 'newer' }
   /** Fold `sha` into its parent; the parent's message is kept. */
   | { kind: 'fixup'; sha: string }
+  /**
+   * Put `sha` directly after (on top of) `target`, anywhere on the branch: with `fold`, fold it
+   * into `target` (target's message is kept), else just move it there. Drag a commit onto another.
+   */
+  | { kind: 'place'; sha: string; target: string; fold: boolean }
   /** Squash the commits from `from` (oldest) to `to` (newest), inclusive, into one with `message`. */
   | { kind: 'squash'; from: string; to: string; message: string };
 
@@ -55,6 +60,19 @@ export async function planRewrite(cwd: string, op: RewriteOp): Promise<RewritePl
   const parents = (await git(cwd, ['rev-list', '--parents', '-n', '1', first])).trim().split(' ').slice(1);
   if (parents.length > 1) throw new RewriteError('This is a merge commit. Use an interactive rebase in a terminal for merges.');
   let oldest = first;
+  let target: string | undefined;
+  if (op.kind === 'place') {
+    target = await resolve(cwd, op.target);
+    if (target === first) throw new RewriteError('Drop it on a different commit.');
+    // The older of the two is the first commit whose position or content changes.
+    if (!(await isAncestor(cwd, first, target))) {
+      if (!(await isAncestor(cwd, target, first))) throw new RewriteError('Those two commits are not on one line of history. Both must be on the checked-out branch.');
+      oldest = target;
+      if (!op.fold && parents[0] === target) throw new RewriteError('It is already right after that commit.');
+    }
+    const tp = (await git(cwd, ['rev-list', '--parents', '-n', '1', target])).trim().split(' ').slice(1);
+    if (tp.length > 1) throw new RewriteError('That is a merge commit. Use an interactive rebase in a terminal for merges.');
+  }
   if (op.kind === 'fixup' || (op.kind === 'move' && op.dir === 'older')) {
     if (!parents.length) throw new RewriteError(op.kind === 'fixup' ? 'This is the first commit; it has no parent to squash into.' : 'This is the first commit; there is nothing older to move it below.');
     oldest = parents[0];
@@ -64,13 +82,25 @@ export async function planRewrite(cwd: string, op: RewriteOp): Promise<RewritePl
   const base = op2[0] ?? null;
   const range = base ? [`${base}..HEAD`] : ['HEAD'];
   const commits = (await revs(cwd, ['--reverse', ...range]));
-  if (!commits.includes(first) || !commits.includes(last)) throw new RewriteError('That commit is not on the checked-out branch. Check its branch out first.');
+  if (!commits.includes(first) || !commits.includes(last) || (target && !commits.includes(target))) throw new RewriteError('That commit is not on the checked-out branch. Check its branch out first.');
   if ((await revs(cwd, ['--merges', ...range])).length) throw new RewriteError('There is a merge commit between it and HEAD, and rewriting would flatten it. Use an interactive rebase in a terminal (git rebase -i --rebase-merges).');
   if (op.kind === 'squash' && commits.indexOf(first) >= commits.indexOf(last)) throw new RewriteError('Pick the older commit first, then the newer one.');
   if (op.kind === 'move' && op.dir === 'newer' && first === head) throw new RewriteError('This is already the newest commit on the branch.');
   if (await rebaseInProgress(cwd)) throw new RewriteError('A rebase is already in progress. Finish or abort it first.');
   const pushed = (await git(cwd, ['branch', '-r', '--contains', oldest, '--format=%(refname:short)'])).split('\n').map((s) => s.trim()).filter((s) => s && !s.endsWith('/HEAD'));
-  return { base, commits, rewritten: commits.length - commits.indexOf(oldest), pushed, head, first, last };
+  // A moved commit placed lower down leaves the commits below its new place untouched.
+  let from = commits.indexOf(oldest);
+  if (op.kind === 'place' && !op.fold && oldest === target) from += 1;
+  return { base, commits, rewritten: commits.length - from, pushed, head, first, last: target ?? last };
+}
+
+async function isAncestor(cwd: string, a: string, b: string): Promise<boolean> {
+  try {
+    await git(cwd, ['merge-base', '--is-ancestor', a, b]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function rebaseInProgress(cwd: string): Promise<boolean> {
@@ -92,6 +122,12 @@ export function buildTodo(op: RewriteOp, commits: string[], msgFile: string): st
   const out: string[] = [];
   const iFrom = op.kind === 'squash' ? commits.indexOf(op.from) : -1;
   const iTo = op.kind === 'squash' ? commits.indexOf(op.to) : -1;
+  if (op.kind === 'place') {
+    const order = commits.filter((c) => c !== op.sha).map((c) => `pick ${c}`);
+    const t = commits.filter((c) => c !== op.sha).indexOf(op.target);
+    order.splice(t + 1, 0, `${op.fold ? 'fixup' : 'pick'} ${op.sha}`);
+    return order;
+  }
   if (op.kind === 'move') {
     const i = commits.indexOf(op.sha);
     const j = op.dir === 'older' ? i - 1 : i + 1;
@@ -135,7 +171,10 @@ export interface RewriteResult {
  */
 export async function runRewrite(cwd: string, op0: RewriteOp, plan: RewritePlan, message?: string): Promise<RewriteResult> {
   // Use the full hashes planRewrite resolved (the op may name abbreviated hashes or refs).
-  const op: RewriteOp = op0.kind === 'squash' ? { ...op0, from: plan.first, to: plan.last } : { ...op0, sha: plan.first };
+  const op: RewriteOp =
+    op0.kind === 'squash' ? { ...op0, from: plan.first, to: plan.last }
+    : op0.kind === 'place' ? { ...op0, sha: plan.first, target: plan.last }
+    : { ...op0, sha: plan.first };
   // Files live in the git dir, not in tmp: if the rebase stops on a conflict, its remaining
   // exec line still reads the message file after the user resolves and continues.
   const gitDir = (await git(cwd, ['rev-parse', '--absolute-git-dir'])).trim();

@@ -20,10 +20,10 @@ account, has no paid tier and sends no telemetry.
 - **Fast**: only visible rows are rendered. The first 500 commits load at once and more load as you scroll. On a 100,000-commit repository the first page is ready in about 0.35 s.
 - **Details**: click a commit to see its full message, author, committer, parents and changed files with +/− counts and renames. Files are shown in folders or as a flat list (toggle above them). Click a file to open it in VS Code's diff editor. Right-click a file to open it, open it as it was at that commit, compare that version with your working copy, show its history, reveal it in the Explorer or copy its path. Links in commit messages are clickable, and so are `#123` issue references and the **Open on GitHub** link (also GitLab and Bitbucket) when your remote is hosted there. Drag the bar above the pane to resize it.
 - **Compare**: Ctrl/Cmd-click a second commit to see every file that changed between the two. Right-click a commit → **Compare with working tree**, or a branch → **Compare with** the current branch, or **Changes since it split from** the current branch (three-dot diff from the merge base: what a merge would bring in).
-- **Drag and drop**: drag a branch badge onto another branch or a commit to merge it there, rebase it onto it, move the branch to that commit, or compare the two. Nothing runs until you pick an item from the menu that opens on drop, and rebases and moves ask first.
+- **Drag and drop**: drag a branch badge onto another branch or a commit to merge it there, rebase it onto it, move the branch to that commit, or compare the two. Drag a commit from another branch onto your current branch to **cherry-pick** it. Nothing runs until you pick an item from the menu that opens on drop, and rebases and moves ask first.
 ![Dragging the feature/dark-mode branch onto main opens a menu: merge, rebase, move, compare, or see the changes since they split](docs/screenshot-drag.png)
 
-- **Edit history**: right-click a commit on your branch to **edit its message** (subject and body), **move it up or down**, **squash it into its parent** or **drop it**. Ctrl/Cmd-click a second commit to **squash the range into one**. No editor or terminal opens, uncommitted changes are stashed and restored, and each change can be undone from the notification. Commits that are already pushed get a warning first, and merges are left alone.
+- **Edit history**: right-click a commit on your branch to **edit its message** (subject and body), **move it up or down**, **squash it into its parent** or **drop it**. Ctrl/Cmd-click a second commit to **squash the range into one**. Or drag a commit onto another one on your branch to **squash it into that commit** or **move it right after it**. No editor or terminal opens, uncommitted changes are stashed and restored, and each change can be undone from the notification. Commits that are already pushed get a warning first, and merges are left alone.
 ![Right-click menu on a commit with Edit commit message, Move commit up, Move commit down, Squash into parent and Drop commit](docs/screenshot-edit.png)
 - **Stopped rebase, merge or cherry-pick?** A bar above the graph shows what is in progress, which commit it stopped at and how many files conflict, with **Continue**, **Skip**, **Abort** and **Source Control** buttons. It also picks up operations you started in a terminal. Continue never opens an editor.
 ![Bar above the graph: Rebasing main onto feature/dark-mode, step 2 of 5, 2 conflicted files, with Continue, Skip, Abort and Source Control buttons](docs/screenshot-rebase.png)
@@ -31,21 +31,24 @@ account, has no paid tier and sends no telemetry.
 - **Worktrees**: other worktrees show as a ⧉ badge on the commit they have checked out. Create one from a branch or commit, open it in a new window, or remove it, from the right-click menus.
 - **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches. **All history** (or Enter when nothing loaded matches) searches every commit the graph can show, not just the loaded ones (`git log --grep` / `--author`, hash prefix, ref names), and loads as far as needed to show the match.
 - **File history**: right-click a file (Explorer, editor tab or editor) → **Show File History in Mergeline** to see only the commits that touched it, still drawn as a connected graph. Renamed or moved files are followed back through their old names (shown in the bar above the graph).
-- **Filter**: show one branch, or hide remote branches.
+- **Filter**: tick the branches you want in the **Branches** checklist (any number, local or remote) to see only their history, or pick **Current branch**. Hide remote branches with one click. The `mergeline.dimOtherCommits` setting fades commits that are not in your branch's history.
+![The Branches checklist with main and release/1.1 ticked; a commit that is not in main's history is dimmed](docs/screenshot-branches.png)
 - **Order**: date, topology or author date. Topology keeps each branch's commits together, which makes busy histories much narrower.
-- **Keyboard**: ↑/↓, Page Up/Down and Home/End move between commits, Ctrl/Cmd+F finds, Esc closes the details pane.
+- **Pull requests**: right-click a branch → **Create pull request on GitHub** (or GitLab, Bitbucket) opens the forge's new pull request page for it. Not pushed yet? Mergeline offers to push it first.
+- **Keyboard**: ↑/↓, Page Up/Down and Home/End move between commits, Ctrl/Cmd+H jumps to the checked-out commit, Ctrl/Cmd+F finds, Esc closes the details pane.
 
 ### Right-click actions
 
 | On | Actions |
 |---|---|
 | Commit | Create branch here · Add tag (lightweight or annotated) · Check out (detached) · Cherry-pick · Revert · Merge into current branch (fast-forward, `--no-ff` or `--squash`) · Rebase current branch onto it · Interactive rebase from here (in a terminal) · Reset current branch to it (soft, mixed or hard) · On the checked-out branch: Edit commit message (subject and body) · Move commit up / down · Squash into parent · Drop commit · Squash N commits into one (with a Ctrl/Cmd-click selection) · Compare with working tree · Create worktree here (detached) · Open on GitHub/GitLab/Bitbucket · Copy hash or subject |
-| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Rename · Delete (asks before force-deleting an unmerged branch) · Copy name |
-| Remote branch | Check out as a local tracking branch · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Open on GitHub/GitLab/Bitbucket · Delete on remote · Copy name |
+| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Create pull request on GitHub/GitLab/Bitbucket · Rename · Delete (asks before force-deleting an unmerged branch) · Copy name |
+| Remote branch | Check out as a local tracking branch · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Open on GitHub/GitLab/Bitbucket · Create pull request · Delete on remote · Copy name |
 | Tag | Push · Merge · Delete locally or also on the remote · Copy name |
 | Stash | Apply · Pop · Create branch from stash · Drop |
 | Worktree badge | Open in new window · Copy path · Remove worktree (asks again before discarding uncommitted changes) · Prune missing worktrees |
 | Branch dropped on a branch or commit | Merge into it · Rebase onto it · Move the branch there (reset, if current) · Compare · Changes since they split |
+| Commit dropped on the current branch or another commit | Cherry-pick onto the current branch (from another branch) · Squash into that commit · Move to right after it (both on your branch) · Compare |
 | File (details pane) | Open changes · Open file · Open file at this commit · Compare with working tree · Show file history · Reveal in Explorer · Copy relative or absolute path |
 | Uncommitted changes | Stash (including untracked files) · Open Source Control · Discard all |
 
@@ -64,6 +67,7 @@ Push, pull and fetch go through VS Code's built-in Git, so your usual credential
 | `mergeline.commitOrder` | date | `date`, `topo` or `author-date`. Also in the toolbar. |
 | `mergeline.statusBarButton` | true | Show the status-bar button. |
 | `mergeline.dateFormat` | relative | `relative`, `iso` or `locale`. |
+| `mergeline.dimOtherCommits` | false | Dim commits that are not in the checked-out branch's history. |
 
 ## Why Mergeline
 

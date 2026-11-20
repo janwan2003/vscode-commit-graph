@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -34,15 +34,16 @@
     "git log",
     "git tree",
     "git worktree",
-    "worktree",
     "drag and drop",
     "edit commit message",
-    "reword",
     "squash commits",
     "drop commit",
     "reorder commits",
     "interactive rebase",
     "rebase continue",
+    "pull request",
+    "create pull request",
+    "filter branches",
     "merge conflict",
     "git",
     "history",
@@ -51,8 +52,7 @@
     "rebase",
     "cherry-pick",
     "stash",
-    "tags",
-    "visualize"
+    "tags"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -177,6 +177,11 @@
           ],
           "default": "relative",
           "description": "How commit dates are shown."
+        },
+        "mergeline.dimOtherCommits": {
+          "type": "boolean",
+          "default": false,
+          "description": "Dim commits that are not in the checked-out branch's history, so its line stands out."
         }
       }
     }

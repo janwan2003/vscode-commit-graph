@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, countStatus, readStatusCount, parseWorktrees, readWorktrees, mergeBase } from '../src/core/gitlog';
 import { layout, newLayoutState, Row } from '../src/core/graph';
-import { webRepo, commitUrl, issueUrl, branchUrl } from '../src/core/remote';
+import { webRepo, commitUrl, issueUrl, branchUrl, pullRequestUrl } from '../src/core/remote';
 
 function sh(cwd: string, ...args: string[]) {
   return execFileSync('git', args, {
@@ -356,6 +356,9 @@ test('webRepo turns remote URLs into forge web links, and ignores local or unkno
   assert.equal(commitUrl(bb, 'abc'), 'https://bitbucket.org/o/r/commits/abc');
   assert.equal(issueUrl(gl, '7'), 'https://gitlab.com/o/r/-/issues/7');
   assert.equal(branchUrl(gh, 'feature/a b'), 'https://github.com/o/r/tree/feature/a%20b');
+  assert.equal(pullRequestUrl(gh, 'feature/a b'), 'https://github.com/o/r/compare/feature/a%20b?expand=1');
+  assert.equal(pullRequestUrl(gl, 'feature/x'), 'https://gitlab.com/o/r/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2Fx');
+  assert.equal(pullRequestUrl(bb, 'fix#1'), 'https://bitbucket.org/o/r/pull-requests/new?source=fix%231');
 });
 
 test('worktrees: porcelain parsing (-z and newline forms) and a real linked worktree', async () => {

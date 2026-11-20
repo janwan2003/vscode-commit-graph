@@ -9,7 +9,7 @@ import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
 import { readOperation, OpState } from '../core/progress';
-import { webRepo, commitUrl, issueUrl, branchUrl, Forge } from '../core/remote';
+import { webRepo, commitUrl, issueUrl, branchUrl, pullRequestUrl, Forge } from '../core/remote';
 import { git } from '../core/gitlog';
 
 const FORGE_NAME: Record<Forge, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
@@ -21,8 +21,8 @@ export class GraphPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel;
   private repo: string | undefined;
   private max: number;
-  /** path: repo-relative, '/'-separated path for file history, or null for the whole repo. */
-  private filter: { branch: string | null; remotes: boolean; path: string | null };
+  /** branches: show only these (empty = all). path: repo-relative, '/'-separated path for file history, or null for the whole repo. */
+  private filter: { branches: string[]; remotes: boolean; path: string | null };
   private subs: vscode.Disposable[] = [];
   private timer: NodeJS.Timeout | undefined;
   private lastSig = '';
@@ -32,6 +32,8 @@ export class GraphPanel implements vscode.Disposable {
   lastPong: any;
   lastDetails: any;
   lastHistory: any;
+  /** Last URL handed to the browser (tests read it; under test nothing is opened). */
+  lastUrl: string | undefined;
   lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[]; op: OpState | null } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
@@ -47,7 +49,7 @@ export class GraphPanel implements vscode.Disposable {
   private constructor(private ctx: vscode.ExtensionContext, private repos: Repos, root?: string) {
     const cfg = vscode.workspace.getConfiguration('mergeline');
     this.max = cfg.get<number>('initialCommits', 500);
-    this.filter = { branch: null, remotes: cfg.get<boolean>('showRemoteBranches', true), path: null };
+    this.filter = { branches: [], remotes: cfg.get<boolean>('showRemoteBranches', true), path: null };
     this.repo = root ?? ctx.workspaceState.get<string>('mergeline.repo');
     this.panel = vscode.window.createWebviewPanel('mergeline.graph', 'Mergeline', vscode.ViewColumn.Active, {
       enableScripts: true,
@@ -96,7 +98,7 @@ export class GraphPanel implements vscode.Disposable {
 
   private settings() {
     const cfg = vscode.workspace.getConfiguration('mergeline');
-    return { dateFormat: cfg.get('dateFormat', 'relative'), commitOrder: cfg.get('commitOrder', 'date'), layout: this.ctx.globalState.get('mergeline.layout') ?? null };
+    return { dateFormat: cfg.get('dateFormat', 'relative'), commitOrder: cfg.get('commitOrder', 'date'), dimOtherCommits: cfg.get('dimOtherCommits', false), layout: this.ctx.globalState.get('mergeline.layout') ?? null };
   }
   private postSettings() {
     this.post({ type: 'settings', settings: this.settings() });
@@ -115,7 +117,7 @@ export class GraphPanel implements vscode.Disposable {
   setRepo(root: string) {
     this.repo = root;
     this.ctx.workspaceState.update('mergeline.repo', root);
-    this.filter.branch = null;
+    this.filter.branches = [];
     this.filter.path = null;
     this.max = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
     this.postRepos();
@@ -127,7 +129,7 @@ export class GraphPanel implements vscode.Disposable {
     if (root !== this.repo) {
       this.repo = root;
       this.ctx.workspaceState.update('mergeline.repo', root);
-      this.filter.branch = null;
+      this.filter.branches = [];
       this.postRepos();
     }
     this.filter.path = rel.split(path.sep).join('/');
@@ -263,7 +265,7 @@ export class GraphPanel implements vscode.Disposable {
   }
 
   private logOptions(order: CommitOrder) {
-    return { max: this.max, branches: this.filter.branch ? [this.filter.branch] : undefined, remotes: this.filter.remotes, order };
+    return { max: this.max, branches: this.filter.branches.length ? this.filter.branches : undefined, remotes: this.filter.remotes, order };
   }
 
   /** Find box "All history": search every commit the graph could show, not just the loaded ones. */
@@ -314,10 +316,14 @@ export class GraphPanel implements vscode.Disposable {
         this.post({ type: 'reveal', sha: m.sha });
         break;
       }
-      case 'filter':
-        this.filter = { branch: m.branch || null, remotes: !!m.remotes, path: m.path === undefined ? this.filter.path : m.path || null };
+      case 'filter': {
+        // `branches` (a list) from the toolbar checklist; `branch` (one name, '' = all) is still accepted.
+        const list: unknown[] = Array.isArray(m.branches) ? m.branches : m.branch ? [m.branch] : [];
+        const branches = [...new Set(list.filter((b): b is string => typeof b === 'string' && !!b && !b.startsWith('-')))];
+        this.filter = { branches, remotes: !!m.remotes, path: m.path === undefined ? this.filter.path : m.path || null };
         await this.refresh(true);
         break;
+      }
       case 'order':
         // Saved as a user setting; the configuration listener refreshes the graph.
         if (['date', 'topo', 'author-date'].includes(m.order)) await vscode.workspace.getConfiguration('mergeline').update('commitOrder', m.order, vscode.ConfigurationTarget.Global);
@@ -351,7 +357,10 @@ export class GraphPanel implements vscode.Disposable {
         if (typeof m.text === 'string') await vscode.env.clipboard.writeText(m.text);
         break;
       case 'openUrl':
-        if (typeof m.url === 'string' && /^https?:\/\//i.test(m.url)) await vscode.env.openExternal(vscode.Uri.parse(m.url, true));
+        if (typeof m.url === 'string') await this.openUrl(m.url);
+        break;
+      case 'openPullRequest':
+        await this.openPullRequest(String(m.ref ?? ''), m.refType === 'remote' ? 'remote' : 'head', typeof m.remote === 'string' ? m.remote : undefined);
         break;
       case 'action': {
         const info = this.info();
@@ -454,6 +463,53 @@ export class GraphPanel implements vscode.Disposable {
         if (await exists()) await vscode.commands.executeCommand('revealInExplorer', fileUri);
         break;
     }
+  }
+
+  private async openUrl(url: string) {
+    if (!/^https?:\/\//i.test(url)) return;
+    this.lastUrl = url;
+    if (process.env.MERGELINE_E2E_REPORT) return; // under test: record, do not open a browser
+    await vscode.env.openExternal(vscode.Uri.parse(url, true));
+  }
+
+  /**
+   * Open the forge's new pull request page for a branch. A local branch is resolved to the branch
+   * it tracks on its remote; one with no upstream is offered a push first. No network is used.
+   */
+  private async openPullRequest(ref: string, type: 'head' | 'remote', remote0?: string) {
+    const root = this.repo;
+    if (!root || !ref) return;
+    const cfg = async (key: string) => {
+      try {
+        return (await git(root, ['config', '--get', key])).trim();
+      } catch {
+        return '';
+      }
+    };
+    let remote: string, branch: string;
+    if (type === 'remote') {
+      remote = remote0 ?? ref.split('/')[0];
+      branch = ref.slice(remote.length + 1);
+    } else {
+      remote = await cfg(`branch.${ref}.remote`);
+      branch = (await cfg(`branch.${ref}.merge`)).replace(/^refs\/heads\//, '');
+      if (!remote || remote === '.' || !branch) {
+        const pick = await vscode.window.showInformationMessage(`“${ref}” is not on a remote yet. Push it first, then open the pull request page.`, 'Push and continue');
+        if (pick !== 'Push and continue') return;
+        const info = this.info();
+        if (!info || !(await runAction({ root, api: info.api }, { action: 'pushBranch', ref, refType: 'head' }))) return;
+        await this.refresh(true);
+        remote = await cfg(`branch.${ref}.remote`);
+        branch = (await cfg(`branch.${ref}.merge`)).replace(/^refs\/heads\//, '');
+        if (!remote || !branch) return;
+      }
+    }
+    const repo = webRepo(await cfg(`remote.${remote}.url`));
+    if (!repo) {
+      vscode.window.showInformationMessage(`Mergeline: remote “${remote}” is not on GitHub, GitLab or Bitbucket, so there is no pull request page to open.`);
+      return;
+    }
+    await this.openUrl(pullRequestUrl(repo, branch));
   }
 
   /** Test hook: asks the webview to report what it rendered (answer lands in lastPong). */

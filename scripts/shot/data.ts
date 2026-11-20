@@ -69,7 +69,7 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
   const out = {
-    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branch: null, remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
+    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
     details: { type: 'details', sha: sel.sha, info, from: info.parents[0], to: sel.sha, files },
   };
   writeFileSync(process.argv[2], JSON.stringify(out));

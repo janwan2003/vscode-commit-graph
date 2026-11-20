@@ -22,6 +22,8 @@ export interface ActionMsg {
   message?: string; // reword/squash: the new subject (skips the input box)
   fullMessage?: string; // reword: the whole new message, from the webview's editor
   dir?: 'older' | 'newer'; // moveCommit
+  fold?: boolean; // placeCommit: fold into the target instead of moving next to it
+  targetSubject?: string; // placeCommit
 }
 
 export interface ActionCtx {
@@ -183,6 +185,7 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
     case 'fixupCommit':
     case 'squashRange':
     case 'moveCommit':
+    case 'placeCommit':
       return rewrite(ctx, m);
     case 'opContinue':
     case 'opSkip':
@@ -393,6 +396,7 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
     : m.action === 'dropCommit' ? { kind: 'drop', sha }
     : m.action === 'fixupCommit' ? { kind: 'fixup', sha }
     : m.action === 'moveCommit' ? { kind: 'move', sha, dir: m.dir === 'newer' ? 'newer' : 'older' }
+    : m.action === 'placeCommit' ? { kind: 'place', sha, target: m.target ?? '', fold: !!m.fold }
     : { kind: 'squash', from: sha, to: m.target ?? '', message: '' };
   let plan: RewritePlan;
   try {
@@ -429,6 +433,13 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
     const word = op.dir === 'older' ? 'down (before its parent)' : 'up (after the next commit)';
     if (!(await confirm(`Move ${label} ${word}?`, `The two commits swap places. If both change the same lines, git stops with a conflict that you resolve or abort. ${common}`, 'Move commit'))) return false;
     [title, done] = [`Move ${short(sha)}`, `Moved ${short(sha)} ${op.dir === 'older' ? 'down' : 'up'}`];
+  } else if (op.kind === 'place') {
+    const tl = m.targetSubject ? `${short(m.target)} "${m.targetSubject.slice(0, 60)}"` : short(m.target);
+    const what = op.fold
+      ? [`Squash ${label} into ${tl}?`, `Its changes join ${short(m.target)}, which keeps its message.`, 'Squash', `Squash ${short(sha)}`, `Squashed ${short(sha)} into ${short(m.target)}`]
+      : [`Move ${label} to right after ${tl}?`, `It is replayed directly on top of ${short(m.target)}.`, 'Move commit', `Move ${short(sha)}`, `Moved ${short(sha)}`];
+    if (!(await confirm(what[0], `${what[1]} If commits in between change the same lines, git stops with a conflict that you resolve or abort. ${common}`, what[2]))) return false;
+    [title, done] = [what[3], what[4]];
   } else if (op.kind === 'drop') {
     if (!(await confirm(`Drop ${label}?`, `Its changes are removed from ${branch}, and later commits are replayed without it. ${common}`, 'Drop commit'))) return false;
     [title, done] = [`Drop ${short(sha)}`, `Dropped ${short(sha)}`];

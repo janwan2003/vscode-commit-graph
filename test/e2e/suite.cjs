@@ -422,6 +422,49 @@ exports.run = async function run() {
       await panel.refresh(true);
     });
 
+    await check('drag a commit: move it after another, squash it into another; branch checklist; dim other commits', async () => {
+      const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+      const commit = (msg) => { git('add', '-A'); git('commit', '-q', '-m', msg); };
+      const start = git('rev-parse', 'HEAD');
+      wf('p1.txt', '1\n'); commit('Place P1');
+      wf('p2.txt', '2\n'); commit('Place P2');
+      wf('p3.txt', '3\n'); commit('Place P3');
+      await panel.refresh(true);
+      const sha = (s) => panel.lastData.commits.find((c) => c.subject === s).sha;
+      const pong = async (pred, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && pred(panel.lastPong) && panel.lastPong; }, 10000, what);
+      // Move P3 (HEAD) to right after P1; P1 keeps its hash.
+      const p1 = sha('Place P1');
+      await act({ action: 'placeCommit', sha: sha('Place P3'), target: p1, fold: false, subject: 'Place P3', current: 'main' });
+      assert.deepEqual(git('log', '-3', '--format=%s').split('\n'), ['Place P2', 'Place P3', 'Place P1']);
+      assert.equal(git('rev-parse', 'HEAD~2'), p1);
+      await panel.refresh(true);
+      // Squash P2 (HEAD) into P1, two commits down: P1 keeps its message and gains p2.txt.
+      await act({ action: 'placeCommit', sha: sha('Place P2'), target: p1, fold: true, subject: 'Place P2', current: 'main' });
+      assert.deepEqual(git('log', '-2', '--format=%s').split('\n'), ['Place P3', 'Place P1']);
+      assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD~1').split('\n').sort(), ['p1.txt', 'p2.txt']);
+      git('reset', '-q', '--hard', start);
+      await panel.refresh(true);
+      // Branch checklist: two branches show exactly their union.
+      const all = panel.lastData.commits.filter((c) => c.kind === 'commit').length;
+      await panel.testMessage({ type: 'filter', branches: ['hotfix/crash', 'feature/search'], remotes: true });
+      const want = Number(git('rev-list', '--count', 'hotfix/crash', 'feature/search'));
+      assert.equal(panel.lastData.commits.filter((c) => c.kind === 'commit').length, want);
+      assert.ok(want < all, `filtered ${want} < all ${all}`);
+      await pong((p) => p.branchBtn === '2 branches', 'toolbar shows 2 branches');
+      await panel.testMessage({ type: 'filter', branches: [], remotes: true });
+      assert.equal(panel.lastData.commits.filter((c) => c.kind === 'commit').length, all);
+      await pong((p) => p.branchBtn === 'All', 'toolbar shows All');
+      // Dim commits outside HEAD's history.
+      const outside = Number(git('rev-list', '--count', '--branches', '--tags', '--not', 'HEAD'));
+      assert.ok(outside > 0, 'fixture has commits off HEAD');
+      await vscode.workspace.getConfiguration('mergeline').update('dimOtherCommits', true, vscode.ConfigurationTarget.Global);
+      await panel.testPost({ type: 'reveal', sha: git('rev-parse', 'feature/search') });
+      const pd = await pong((p) => p.dimmed > 0, 'dimmed rows');
+      assert.ok(pd.dimmed <= outside + 1, `dimmed ${pd.dimmed}, outside ${outside}`);
+      await vscode.workspace.getConfiguration('mergeline').update('dimOtherCommits', undefined, vscode.ConfigurationTarget.Global);
+      await pong((p) => p.dimmed === 0, 'dimming off');
+    });
+
     await check('worktrees: add one for a branch, its badge shows in the graph, remove it', async () => {
       const wt = root + '-wt';
       const prevInput = w.showInputBox;
@@ -475,6 +518,23 @@ exports.run = async function run() {
       assert.ok(lsRemote('refs/heads/feature/search'));
       await act({ action: 'deleteRemoteBranch', ref: 'origin/feature/search', refType: 'remote', remote: 'origin' });
       assert.equal(lsRemote('refs/heads/feature/search'), '');
+    });
+    await check('create pull request: forge URL for a tracked local branch and a remote branch (nothing opened under test)', async () => {
+      git('remote', 'add', 'gh', 'git@github.com:acme/app.git');
+      git('branch', 'pr/topic', 'main');
+      git('config', 'branch.pr/topic.remote', 'gh');
+      git('config', 'branch.pr/topic.merge', 'refs/heads/pr/topic-remote');
+      panel.lastUrl = undefined;
+      await panel.testMessage({ type: 'openPullRequest', ref: 'pr/topic', refType: 'head' });
+      assert.equal(panel.lastUrl, 'https://github.com/acme/app/compare/pr/topic-remote?expand=1');
+      await panel.testMessage({ type: 'openPullRequest', ref: 'gh/fix/x', refType: 'remote', remote: 'gh' });
+      assert.equal(panel.lastUrl, 'https://github.com/acme/app/compare/fix/x?expand=1');
+      // A remote that is not on a forge opens nothing.
+      panel.lastUrl = undefined;
+      await panel.testMessage({ type: 'openPullRequest', ref: 'origin/main', refType: 'remote', remote: 'origin' });
+      assert.equal(panel.lastUrl, undefined);
+      git('branch', '-q', '-D', 'pr/topic');
+      git('remote', 'remove', 'gh');
     });
     fs.rmSync(bare, { recursive: true, force: true });
   }
