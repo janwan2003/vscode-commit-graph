@@ -193,3 +193,5 @@ on the graph). The graph itself stays free.
   master 29 lanes), file history from Explorer/editor menus, clipped-lane nodes, light-theme check,
   real-remote e2e. Released v0.2.0, added a file-history guide page. Verified: typecheck, 10/10 unit,
   20/20 e2e on the packaged build, vsix install, headless-Chromium renders (dark, light, git.git).
+  After push: CI and Pages runs for c841f3e succeeded; the live guide page returns 200; the v0.2.0
+  release asset downloads byte-identical to the local build.
