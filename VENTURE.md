@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.20.0 is built, released on GitHub and documented; it is not in the stores yet**
+**Mergeline 0.21.0 is built, released on GitHub and documented; it is not in the stores yet**
 (store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 17).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.20.0
-  (`mergeline-0.20.0.vsix`, 102 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.21.0
+  (`mergeline-0.21.0.vsix`, 107 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  43 SEO guides (session 20: which branches and tags contain a commit (`find-which-tag-contains-commit.html`), commits between two tags (`git-commits-between-two-tags.html`); session 19: graph in the sidebar (`git-graph-sidebar-vscode.html`), delete multiple branches, Jupyter notebook diffs; session 18: collapse commits / compact graph (`compact-git-graph-vscode.html`); session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  45 SEO guides (session 21: rebase todo commands explained (`git-rebase-todo-commands.html`), VS Code as git editor (`git-editor-vscode.html`); session 20: which branches and tags contain a commit (`find-which-tag-contains-commit.html`), commits between two tags (`git-commits-between-two-tags.html`); session 19: graph in the sidebar (`git-graph-sidebar-vscode.html`), delete multiple branches, Jupyter notebook diffs; session 18: collapse commits / compact graph (`compact-git-graph-vscode.html`); session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (46 URLs, resubmitted session 20; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (48 URLs, resubmitted session 21; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -539,6 +539,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 21): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0-v0.19.0 2 each, v0.20.0 1 (read before the v0.21.0 release);
+  0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`); resubmitted (204).
+
 - 2026-11-20 (session 20): release downloads v0.1.0 to v0.19.0 2 each, v0.3.0 3 (read before the v0.20.0 release); 0 stars, 0 forks, 0 open
   issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by query or page
   (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap pending, never downloaded, 0 errors (`sitemaps.list`).
@@ -863,3 +867,19 @@ on the graph). The graph itself stays free.
   After push: CI main (run 44788927860) and tag v0.20.0 (44788930378) success, unit 73/73 and e2e 55 ok in the CI log (latest stable VS Code);
   Pages run 44788927005 deployed; live index (`mergeline-0.20.0.vsix`, v0.20), both guides, both screenshots, sidebar guide and sitemap (46 URLs)
   return 200; sitemap resubmitted (204); release asset byte-identical (sha256 fea9b4c2…). Inbox: 0.20.0 line.
+- 2026-11-20 (session 21): **0.21.0: interactive rebase in editor tabs** (Git Graph #757, 7 👍; #591 at 9 👍 was next by votes but needs a
+  graph-safe design, see Next steps). Done meant: right-click → the real `git-rebase-todo` opens as a tab, edits there drive git, Cancel changes nothing,
+  reword messages open as tabs, Continue after an `edit` stop opens later messages, all exercised in real VS Code. Verified: unit 78/78
+  (`test/waiteditor.test.ts` new: real `git rebase -i` through the wait script: reorder + reword with an edited body + drop with autostash kept; todo
+  cancel → HEAD and dirty file unchanged, no stash left; message cancel → rebase stopped; `dispose` unblocks a waiting git). e2e 56/56 in VS Code
+  1.147 (new check: todo tab has language `git-rebase`, bar text + buttons, `mergeline.editorCancel` leaves HEAD; drop IR1 + reword IR3 with
+  Start clicked in the webview bar, message tab edited, `mergeline.editorDone`; edit IR2 + reword IR3 → stop, `opContinue` opens the IR3 message
+  tab). First e2e run failed on my test regex (git 2.53 writes `pick <sha> # <subject>`), fixed in the test. Added after a subagent flagged it: a
+  confirm when the commit is not in HEAD's history (git would rebase onto it); not covered by a test. Chromium shot of the waiting bar looked at
+  (`OPBAR=wait`, `docs/screenshot-rebase-tab.png`). Guides by a subagent (git 2.53.0 runs in /tmp repos; its checker, rerun by me after my index
+  edit: 50 HTML files parse, 3,440 internal links, 0 broken, sitemap 48 = 48 public pages, meta ≤155); it also rewrote stale "terminal" wording on 6
+  pages and fixed a duplicate `id="content"`. Package 107 KB (sha256 82f4de80…) installs as `plainbyte.mergeline@0.21.0`. Not verified: Windows
+  (the `sh` wait script under git for Windows), VSCodium/Cursor, a real mouse click on the title-bar ✓/✕ (commands run directly). After push: CI main
+  (run 44792779145) and tag v0.21.0 (44792786491) success, unit 78/78 and e2e 56 ok in the CI log; Pages run 44792777624 deployed; live index
+  (v0.21, `mergeline-0.21.0.vsix`), both guides, the interactive-rebase guide, the screenshot and sitemap (48 URLs) return 200; release asset
+  byte-identical; sitemap resubmitted (204). Inbox: 0.21.0 line.
