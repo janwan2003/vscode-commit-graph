@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mergeline: a free, interactive git commit graph for VS Code</title>
-<meta name="description" content="Mergeline is a free, open-source (MIT) git graph for VS Code, VSCodium, Cursor and Windsurf. See every branch, then checkout, merge, rebase, cherry-pick, revert, reset, tag and stash from the graph. No account, no telemetry.">
+<meta name="description" content="Mergeline: a free, MIT git graph for VS Code, VSCodium and Cursor. Checkout, merge, rebase, cherry-pick, revert and reset from the graph. No telemetry.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Mergeline">
@@ -36,7 +36,7 @@
 <main id="content">
   <div class="wrap">
     <section class="hero">
-      <span class="tagline">Free and open source (MIT) &middot; v0.8</span>
+      <span class="tagline">Free and open source (MIT) &middot; v0.9</span>
       <h1>Your whole repository as one graph, with the git actions where you need them</h1>
       <p class="lead">Mergeline draws every branch, merge, tag and stash of your repository as an interactive commit graph inside VS Code, VSCodium, Cursor and Windsurf. Right-click a commit or a branch to check it out, merge it, rebase onto it, cherry-pick it, revert it or reset to it. Click a commit to see what changed and open any file in the editor&rsquo;s own diff view. There is no account, no paid tier and no telemetry.</p>
       <div class="cta">
@@ -63,6 +63,7 @@
         <div class="card"><h3>Commit order: date or topology</h3><p>Sort by commit date, author date or topology from the toolbar or the <code>mergeline.commitOrder</code> setting. Topology order keeps each branch&rsquo;s commits together, which means fewer crossing lines on busy repositories.</p></div>
         <div class="card"><h3>Compare any two commits <span class="plus">not built in</span></h3><p><kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to list every file that differs between the two, and open each diff. Or right-click a commit for <strong>Compare with working tree</strong>, or a branch to compare it with the current one, or to see only what it changed since it split off (what a merge would bring in).</p></div>
         <div class="card"><h3>Edit history from the graph <span class="plus">not built in</span></h3><p>Right-click a commit on your branch to <strong>edit its message</strong> (subject and body), <strong>move it up or down</strong>, <strong>squash it into its parent</strong> or <strong>drop it</strong>, or Ctrl/Cmd-click a second commit to squash the range into one. No editor or terminal opens, uncommitted changes are stashed and restored, pushed commits get a warning first, and every change has an <strong>Undo</strong>. <a href="screenshot-edit.png">See it</a>.</p></div>
+        <div class="card"><h3>Review file by file, manage remotes <span class="plus">new in 0.9</span></h3><p>Click <strong>Review</strong> on a commit, a comparison or a branch&rsquo;s changes to get a check mark per file, an <em>N of M reviewed</em> count and a <strong>Next unreviewed</strong> button; progress survives a restart. <strong>Remotes&hellip;</strong> lists your remotes to add, fetch and prune, change a URL, rename or remove. <a href="code-review-commits-vscode.html">Review guide</a> &middot; <a href="manage-git-remotes-vscode.html">Remotes guide</a>.</p></div>
         <div class="card"><h3>Drag a commit <span class="plus">new in 0.8</span></h3><p>Drag a commit from another branch onto your current branch to <strong>cherry-pick</strong> it. Drag a commit on your branch onto another one to <strong>squash it into that commit</strong> or <strong>move it right after it</strong>. Branch menus also gain <strong>Create pull request on GitHub</strong> (GitLab, Bitbucket). <a href="cherry-pick-commit-vscode.html">Cherry-pick guide</a> &middot; <a href="create-pull-request-vscode.html">Pull request guide</a>.</p></div>
         <div class="card"><h3>Stopped rebase? The graph says so</h3><p>When a rebase, merge, cherry-pick or revert stops on a conflict, from the graph or from a terminal, a bar above the graph shows the step, the commit it stopped at and the conflicted files, with <strong>Continue</strong>, <strong>Skip</strong>, <strong>Abort</strong> and <strong>Source Control</strong>. Continue never opens an editor. <a href="rebase-conflict-continue-abort-vscode.html">Guide</a>.</p></div>
         <div class="card"><h3>Drag and drop branches</h3><p>Drag a branch badge onto another branch or any commit, then pick: merge it there, rebase it onto it, move the branch to that commit, or compare the two. Nothing runs until you choose from the menu, and rebases and moves ask first. <a href="screenshot-drag.png">See it</a>.</p></div>
@@ -72,7 +73,7 @@
         <div class="card"><h3>Commit actions</h3><p>Checkout, create a branch, add a lightweight or annotated tag, cherry-pick, copy the hash or subject. Plus <span class="plus">not built in</span>: revert, merge into the current branch, rebase the current branch onto it, reset soft, mixed or hard, and an interactive rebase in the terminal.</p></div>
         <div class="card"><h3>Branch actions</h3><p>Checkout (a remote branch becomes a local tracking branch), delete (with a force option if unmerged), copy the name. Plus <span class="plus">not built in</span>: merge, rebase onto, rename, push, and delete the branch on the remote.</p></div>
         <div class="card"><h3>Tags and stashes <span class="plus">not built in</span></h3><p>Push a tag, delete it locally and on the remote. Apply, pop or drop a stash, or turn it into a new branch.</p></div>
-        <div class="card"><h3>Every repository you have open</h3><p>A repository picker covers multi-root workspaces, nested repositories and worktrees. The toolbar has the picker, the branch filter, the remotes toggle, find, fetch and refresh.</p></div>
+        <div class="card"><h3>Every repository you have open</h3><p>A repository picker covers multi-root workspaces, nested repositories and worktrees. The toolbar has the picker, the branch filter, the <em>Remote branches</em> toggle, the remotes list, find, fetch and refresh.</p></div>
         <div class="card"><h3>Careful by default</h3><p>Actions that rewrite or delete something, such as a hard reset, a rebase or deleting a remote branch, ask first in a modal dialog. Push and fetch go through VS Code&rsquo;s git extension when it is available, so your usual credential prompts work.</p></div>
       </div>
     </div>
@@ -93,11 +94,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>mergeline-0.8.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>mergeline-0.9.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, VSCodium, Cursor or Windsurf open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and choose the file. From a terminal you can instead run one of:
-<pre>code --install-extension mergeline-0.8.0.vsix
-codium --install-extension mergeline-0.8.0.vsix
-cursor --install-extension mergeline-0.8.0.vsix</pre></li>
+<pre>code --install-extension mergeline-0.9.0.vsix
+codium --install-extension mergeline-0.9.0.vsix
+cursor --install-extension mergeline-0.9.0.vsix</pre></li>
         <li><strong>Open a folder that is a git repository</strong> and trust it when the editor asks (Mergeline runs git commands, so it is disabled in Restricted Mode). Then open the graph in any of three ways: the <strong>Mergeline</strong> button in the Source Control view&rsquo;s title bar, the Mergeline button in the status bar, or the command <strong>Mergeline: Show Commit Graph</strong>.</li>
       </ol>
       <p class="small">Requires VS Code 1.85 or newer (or an editor built on it) and git installed on your machine. Mergeline also works in remote windows such as Remote SSH and WSL; git has to be installed on the remote side.</p>
@@ -117,6 +118,8 @@ cursor --install-extension mergeline-0.8.0.vsix</pre></li>
         <div class="card"><h3><a href="reorder-commits-vscode.html">Reorder commits</a></h3><p>Move lines in <code>rebase -i</code>, what happens to pushed commits, conflicts, the cherry-pick route, and undo.</p></div>
         <div class="card"><h3><a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a></h3><p>One commit, a range, merges with <code>-m</code>, <code>-x</code>, conflicts, and the VS Code ways to do it.</p></div>
         <div class="card"><h3><a href="create-pull-request-vscode.html">Create a pull request</a></h3><p>Push with an upstream, then open the GitHub, GitLab or Bitbucket form from VS Code or the terminal.</p></div>
+        <div class="card"><h3><a href="code-review-commits-vscode.html">Review a commit or branch file by file</a></h3><p><code>git show --stat</code>, <code>git diff main...feature</code>, <code>difftool</code> in VS Code, and ticking off reviewed files.</p></div>
+        <div class="card"><h3><a href="manage-git-remotes-vscode.html">Manage git remotes</a></h3><p>Add, rename, change the URL of and remove remotes, prune deleted branches, and what each does to your branches.</p></div>
         <div class="card"><h3><a href="filter-git-graph-by-branch.html">Show only some branches</a></h3><p><code>git log</code> with chosen branches, globs and exclusions, <code>--first-parent</code>, and the graph view in VS Code.</p></div>
         <div class="card"><h3><a href="interactive-rebase-vscode.html">Interactive rebase in VS Code</a></h3><p>The todo list and its commands, using VS Code as the editor, <code>--autostash</code>, <code>--autosquash</code>, and what is safe to rebase.</p></div>
         <div class="card"><h3><a href="rebase-conflict-continue-abort-vscode.html">Rebase or merge stopped with conflicts</a></h3><p>What is in progress, resolving in VS Code, continue, skip or abort, and avoiding the editor on continue.</p></div>
@@ -185,6 +188,8 @@ cursor --install-extension mergeline-0.8.0.vsix</pre></li>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>

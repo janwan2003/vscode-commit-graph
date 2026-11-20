@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.8.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 8).
+**Mergeline 0.9.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 9).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.7.0
-  (`mergeline-0.7.0.vsix`, 56 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.9.0
+  (`mergeline-0.9.0.vsix`, 65 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  17 SEO guides (session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  25 SEO guides (session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (20 URLs). Every page's footer links every guide (session 6).
+  404 and sitemap (25 URLs). Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -164,6 +164,14 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   a local branch resolves to `branch.<name>.remote`/`.merge`, an unpushed one is offered Push first); setting `mergeline.dimOtherCommits`
   (fades commits not reachable from HEAD among the loaded ones); Ctrl/Cmd+H selects HEAD. CI now also runs the e2e suite in the latest
   stable VS Code (job `e2e` in `.github/workflows/ci.yml`).
+  **0.9.0 added:** **review mode** in the details pane (Review button or commit menu "Review changes file by file": a check box per file,
+  "N of M reviewed", Next unreviewed opens the next diff in tree order, opening a diff ticks it, End review; kept per diff `<from>..<to>`
+  in workspaceState `mergeline.reviews`, newest 200; none for the working tree); **remote management** (`src/core/remotes.ts`;
+  `manageRemotes` action in `src/ext/actions.ts`; toolbar **Remotes…**, command `mergeline.manageRemotes`, remote badge menu "Manage remote";
+  quick picks: add (+fetch), fetch, fetch and prune, change URL, rename, remove with a dialog naming the tracking branches and upstreams
+  that go, copy URL, open on forge; the old "Remotes" checkbox is now "Remote branches"); **Stop at this commit to change it** (`edit`
+  op in `src/core/rewrite.ts`; the rebase stops there and the existing bar's Continue amends with the staged changes). A webview test hook
+  `click` (selector, ctrl) lets the e2e click real DOM elements.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -291,6 +299,27 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     (sha256 0177acd9…); sitemap resubmitted (HTTP 204).
   - Not verified: real mouse drags of a commit inside VS Code, the PR link actually opening a browser, and the "push first" prompt path
     (needs a click on a non-modal notification).
+- Verified 2026-11-20 (session 9), on the minified packaged 0.9.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 28/28 (new `test/remotes.test.ts`: `git remote -v` parsing incl. separate push URL and CRLF,
+    remote name validation, `readRemotes`/`remoteUsage` on a real bare remote with a tracking branch and a URL-less remote; and an `edit`
+    stop in `test/progress.test.ts`: stops at b, staged change + continue amends b, messages kept, a untouched, autostash restored, HEAD refused).
+    Also 28/28 with an empty `HOME` and `GIT_CONFIG_NOSYSTEM=1`.
+  - `node scripts/e2e.mjs` in VS Code 1.147: 35/35 once on the development build and twice on the packaged build. New checks: review mode
+    driven by real clicks in the webview (Ctrl-click compare → Review → Next unreviewed opens a diff tab for `search.txt` and ticks it →
+    toggle `src.txt` on/off/on → reselect restores 2 of 2 from workspaceState → End review deletes it; working tree has no review); manage
+    remotes (the command's quick pick lists `origin` with its URL and "Add remote…"; add+fetch shows `up/main` in the graph; a taken name is
+    refused; rename moves refs and `branch.*.remote`; set-url; remove deletes refs and the upstream, keeps the branch); stop at a commit
+    (bar says "stopped at … Stop S1", Continue amends it). Edit menu labels now include "Stop at this commit to change it…".
+  - Headless Chromium: `REVIEW=1 node scripts/shot/shot.mjs` (dark and light; looked at both: 5 of 7 reviewed, ticked rows faded) saved as
+    `docs/screenshot-review.png`; `INTERACT=1` interaction steps still pass (exit 0).
+  - `code --install-extension mergeline-0.9.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.9.0`. Package 64.8 KB, 30 keywords
+    (added "code review", "git remote"; dropped "drag and drop", "history").
+  - Guides (subagent): git 2.53.0 in throwaway repos (remote add/-f, rename moves `origin/*` and `branch.*.remote`, remove deletes tracking
+    refs and `branch.*.remote`/`.merge`, prune variants, three-dot diff, difftool's built-in `vscode` tool); VS Code built-ins read from
+    `/snap/code/281/.../extensions/git/package.json` (Add Remote…, Remove Remote, Fetch (Prune); no rename or change URL). I checked the
+    Mergeline paragraphs against the shipped labels. Link check: 0 broken internal links, 0 descriptions over 155 chars.
+  - Not verified: real clicks in the remote quick picks (the e2e passes `op` and stubs the modal); "Open on GitHub" for a remote opening a
+    browser; review mode on a branch's "Changes since it split" diff (same key logic, not exercised end to end).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -299,6 +328,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 9): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2 (read before the
+  v0.9.0 release); 0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search
+  Console: no rows (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`).
 
 - 2026-11-20 (session 8): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 0 (read before the v0.8.0 release);
   0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
@@ -334,14 +367,13 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Edit history, next pieces (0.8 shipped dragging a commit to squash/move/cherry-pick): "Edit (stop at) this commit" (`edit` in the todo; the bar then offers
-   Continue), "Create fixup commit for this" (`git commit --fixup` + autosquash), and a conflicted-files list in the bar's tooltip → click
-   to open the merge editor.
+2. Edit history, next pieces (0.9 shipped "Stop at this commit"): "Create fixup commit for this" (`git commit --fixup` + autosquash), and a
+   conflicted-files list in the bar → click to open the merge editor. Review mode: a "Review changes since it split" item on branch menus and a
+   keyboard shortcut for Next unreviewed.
 3. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
    already resumable via `LayoutState`; stashes whose base is in the new page and the uncommitted row need care).
-4. Still missing that Git Graph users have: avatars (opt-in; needs network, off by default), a commit search by changed path, remote
-   management (add/remove/prune a remote), and a code-review mode (mark files reviewed). Drag-and-drop: cherry-pick onto a non-current
-   branch (checks it out first). Older guide pages: 18 meta descriptions over 155 chars and 12 without a releases link (subagent sweep).
+4. Still missing that Git Graph users have: avatars (opt-in; needs network, off by default) and a commit search by changed path
+   (0.9 shipped remote management and review mode). Drag-and-drop: cherry-pick onto a non-current branch (checks it out first). (Session 9 fixed the over-long meta descriptions and missing releases links.)
 5. CI now runs e2e in the latest stable VS Code (session 8). Add VSCodium as a second target (download the tarball,
    `node scripts/e2e.mjs <codium>`; 610 MB extracted, so CI only).
 6. History search positions in file-history mode are approximate (they come from the multi-name log, not

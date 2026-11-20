@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add, rename, change URL and prune git remotes in VS Code | Mergeline</title>
+<meta name="description" content="Manage git remotes: git remote add, rename, set-url and remove, prune deleted branches, what happens to tracking branches, and the VS Code options.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/manage-git-remotes-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Add, rename, change URL and prune git remotes in VS Code">
+<meta property="og:description" content="The git remote commands, what each does to your branches, and how to manage remotes from VS Code.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/manage-git-remotes-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Add, rename, change URL and prune git remotes in VS Code</h1>
+    <p>A <em>remote</em> is a name, such as <code>origin</code>, that stands for the URL of another copy of your repository. Most projects only ever have <code>origin</code>, until you fork something and need <code>upstream</code>, the repository moves to a new host, or the branch list fills up with branches that were deleted on the server months ago. This guide covers the git commands for each of those, what they do to your branches, what VS Code&rsquo;s built-in Git offers, and Mergeline&rsquo;s remote management.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#list">See your remotes</a></li>
+        <li><a href="#add">Add a remote</a></li>
+        <li><a href="#set-url">Change a remote&rsquo;s URL</a></li>
+        <li><a href="#rename">Rename a remote</a></li>
+        <li><a href="#remove">Remove a remote</a></li>
+        <li><a href="#prune">Prune deleted remote branches</a></li>
+        <li><a href="#builtin">What VS Code has built in</a></li>
+        <li><a href="#mergeline">Manage remotes in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>List remotes and their URLs</td><td><code>git remote -v</code></td></tr>
+          <tr><td>Add a remote (and fetch it straight away)</td><td><code>git remote add -f upstream &lt;url&gt;</code></td></tr>
+          <tr><td>Point a remote at a new URL</td><td><code>git remote set-url origin &lt;new-url&gt;</code></td></tr>
+          <tr><td>Rename a remote</td><td><code>git remote rename origin old-origin</code></td></tr>
+          <tr><td>Remove a remote</td><td><code>git remote remove upstream</code></td></tr>
+          <tr><td>Fetch and drop branches deleted on the server</td><td><code>git fetch --prune</code></td></tr>
+          <tr><td>Drop them without fetching anything new</td><td><code>git remote prune origin</code></td></tr>
+          <tr><td>Always prune when fetching</td><td><code>git config --global fetch.prune true</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in throwaway repositories and quote the output we saw.</p>
+
+    <h2 id="list">See your remotes</h2>
+<pre><span class="k">git remote -v</span>
+<span class="o">origin	git@github.com:you/app.git (fetch)
+origin	git@github.com:you/app.git (push)</span></pre>
+    <p>Each remote has a fetch URL and a push URL; they are the same unless you set them apart (see below). <code>git remote get-url origin</code> prints just the URL. <code>git remote show origin</code> contacts the remote and lists its branches, which local branches pull from and push to it, and which remote branches are <em>stale</em>: still in your repository but deleted on the server.</p>
+    <p>Each remote&rsquo;s branches live in your repository as <em>remote-tracking branches</em> named <code>&lt;remote&gt;/&lt;branch&gt;</code>, like <code>origin/main</code>. They are your copy of where the remote&rsquo;s branches were at your last fetch, and <code>git branch -r</code> lists them.</p>
+
+    <h2 id="add">Add a remote</h2>
+<pre><span class="k">git remote add</span> upstream https://github.com/project/app.git
+<span class="k">git remote add -f</span> upstream https://github.com/project/app.git   <span class="c"># and fetch it now</span></pre>
+    <p>The usual reason is a fork: <code>origin</code> is your fork, <code>upstream</code> is the original project, and you fetch <code>upstream</code> to keep up with it. Plain <code>git remote add</code> only writes the configuration; no <code>upstream/*</code> branches exist until you run <code>git fetch upstream</code>. With <code>-f</code>, git fetches straight away and prints the new branches.</p>
+    <p>A name with a space, or one already in use, is refused (<code>fatal: 'bad name' is not a valid remote name</code>). After adding, <code>git diff upstream/main...HEAD</code> or <code>git rebase upstream/main</code> work like with any other branch.</p>
+
+    <h2 id="set-url">Change a remote&rsquo;s URL</h2>
+<pre><span class="k">git remote set-url</span> origin git@github.com:you/app.git</pre>
+    <p>Use this when the repository moved (renamed on the server, transferred to an organisation, migrated to another host) or when you switch between HTTPS and SSH. It only changes the address: your remote-tracking branches and every branch&rsquo;s upstream stay as they are, because they refer to the remote by name. Run <code>git fetch</code> afterwards to check that the new address works.</p>
+    <p>To push somewhere other than where you fetch from, add <code>--push</code>: <code>git remote set-url --push origin &lt;url&gt;</code>. That stores a separate <code>pushurl</code>, and <code>git remote -v</code> then shows two different lines. Pointing <code>set-url</code> at a name that does not exist fails with <code>error: No such remote 'name'</code>.</p>
+
+    <h2 id="rename">Rename a remote</h2>
+<pre><span class="k">git remote rename</span> origin old-origin</pre>
+    <p>A rename does more than change a name. In our test, renaming <code>origin</code> to <code>primary</code> also:</p>
+    <ul>
+      <li>renamed every remote-tracking branch, so <code>origin/main</code> became <code>primary/main</code>, including <code>origin/HEAD</code>;</li>
+      <li>updated the fetch refspec in the configuration to <code>+refs/heads/*:refs/remotes/primary/*</code>;</li>
+      <li>updated the upstream of each local branch that tracked it, so <code>git status</code> on <code>feature</code> then showed <code>feature...primary/feature</code>.</li>
+    </ul>
+    <p>Renaming to a name that is already taken fails with <code>error: remote fork already exists.</code> A common use is moving to a fork: rename <code>origin</code> to <code>upstream</code>, then add your fork as the new <code>origin</code>.</p>
+
+    <h2 id="remove">Remove a remote</h2>
+<pre><span class="k">git remote remove</span> upstream      <span class="c"># git remote rm does the same</span></pre>
+    <p>This deletes the remote&rsquo;s configuration and all its remote-tracking branches. Your local branches stay, including ones you created from that remote, but they lose their upstream: in our test, both <code>branch.&lt;name&gt;.remote</code> and <code>branch.&lt;name&gt;.merge</code> were deleted for a branch that tracked the removed remote, and git printed no warning. Plain <code>git pull</code> and <code>git push</code> on that branch then have nowhere to go until you set a new upstream with <code>git push -u &lt;remote&gt; &lt;branch&gt;</code> or <code>git branch --set-upstream-to</code>.</p>
+    <p>Nothing on the server is touched. Commits that only existed in that remote&rsquo;s branches lose their names in your repository; you can add the remote again and fetch to get them back.</p>
+
+    <h2 id="prune">Prune deleted remote branches</h2>
+    <p>When someone deletes a branch on the server, for example after merging a pull request, your <code>origin/&lt;branch&gt;</code> stays. A plain <code>git fetch</code> does not remove it. Over time <code>git branch -r</code> and every branch list fill up with branches that no longer exist. <em>Pruning</em> removes those stale remote-tracking branches:</p>
+<pre><span class="k">git fetch --prune</span>                      <span class="c"># fetch, then delete stale ones</span>
+<span class="o">From github.com:you/app
+ - [deleted]         (none)     -&gt; origin/old-feature</span>
+<span class="k">git remote prune --dry-run</span> origin      <span class="c"># show what would go</span>
+<span class="k">git remote prune</span> origin                <span class="c"># delete without fetching</span>
+<span class="k">git fetch --all --prune</span>                <span class="c"># every remote</span></pre>
+    <p>To prune on every fetch, set <code>git config --global fetch.prune true</code>, or <code>remote.origin.prune true</code> for one remote; we checked that both make a plain <code>git fetch</code> delete stale branches. Pruning with <code>--prune</code> left tags alone in our test, so a tag deleted on the server stays in your repository.</p>
+    <p>Pruning never deletes your local branches. A local branch whose upstream was pruned shows it in <code>git branch -vv</code> as <code>[origin/old-feature: gone]</code>, and <code>git status</code> says <em>Your branch is based on 'origin/old-feature', but the upstream is gone.</em> That is a good signal that the branch was merged and you can delete it yourself.</p>
+
+    <h2 id="builtin">What VS Code has built in</h2>
+    <p>We read the commands and menus of the git extension bundled with VS Code 1.147 (its <code>package.json</code> and code). For remotes it offers:</p>
+    <ul>
+      <li><strong>Git: Add Remote&hellip;</strong> in the Command Palette, also in the <strong>&hellip;</strong> menu at the top of the Source Control view under <strong>Remote</strong>. It asks for the URL first (typed in, or picked from a provider such as GitHub when its extension is active), then for a name, which it checks for duplicates and invalid characters. It then runs <code>git remote add</code> and fetches the new remote right away.</li>
+      <li><strong>Git: Remove Remote</strong>, in the same places. You pick a remote from a list and it is removed; the code we read shows no confirmation step.</li>
+      <li><strong>Git: Fetch (Prune)</strong>, also under <strong>Pull, Push</strong> in the same menu, and the <code>git.pruneOnFetch</code> setting (off by default) to prune on every fetch, including automatic fetches.</li>
+      <li><strong>Git: Fetch From All Remotes</strong> and <strong>Git: Delete Remote Branch&hellip;</strong>.</li>
+    </ul>
+    <p>There is no command to rename a remote or change its URL, and no view that lists your remotes with their URLs. For those, use the terminal commands above.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Manage remotes in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. Version 0.9 adds a list of your remotes with the everyday actions next to each one, so you do not need to remember the commands above.</p>
+      <ol class="steps">
+        <li><strong>Open it</strong> with the <strong>Remotes&hellip;</strong> button in the graph&rsquo;s toolbar, the command <strong>Mergeline: Manage Remotes</strong>, or by right-clicking a remote branch and choosing <strong>Manage remote &ldquo;origin&rdquo;&hellip;</strong> (with that branch&rsquo;s remote name). The toolbar checkbox that shows or hides remote branches in the graph is now labelled <strong>Remote branches</strong>.</li>
+        <li><strong>See what you have.</strong> Each remote is listed with its URL.</li>
+        <li><strong>Add one.</strong> Choose <strong>Add remote&hellip;</strong>, enter a name and a URL, then choose whether to fetch it now.</li>
+        <li><strong>Act on a remote.</strong> Pick a remote for <strong>Fetch</strong>; <strong>Fetch and prune</strong>, which also removes remote-tracking branches whose branch was deleted on the remote; <strong>Change URL&hellip;</strong>; <strong>Rename&hellip;</strong>; <strong>Remove&hellip;</strong>, which asks before it removes anything; and <strong>Copy URL</strong>. When the URL is on GitHub, GitLab or Bitbucket, there is also <strong>Open on GitHub</strong> (or GitLab, or Bitbucket).</li>
+      </ol>
+      <p>Renaming, removing and pruning change your remote-tracking branches exactly as described in the sections above, and the graph&rsquo;s branch badges follow when it refreshes.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html" aria-current="page">Manage remotes</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

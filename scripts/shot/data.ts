@@ -71,6 +71,11 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   const out = {
     data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
     details: { type: 'details', sha: sel.sha, info, from: info.parents[0], to: sel.sha, files },
+    // REVIEW=1 in shot.mjs: HEAD compared with the first commit (many files).
+    review: await (async () => {
+      const first = log[log.length - 1].sha;
+      return { type: 'details', sha: state.head, compare: first, from: first, to: state.head, files: await readChanges(d, first, state.head!) };
+    })(),
   };
   writeFileSync(process.argv[2], JSON.stringify(out));
   rmSync(d + '-release', { recursive: true, force: true });

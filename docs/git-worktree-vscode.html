@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Git worktrees in VS Code: work on two branches at once | Mergeline</title>
-<meta name="description" content="How to use git worktree: create a second working folder for another branch, list, open, move, remove and prune worktrees, open each one in VS Code, Cursor or VSCodium, and fix the common errors.">
+<meta name="description" content="Use git worktree: a second folder for another branch, list, move, remove and prune worktrees, open each in VS Code, Cursor or VSCodium, fix common errors.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-worktree-vscode.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -143,6 +143,11 @@ HEAD is now at 98c7cf6 Fix rounding in totals</span>
         <li><strong>Use the badge:</strong> right-click a worktree badge for <strong>Open in new window</strong>, <strong>Copy path</strong> and <strong>Remove worktree&hellip;</strong>. Remove asks first; if the worktree has uncommitted changes, it asks again before running <code>git worktree remove --force</code>. On a badge whose folder is gone, choose <strong>Prune missing worktrees</strong>.</li>
         <li><strong>Branches already in a worktree:</strong> a branch that another worktree has checked out offers <strong>Open its worktree in new window</strong> in place of <strong>Check out</strong>, so you go to where it is instead of hitting the &ldquo;already used by worktree&rdquo; error.</li>
       </ol>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
     </section>
 
     <h2 id="errors">Common errors</h2>
@@ -198,6 +203,8 @@ HEAD is now at 98c7cf6 Fix rounding in totals</span>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

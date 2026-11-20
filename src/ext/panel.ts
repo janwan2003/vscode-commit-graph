@@ -90,8 +90,38 @@ export class GraphPanel implements vscode.Disposable {
 <body><div id="app"></div><script nonce="${nonce}" src="${media('rows.js')}"></script><script nonce="${nonce}" src="${media('graph.js')}"></script></body></html>`;
   }
 
+  /**
+   * Code review: which files of a diff were marked reviewed, per diff ("<from>..<to>", from
+   * 'empty' for a root commit), kept in workspaceState. Only diffs between two commits; the
+   * working tree changes as you edit, so it has none. Absent key = no review started.
+   */
+  private static REVIEWS = 'mergeline.reviews';
+  private static MAX_REVIEWS = 200;
+  static reviewKey(from: string | null, to: string | null): string | null {
+    return to && to !== UNCOMMITTED && from !== UNCOMMITTED ? `${from ?? 'empty'}..${to}` : null;
+  }
+  reviews(): Record<string, { files: string[]; t: number }> {
+    return this.ctx.workspaceState.get(GraphPanel.REVIEWS) ?? {};
+  }
+  private async saveReview(key: string, files: string[] | null) {
+    const all = { ...this.reviews() };
+    if (files === null) delete all[key];
+    else all[key] = { files: [...new Set(files.filter((f) => typeof f === 'string'))], t: Date.now() };
+    // Keep the most recently touched reviews only.
+    const keys = Object.keys(all).sort((a, b) => all[b].t - all[a].t);
+    for (const k of keys.slice(GraphPanel.MAX_REVIEWS)) delete all[k];
+    await this.ctx.workspaceState.update(GraphPanel.REVIEWS, all);
+  }
+
   private post(m: any) {
-    if (m?.type === 'details') this.lastDetails = m;
+    if (m?.type === 'details') {
+      const key = GraphPanel.reviewKey(m.from ?? null, m.to ?? null);
+      if (key && !m.error) {
+        m.reviewKey = key;
+        m.reviewed = this.reviews()[key]?.files ?? null;
+      }
+      this.lastDetails = m;
+    }
     if (m?.type === 'history') this.lastHistory = m;
     return this.panel.webview.postMessage(m);
   }
@@ -352,6 +382,10 @@ export class GraphPanel implements vscode.Disposable {
       }
       case 'openFile':
         await this.openFile(m);
+        break;
+      case 'review':
+        // The webview sends the whole reviewed list for a diff (null = end the review).
+        if (typeof m.key === 'string' && /^[0-9a-z]+\.\.[0-9a-f]{4,64}$/.test(m.key)) await this.saveReview(m.key, Array.isArray(m.files) ? m.files : null);
         break;
       case 'fileAction':
         await this.fileAction(m);

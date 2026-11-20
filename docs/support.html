@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Support and troubleshooting | Mergeline</title>
-<meta name="description" content="Get help with Mergeline: report bugs on GitHub, and fix common problems such as git not found on PATH, workspace trust, and slow loading in very large repositories.">
+<meta name="description" content="Get help with Mergeline: report bugs on GitHub, and fix common problems such as git not found on PATH, workspace trust, and slow loading in huge repos.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/support.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -76,7 +76,7 @@
       <li><strong>Load fewer commits first.</strong> Set <code>mergeline.initialCommits</code> lower in your settings. The default is 500 and the minimum is 50. More commits load as you scroll, or when you click <em>Load more</em>.
 <pre>// settings.json
 "mergeline.initialCommits": 200</pre></li>
-      <li><strong>Hide what you do not need.</strong> Turn off remote-tracking branches with the remotes toggle in the toolbar (or <code>"mergeline.showRemoteBranches": false</code>), or use the branch filter to show one branch. Hiding stashes (<code>mergeline.showStashes</code>) and the uncommitted-changes row (<code>mergeline.showUncommitted</code>) also saves a little work; the uncommitted row needs a <code>git status</code>, which is slow in huge working trees.</li>
+      <li><strong>Hide what you do not need.</strong> Turn off remote-tracking branches with the <strong>Remote branches</strong> checkbox in the toolbar (or <code>"mergeline.showRemoteBranches": false</code>), or use the branch filter to show one branch. Hiding stashes (<code>mergeline.showStashes</code>) and the uncommitted-changes row (<code>mergeline.showUncommitted</code>) also saves a little work; the uncommitted row needs a <code>git status</code>, which is slow in huge working trees.</li>
       <li><strong>Let git speed itself up.</strong> Git can keep a commit-graph file that makes history walks much faster. Write one now, and have git keep it current on every fetch:
 <pre>git commit-graph write --reachable
 git config fetch.writeCommitGraph true</pre>
@@ -143,6 +143,8 @@ git config fetch.writeCommitGraph true</pre>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

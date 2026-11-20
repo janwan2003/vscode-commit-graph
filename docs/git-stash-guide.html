@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Git stash guide: push, apply, pop, drop and branch | Mergeline</title>
-<meta name="description" content="A practical git stash guide: save work in progress with git stash push, list and inspect stashes, apply vs pop, drop and clear, turn a stash into a branch, and recover a dropped stash.">
+<meta name="description" content="A practical git stash guide: git stash push, list and inspect stashes, apply vs pop, drop and clear, turn a stash into a branch, recover a dropped stash.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-stash-guide.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -111,6 +111,11 @@ stash@{1}: WIP on feature/export: 72c5f10 Fix date parsing in log view</span></p
         <li><strong>Use it:</strong> right-click the stash and choose <strong>apply</strong>, <strong>pop</strong>, <strong>drop</strong>, or <strong>Create branch from stash</strong>, which runs <code>git stash branch</code> with a name you choose. Dropping asks for confirmation first.</li>
         <li><strong>Hide them</strong> when you do not need them with the <code>mergeline.showStashes</code> setting. The uncommitted-changes row (<code>mergeline.showUncommitted</code>) shows what you have not stashed or committed yet.</li>
       </ol>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
     </section>
   </div>
 </main>
@@ -142,6 +147,8 @@ stash@{1}: WIP on feature/export: 72c5f10 Fix date parsing in log view</span></p
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

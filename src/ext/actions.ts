@@ -6,6 +6,8 @@ import { git, GitError } from '../core/gitlog';
 import { planRewrite, runRewrite, rewordMessage, squashMessage, RewriteError, RewriteOp, RewritePlan } from '../core/rewrite';
 import { readOperation, unmerged, leftoverMarkers, opArgs, opNames, NO_EDITOR, OpKind } from '../core/progress';
 import { GitApiRepo } from './repos';
+import { readRemotes, remoteNameProblem, remoteUsage, Remote } from '../core/remotes';
+import { webRepo } from '../core/remote';
 
 export interface ActionMsg {
   action: string;
@@ -24,6 +26,9 @@ export interface ActionMsg {
   dir?: 'older' | 'newer'; // moveCommit
   fold?: boolean; // placeCommit: fold into the target instead of moving next to it
   targetSubject?: string; // placeCommit
+  op?: string; // manageRemotes: add | fetch | prune | setUrl | rename | remove | copy | open (skips the menus)
+  url?: string; // manageRemotes add/setUrl
+  fetch?: boolean; // manageRemotes add: fetch after adding
 }
 
 export interface ActionCtx {
@@ -186,6 +191,7 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
     case 'squashRange':
     case 'moveCommit':
     case 'placeCommit':
+    case 'editCommit':
       return rewrite(ctx, m);
     case 'opContinue':
     case 'opSkip':
@@ -369,6 +375,8 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
     case 'openScm':
       vscode.commands.executeCommand('workbench.view.scm');
       return false;
+    case 'manageRemotes':
+      return manageRemotes(ctx, m);
     case 'fetch':
       if (ctx.api) {
         try {
@@ -384,7 +392,113 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
   return false;
 }
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+/**
+ * Remotes: list them with their URLs, add one, and for one remote fetch, fetch and prune,
+ * change its URL, rename, remove, copy the URL or open it on its forge. `m.remote` preselects
+ * a remote; `m.op` (with `m.url`, `m.message` = name, `m.fetch`) skips the menus and inputs.
+ */
+async function manageRemotes(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  const rs = await readRemotes(ctx.root);
+  const names = rs.map((r) => r.name);
+  let op = m.op;
+  let r: Remote | undefined = rs.find((x) => x.name === m.remote);
+  if (!op && !r) {
+    type Item = vscode.QuickPickItem & { remote?: Remote };
+    const items: Item[] = [
+      ...rs.map((x) => ({ label: `$(repo) ${x.name}`, description: x.fetch || '(no URL)', detail: x.push !== x.fetch ? `push: ${x.push}` : undefined, remote: x })),
+      { label: '$(add) Add remote…', description: 'git remote add' },
+    ];
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: rs.length ? 'Remotes of this repository: pick one to manage it, or add one' : 'This repository has no remotes yet' });
+    if (!pick) return false;
+    if (pick.remote) r = pick.remote;
+    else op = 'add';
+  }
+  if (!op && r) {
+    const web = webRepo(r.fetch);
+    const forge = web ? { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' }[web.forge] : '';
+    const items: (vscode.QuickPickItem & { op: string })[] = [
+      { label: '$(cloud-download) Fetch', description: `git fetch ${r.name}`, op: 'fetch' },
+      { label: '$(cloud-download) Fetch and prune', description: 'also deletes remote-tracking branches whose branch is gone on the remote', op: 'prune' },
+      { label: '$(edit) Change URL…', description: r.fetch, op: 'setUrl' },
+      { label: '$(tag) Rename…', op: 'rename' },
+      { label: '$(trash) Remove…', description: 'git remote remove', op: 'remove' },
+      { label: '$(copy) Copy URL', op: 'copy' },
+      ...(web ? [{ label: `$(link-external) Open on ${forge}`, description: web.base, op: 'open' }] : []),
+    ];
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: `Remote “${r.name}” (${r.fetch || 'no URL'})` });
+    if (!pick) return false;
+    op = pick.op;
+  }
+  if (op !== 'add' && !r) {
+    vscode.window.showErrorMessage(`Mergeline: there is no remote named “${m.remote ?? ''}”.`);
+    return false;
+  }
+  switch (op) {
+    case 'add': {
+      const name = m.message ?? (await vscode.window.showInputBox({ prompt: 'New remote name', value: names.includes('origin') ? (names.includes('upstream') ? '' : 'upstream') : 'origin', validateInput: (v) => remoteNameProblem(v, names) }));
+      if (!name) return false;
+      const problem = remoteNameProblem(name, names);
+      if (problem) {
+        vscode.window.showErrorMessage(`Mergeline: ${problem}.`);
+        return false;
+      }
+      const url = m.url ?? (await vscode.window.showInputBox({ prompt: `URL of “${name.trim()}” (https://…, git@host:owner/repo.git or a path)`, validateInput: (v) => (v.trim() ? undefined : 'Enter a URL') }));
+      if (!url?.trim()) return false;
+      let fetch = m.fetch;
+      if (fetch === undefined && m.op === undefined) {
+        const how = await vscode.window.showQuickPick(['Add and fetch', 'Add only'], { placeHolder: `Add remote ${name.trim()}` });
+        if (!how) return false;
+        fetch = how === 'Add and fetch';
+      }
+      if (!(await run(ctx, ['remote', 'add', name.trim(), url.trim()], `Add remote ${name.trim()}`))) return false;
+      if (fetch) await run(ctx, ['fetch', name.trim()], `Fetch ${name.trim()}`);
+      return true;
+    }
+    case 'fetch':
+    case 'prune':
+      return run(ctx, ['fetch', ...(op === 'prune' ? ['--prune'] : []), r!.name], `${op === 'prune' ? 'Fetch and prune' : 'Fetch'} ${r!.name}`);
+    case 'setUrl': {
+      const url = m.url ?? (await vscode.window.showInputBox({ prompt: `New URL for “${r!.name}”`, value: r!.fetch, validateInput: (v) => (v.trim() ? undefined : 'Enter a URL') }));
+      if (!url?.trim() || url.trim() === r!.fetch) return false;
+      const ok = await run(ctx, ['remote', 'set-url', r!.name, url.trim()], `Change URL of ${r!.name}`);
+      if (ok && r!.push !== r!.fetch) vscode.window.showInformationMessage(`Mergeline: changed the fetch URL of “${r!.name}”. Its separate push URL is still ${r!.push}.`);
+      return ok;
+    }
+    case 'rename': {
+      const others = names.filter((n) => n !== r!.name);
+      const name = m.message ?? (await vscode.window.showInputBox({ prompt: `Rename remote “${r!.name}” to`, value: r!.name, validateInput: (v) => (v.trim() === r!.name ? undefined : remoteNameProblem(v, others)) }));
+      if (!name?.trim() || name.trim() === r!.name) return false;
+      const problem = remoteNameProblem(name, others);
+      if (problem) {
+        vscode.window.showErrorMessage(`Mergeline: ${problem}.`);
+        return false;
+      }
+      // git also renames the remote-tracking branches and the upstream settings that point at it.
+      return run(ctx, ['remote', 'rename', r!.name, name.trim()], `Rename remote ${r!.name}`);
+    }
+    case 'remove': {
+      const u = await remoteUsage(ctx.root, r!.name);
+      const parts = [
+        u.tracking.length ? `Its ${plural(u.tracking.length, 'remote-tracking branch')} (${u.tracking.slice(0, 3).join(', ')}${u.tracking.length > 3 ? '…' : ''}) ${u.tracking.length === 1 ? 'is' : 'are'} deleted from this repository.` : '',
+        u.upstreamOf.length ? `${plural(u.upstreamOf.length, 'local branch')} (${u.upstreamOf.slice(0, 3).join(', ')}${u.upstreamOf.length > 3 ? '…' : ''}) lose${u.upstreamOf.length === 1 ? 's' : ''} ${u.upstreamOf.length === 1 ? 'its' : 'their'} upstream.` : '',
+        'Nothing changes on the remote itself, and your local branches and commits stay.',
+      ].filter(Boolean);
+      if (!(await confirm(`Remove remote “${r!.name}”?`, `${r!.fetch}\n\n${parts.join('\n')}`, 'Remove remote'))) return false;
+      return run(ctx, ['remote', 'remove', r!.name], `Remove remote ${r!.name}`);
+    }
+    case 'copy':
+      await vscode.env.clipboard.writeText(r!.fetch);
+      return false;
+    case 'open': {
+      const web = webRepo(r!.fetch);
+      if (web && !process.env.MERGELINE_E2E_REPORT) await vscode.env.openExternal(vscode.Uri.parse(web.base, true));
+      return false;
+    }
+  }
+  return false;
+}
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : /(ch|sh|s|x)$/.test(w) ? 'es' : 's'}`;
 
 /** Reword, drop, fold into parent or squash a range of commits on the current branch. */
 async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
@@ -394,6 +508,7 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
   const op: RewriteOp =
     m.action === 'reword' ? { kind: 'reword', sha, subject: '' }
     : m.action === 'dropCommit' ? { kind: 'drop', sha }
+    : m.action === 'editCommit' ? { kind: 'edit', sha }
     : m.action === 'fixupCommit' ? { kind: 'fixup', sha }
     : m.action === 'moveCommit' ? { kind: 'move', sha, dir: m.dir === 'newer' ? 'newer' : 'older' }
     : m.action === 'placeCommit' ? { kind: 'place', sha, target: m.target ?? '', fold: !!m.fold }
@@ -440,6 +555,9 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
       : [`Move ${label} to right after ${tl}?`, `It is replayed directly on top of ${short(m.target)}.`, 'Move commit', `Move ${short(sha)}`, `Moved ${short(sha)}`];
     if (!(await confirm(what[0], `${what[1]} If commits in between change the same lines, git stops with a conflict that you resolve or abort. ${common}`, what[2]))) return false;
     [title, done] = [what[3], what[4]];
+  } else if (op.kind === 'edit') {
+    if (!(await confirm(`Stop at ${label} to change it?`, `Git replays ${branch} up to this commit and stops there. Change files and stage them, then press Continue in the bar above the graph: the staged changes are added to this commit (its message is kept) and the later commits are replayed on top. Abort puts everything back. ${common}`, 'Stop here'))) return false;
+    [title, done] = [`Stop at ${short(sha)}`, ''];
   } else if (op.kind === 'drop') {
     if (!(await confirm(`Drop ${label}?`, `Its changes are removed from ${branch}, and later commits are replayed without it. ${common}`, 'Drop commit'))) return false;
     [title, done] = [`Drop ${short(sha)}`, `Dropped ${short(sha)}`];
@@ -458,6 +576,10 @@ async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
   }
   try {
     const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${title}` }, () => runRewrite(ctx.root, op, plan, message));
+    if (op.kind === 'edit') {
+      vscode.window.showInformationMessage(`Stopped at ${label}. Change and stage files, then press Continue in the bar above the graph.`);
+      return true;
+    }
     vscode.window.showInformationMessage(`${done} (${plural(n, 'commit')} rewritten).`, 'Undo').then((pick) => {
       if (pick) runAction(ctx, { action: 'undoRewrite', sha: r.before, target: r.after });
     });

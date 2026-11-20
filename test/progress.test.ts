@@ -157,3 +157,31 @@ test('merge, cherry-pick and revert in progress; skip and continue', async () =>
     rmSync(d, { recursive: true, force: true });
   }
 });
+
+test('edit: stop at an older commit, amend it with staged changes on Continue, later commits replayed; refuses HEAD', async () => {
+  const { d, sha } = repo();
+  try {
+    assert.deepEqual(buildTodo({ kind: 'edit', sha: sha.b }, [sha.b, sha.c, sha.d], '/m'), [`edit ${sha.b}`, `pick ${sha.c}`, `pick ${sha.d}`]);
+    await assert.rejects(planRewrite(d, { kind: 'edit', sha: sha.d }), (e) => e instanceof RewriteError && /newest commit/.test(e.message));
+    // A dirty file is autostashed and comes back at the end.
+    writeFileSync(join(d, 'dirty.txt'), 'wip\n');
+    const plan = await planRewrite(d, { kind: 'edit', sha: sha.b });
+    assert.equal(plan.rewritten, 3);
+    await runRewrite(d, { kind: 'edit', sha: sha.b }, plan);
+    const op = await readOperation(d);
+    assert.equal(op?.kind, 'rebase');
+    assert.equal(op?.stopped, sha.b);
+    assert.equal(sh(d, 'rev-parse', 'HEAD'), sha.b, 'stopped with b replayed unchanged');
+    writeFileSync(join(d, 'b.txt'), 'b, fixed\n');
+    sh(d, 'add', 'b.txt');
+    await git(d, opArgs('rebase', 'continue'), { env: NO_EDITOR });
+    assert.equal(await readOperation(d), null);
+    assert.deepEqual(subjects(d), ['d', 'c', 'b', 'a'], 'same commits, same messages');
+    assert.equal(sh(d, 'show', 'HEAD~2:b.txt'), 'b, fixed', 'the change went into b');
+    assert.equal(sh(d, 'rev-parse', 'HEAD~3'), sha.a, 'a untouched');
+    assert.notEqual(sh(d, 'rev-parse', 'HEAD~2'), sha.b);
+    assert.equal(readFileSync(join(d, 'dirty.txt'), 'utf8'), 'wip\n', 'autostash restored');
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});

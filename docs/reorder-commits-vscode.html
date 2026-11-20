@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reorder commits in git and VS Code | Mergeline</title>
-<meta name="description" content="Change the order of commits on a git branch: move lines in git rebase -i, what happens to the hashes, conflicts when commits touch the same lines, the cherry-pick alternative, and how to undo.">
+<meta name="description" content="Change the order of commits on a git branch: move lines in git rebase -i, what happens to hashes, conflicts, the cherry-pick alternative, and how to undo.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/reorder-commits-vscode.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -111,6 +111,11 @@ error: could not apply 5974a6f... C: add three</span></pre>
         <li><strong>Undo in one click.</strong> When the move finishes, the notification offers <strong>Undo</strong>, which puts the branch back with <code>git reset --keep</code>.</li>
       </ol>
       <p>The same menu can <a href="edit-commit-message-vscode.html">edit a commit message</a>, <a href="squash-commits-vscode.html">squash</a> or <a href="drop-commit-vscode.html">drop</a> a commit. For several moves at once, use <a href="interactive-rebase-vscode.html">an interactive rebase</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
     </section>
   </div>
 </main>
@@ -137,6 +142,8 @@ error: could not apply 5974a6f... C: add three</span></pre>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>

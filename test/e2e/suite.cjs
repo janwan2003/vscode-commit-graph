@@ -69,6 +69,58 @@ exports.run = async function run() {
     assert.deepEqual(panel.lastDetails.files.map((f) => f.path).sort(), ['search.txt', 'src.txt']);
   });
 
+  await check('review mode: start, next unreviewed opens a diff, toggle, kept after reselecting, end; none for uncommitted', async () => {
+    const a = bySubject('Initial commit'), b = bySubject("Merge branch 'feature/search'");
+    const idx = (c) => panel.lastData.commits.indexOf(c);
+    const pong = async (ok, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && ok(panel.lastPong) && panel.lastPong; }, 10000, what);
+    const click = (selector, ctrl) => panel.testPost({ type: 'click', selector, ctrl });
+    // Select the merge, Ctrl-click the first commit: a comparison of 2 files.
+    await panel.testPost({ type: 'reveal', sha: b.sha });
+    await until(() => panel.lastDetails && panel.lastDetails.sha === b.sha && !panel.lastDetails.compare, 10000, 'merge details');
+    await click(`.row[data-i="${idx(a)}"]`, true);
+    await until(() => panel.lastDetails && panel.lastDetails.compare === a.sha, 10000, 'compare details');
+    const key = panel.lastDetails.reviewKey;
+    assert.equal(key, `${a.sha}..${b.sha}`);
+    assert.equal(panel.lastDetails.reviewed, null);
+    await pong((p) => p.review === 'Review', 'Review button');
+    await click('[data-rv="start"]');
+    await pong((p) => /0 of 2 reviewed/.test(p.review), '0 of 2');
+    await until(() => panel.reviews()[key] && panel.reviews()[key].files.length === 0, 5000, 'review saved');
+    const before = vscode.window.tabGroups.all.flatMap((g) => g.tabs).length;
+    await click('[data-rv="next"]');
+    let p = await pong((x) => /1 of 2 reviewed/.test(x.review), '1 of 2');
+    assert.deepEqual(panel.reviews()[key].files, ['search.txt'], 'tree/list order: search.txt first');
+    assert.deepEqual(p.reviewedRows, ['search.txt']);
+    await until(() => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.input instanceof vscode.TabInputTextDiff && /search\.txt/.test(t.label)), 10000, 'diff tab for search.txt');
+    assert.ok(vscode.window.tabGroups.all.flatMap((g) => g.tabs).length >= before);
+    // Tick the other file by its check box, then untick it again and tick it.
+    const k = panel.lastDetails.files.findIndex((f) => f.path === 'src.txt');
+    await click(`.file[data-k="${k}"] .rv`);
+    p = await pong((x) => /2 of 2 reviewed/.test(x.review), '2 of 2');
+    await click(`.file[data-k="${k}"] .rv`);
+    await pong((x) => /1 of 2 reviewed/.test(x.review), 'untick → 1 of 2');
+    await click(`.file[data-k="${k}"] .rv`);
+    await pong((x) => /2 of 2 reviewed/.test(x.review), 'tick again → 2 of 2');
+    // Select something else, then the same comparison again: the review is still there.
+    await panel.testPost({ type: 'reveal', sha: a.sha });
+    await until(() => panel.lastDetails && panel.lastDetails.sha === a.sha && !panel.lastDetails.compare, 10000, 'other details');
+    await panel.testPost({ type: 'reveal', sha: b.sha });
+    await until(() => panel.lastDetails && panel.lastDetails.sha === b.sha && !panel.lastDetails.compare, 10000, 'merge again');
+    await click(`.row[data-i="${idx(a)}"]`, true);
+    await until(() => panel.lastDetails && panel.lastDetails.compare === a.sha, 10000, 'compare again');
+    assert.deepEqual([...panel.lastDetails.reviewed].sort(), ['search.txt', 'src.txt']);
+    await pong((x) => /2 of 2 reviewed/.test(x.review) && x.reviewedRows.length === 2, 'restored 2 of 2');
+    await click('[data-rv="end"]');
+    await pong((x) => x.review === 'Review', 'ended');
+    assert.equal(panel.reviews()[key], undefined);
+    // The working tree has no review.
+    await panel.testPost({ type: 'reveal', sha: '*' });
+    await until(() => panel.lastDetails && panel.lastDetails.sha === '*', 10000, 'uncommitted details');
+    assert.equal(panel.lastDetails.reviewKey, undefined);
+    await pong((x) => x.details && x.review === '', 'no review bar for uncommitted');
+    await vscode.window.tabGroups.close(vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => t.input instanceof vscode.TabInputTextDiff));
+  });
+
   await check('open file diff opens a diff editor with historical content', async () => {
     const c = bySubject('Search: rank by recency');
     await panel.testMessage({ type: 'details', sha: c.sha });
@@ -307,7 +359,7 @@ exports.run = async function run() {
         await panel.testPost({ type: 'reveal', sha: s });
         return (await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === s && panel.lastPong; }, 10000, 'pong')).editMenu;
       };
-      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Move commit up (newer)', 'Move commit down (older)', 'Squash into parent', 'Drop commit…']);
+      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Move commit up (newer)', 'Move commit down (older)', 'Squash into parent', 'Stop at this commit to change it…', 'Drop commit…']);
       const merge = panel.lastData.commits.find((c) => c.parents.length > 1 && c.kind === 'commit');
       assert.deepEqual(await editMenu(merge.sha), [], 'no edit items on a merge');
       // Reword an older commit; uncommitted changes survive (autostash).
@@ -420,6 +472,26 @@ exports.run = async function run() {
       git('reset', '-q', '--hard', start);
       git('branch', '-q', '-D', 'move-side');
       await panel.refresh(true);
+    });
+
+    await check('stop at a commit to change it: the bar shows the stop, Continue amends it with the staged change', async () => {
+      const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+      wf('stop1.txt', 'one\n'); git('add', '-A'); git('commit', '-q', '-m', 'Stop S1');
+      wf('stop2.txt', 'two\n'); git('add', '-A'); git('commit', '-q', '-m', 'Stop S2');
+      await panel.refresh(true);
+      const s1 = git('rev-parse', 'HEAD~1');
+      await act({ action: 'editCommit', sha: s1, subject: 'Stop S1', current: 'main' });
+      await panel.refresh(true);
+      assert.equal(panel.lastData.op && panel.lastData.op.kind, 'rebase');
+      assert.equal(panel.lastData.op.stopped, s1);
+      const p = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.opbar && panel.lastPong; }, 10000, 'bar');
+      assert.match(p.opbar, /stopped at .*Stop S1/);
+      wf('stop1.txt', 'one, changed\n'); git('add', 'stop1.txt');
+      await act({ action: 'opContinue' });
+      await panel.refresh(true);
+      assert.equal(panel.lastData.op, null);
+      assert.deepEqual(git('log', '-2', '--format=%s').split('\n'), ['Stop S2', 'Stop S1']);
+      assert.equal(git('show', 'HEAD~1:stop1.txt'), 'one, changed');
     });
 
     await check('drag a commit: move it after another, squash it into another; branch checklist; dim other commits', async () => {
@@ -535,6 +607,41 @@ exports.run = async function run() {
       assert.equal(panel.lastUrl, undefined);
       git('branch', '-q', '-D', 'pr/topic');
       git('remote', 'remove', 'gh');
+    });
+    await check('manage remotes: menu lists remotes; add (+fetch), rename, change URL, refuse a taken name, remove with its branches and upstreams', async () => {
+      // The command's first menu: every remote with its URL, plus Add remote…
+      let seen = null;
+      const prevPick = w.showQuickPick;
+      w.showQuickPick = async (items) => { seen = await items; return undefined; };
+      try { await vscode.commands.executeCommand('mergeline.manageRemotes'); } finally { w.showQuickPick = prevPick; }
+      assert.ok(seen, 'remote menu shown');
+      assert.ok(seen.some((i) => /origin/.test(i.label) && i.description === bare), seen.map((i) => i.label + ' ' + i.description).join(' | '));
+      assert.ok(seen.some((i) => /Add remote/.test(i.label)));
+      // Add with fetch.
+      await act({ action: 'manageRemotes', op: 'add', message: 'up', url: bare, fetch: true });
+      assert.equal(git('remote', 'get-url', 'up'), bare);
+      await until(() => git('for-each-ref', '--format=%(refname)', 'refs/remotes/up/').includes('refs/remotes/up/main'), 10000, 'up/main fetched');
+      await until(() => panel.lastData.state.refs.some((r) => r.name === 'up/main'), 10000, 'graph shows up/main');
+      // A taken name is refused, nothing changes.
+      await act({ action: 'manageRemotes', op: 'add', message: 'origin', url: '/nowhere' });
+      assert.equal(git('remote', 'get-url', 'origin'), bare);
+      // Rename: remote-tracking branches and upstream settings follow.
+      git('branch', '-q', '--track', 'via-up', 'up/main');
+      await act({ action: 'manageRemotes', op: 'rename', remote: 'up', message: 'upstream2' });
+      assert.deepEqual(git('remote').split('\n').sort(), ['origin', 'upstream2']);
+      assert.equal(git('config', 'branch.via-up.remote'), 'upstream2');
+      await until(() => panel.lastData.state.refs.some((r) => r.name === 'upstream2/main') && !panel.lastData.state.refs.some((r) => r.name === 'up/main'), 10000, 'graph shows renamed refs');
+      // Change URL.
+      await act({ action: 'manageRemotes', op: 'setUrl', remote: 'upstream2', url: bare + '/' });
+      assert.equal(git('remote', 'get-url', 'upstream2'), bare + '/');
+      // Remove (modal confirm stub says yes): its refs and the branch's upstream go, the branch stays.
+      await act({ action: 'manageRemotes', op: 'remove', remote: 'upstream2' });
+      assert.deepEqual(git('remote').split('\n'), ['origin']);
+      assert.equal(git('for-each-ref', 'refs/remotes/upstream2/'), '');
+      assert.ok(git('rev-parse', '--verify', 'via-up'));
+      assert.throws(() => git('config', 'branch.via-up.remote'));
+      await until(() => !panel.lastData.state.refs.some((r) => r.name.startsWith('upstream2/')), 10000, 'graph drops removed refs');
+      git('branch', '-q', '-D', 'via-up');
     });
     fs.rmSync(bare, { recursive: true, force: true });
   }

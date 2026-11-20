@@ -8,6 +8,8 @@ import { git } from './gitlog';
 export type RewriteOp =
   | { kind: 'reword'; sha: string; subject: string }
   | { kind: 'drop'; sha: string }
+  /** Stop the rebase right after `sha` is replayed, so its files can be changed; Continue amends it. */
+  | { kind: 'edit'; sha: string }
   /** Swap `sha` with its parent (`older`) or with the commit after it on the branch (`newer`). */
   | { kind: 'move'; sha: string; dir: 'older' | 'newer' }
   /** Fold `sha` into its parent; the parent's message is kept. */
@@ -85,6 +87,7 @@ export async function planRewrite(cwd: string, op: RewriteOp): Promise<RewritePl
   if (!commits.includes(first) || !commits.includes(last) || (target && !commits.includes(target))) throw new RewriteError('That commit is not on the checked-out branch. Check its branch out first.');
   if ((await revs(cwd, ['--merges', ...range])).length) throw new RewriteError('There is a merge commit between it and HEAD, and rewriting would flatten it. Use an interactive rebase in a terminal (git rebase -i --rebase-merges).');
   if (op.kind === 'squash' && commits.indexOf(first) >= commits.indexOf(last)) throw new RewriteError('Pick the older commit first, then the newer one.');
+  if (op.kind === 'edit' && first === head) throw new RewriteError('This is the newest commit, so no rebase is needed: change the files, stage them and amend it (Commit (Amend) in Source Control).');
   if (op.kind === 'move' && op.dir === 'newer' && first === head) throw new RewriteError('This is already the newest commit on the branch.');
   if (await rebaseInProgress(cwd)) throw new RewriteError('A rebase is already in progress. Finish or abort it first.');
   const pushed = (await git(cwd, ['branch', '-r', '--contains', oldest, '--format=%(refname:short)'])).split('\n').map((s) => s.trim()).filter((s) => s && !s.endsWith('/HEAD'));
@@ -137,6 +140,7 @@ export function buildTodo(op: RewriteOp, commits: string[], msgFile: string): st
   }
   commits.forEach((c, i) => {
     if (op.kind === 'drop' && c === op.sha) out.push(`drop ${c}`);
+    else if (op.kind === 'edit' && c === op.sha) out.push(`edit ${c}`);
     else if (op.kind === 'fixup' && c === op.sha) out.push(`fixup ${c}`);
     else if (op.kind === 'squash' && i > iFrom && i <= iTo) out.push(`fixup ${c}`);
     else out.push(`pick ${c}`);

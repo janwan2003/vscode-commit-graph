@@ -42,12 +42,13 @@
   <div id="toolbar">
     <label class="tb">Repo <select id="repo" title="Repository"></select></label>
     <span class="tb">Branches <button id="branchbtn" class="secondary drop" title="Show only some branches" aria-haspopup="true" aria-expanded="false">All</button></span>
-    <label class="tb chk"><input type="checkbox" id="remotes"> Remotes</label>
+    <label class="tb chk" title="Show remote-tracking branches"><input type="checkbox" id="remotes"> Remote branches</label>
     <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
     <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
     <span class="grow"></span>
     <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref)" spellcheck="false" aria-label="Find">
       <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span><button id="findall" title="Search the whole history (message, author, hash, ref), not just the loaded commits" hidden>All history</button></span>
+    <button id="remotesbtn" class="secondary" title="Manage remotes: add, fetch, prune, change URL, rename, remove">Remotes…</button>
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
     <button id="refresh" title="Refresh">Refresh</button>
   </div>
@@ -94,6 +95,7 @@
   });
   $('#refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
   $('#fetch').addEventListener('click', () => vscode.postMessage({ type: 'action', action: 'fetch' }));
+  $('#remotesbtn').addEventListener('click', () => action({ action: 'manageRemotes' }));
   $('#find').addEventListener('input', () => runFind(true));
   $('#find').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -183,9 +185,11 @@
       case 'history': gotHistory(m); break;
       case 'message': openMessageEditor(m.sha, m.message); break;
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
+      // Test hook (only the extension can post here): click an element, optionally with Ctrl.
+      case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -546,12 +550,76 @@
     filesFocus = focus;
     const nested = m.files.some((f) => f.path.includes('/'));
     detailsEl.innerHTML = `<button class="d-close" title="Close (Esc)" aria-label="Close details">×</button>${head}
-      <div class="d-files-h">${m.files.length} file${m.files.length === 1 ? '' : 's'} changed <i class="plus">+${add}</i> <i class="minus">−${del}</i>${m.compare ? '' : ' <span class="hint">Ctrl/Cmd-click another commit to compare</span>'}${nested ? `<span class="fv" role="group" aria-label="File view"><button data-fv="tree" title="Show files in folders">Tree</button><button data-fv="list" title="Show full paths">List</button></span>` : ''}</div>
+      <div class="d-files-h">${m.files.length} file${m.files.length === 1 ? '' : 's'} changed <i class="plus">+${add}</i> <i class="minus">−${del}</i>${m.compare ? '' : ' <span class="hint">Ctrl/Cmd-click another commit to compare</span>'}<span class="rvbar"></span>${nested ? `<span class="fv" role="group" aria-label="File view"><button data-fv="tree" title="Show files in folders">Tree</button><button data-fv="list" title="Show full paths">List</button></span>` : ''}</div>
       <ul class="d-files"></ul>`;
+    // Review mode: started from the commit menu, or already in progress for this diff.
+    if (m.reviewKey && pendingReview === m.sha && !m.reviewed) { m.reviewed = []; saveReview(); }
+    if (pendingReview === m.sha) pendingReview = null;
     renderFiles();
     detailsEl.hidden = false;
     split.hidden = false;
     scrollTo(indexBySha.get(m.sha));
+  }
+
+  // ---------- review: mark the files of a commit or comparison as reviewed ----------
+  let pendingReview = null; // sha whose details should open in review mode
+  const reviewing = () => !!(details && details.reviewKey && details.reviewed);
+  function saveReview() { if (details && details.reviewKey) vscode.postMessage({ type: 'review', key: details.reviewKey, files: details.reviewed }); }
+  /** File indexes in the order the tree (or list) shows them, folders before files, ignoring collapsed folders. */
+  function fileOrder() {
+    const files = details.files;
+    const tree = (lay.files || 'tree') === 'tree';
+    const cmp = (a, b) => {
+      if (!tree) return 0;
+      const pa = files[a].path.split('/'), pb = files[b].path.split('/');
+      for (let i = 0; ; i++) {
+        const da = i < pa.length - 1, db = i < pb.length - 1; // is part i a folder?
+        if (da !== db) return da ? -1 : 1;
+        const c = pa[i].localeCompare(pb[i]);
+        if (c || !da) return c;
+      }
+    };
+    return files.map((_, k) => k).sort(cmp);
+  }
+  function renderReviewBar() {
+    const bar = detailsEl.querySelector('.rvbar');
+    if (!bar || !details) return;
+    if (!details.reviewKey || !details.files.length) { bar.innerHTML = ''; return; }
+    if (!reviewing()) { bar.innerHTML = `<button data-rv="start" class="secondary" title="Tick off files as you review them; kept for this diff until you end the review">Review</button>`; return; }
+    const done = details.files.filter((f) => details.reviewed.includes(f.path)).length;
+    const all = details.files.length;
+    bar.innerHTML = `<span class="rvcount${done === all ? ' done' : ''}">${done} of ${all} reviewed</span>`
+      + `<button data-rv="next" class="secondary" title="Open the next unreviewed file's diff and mark it reviewed"${done === all ? ' disabled' : ''}>Next unreviewed</button>`
+      + `<button data-rv="end" class="secondary" title="Forget which files were reviewed">End review</button>`;
+  }
+  function markReviewed(path, on) {
+    if (!reviewing()) return;
+    const has = details.reviewed.includes(path);
+    if (on === has) return;
+    details.reviewed = on ? [...details.reviewed, path] : details.reviewed.filter((p) => p !== path);
+    saveReview();
+    renderFiles();
+  }
+  function openDiff(file) {
+    vscode.postMessage({ type: 'openFile', from: details.from === UNC ? 'HEAD' : details.from, to: details.to, path: file.path, oldPath: file.oldPath, status: file.status });
+    markReviewed(file.path, true);
+  }
+  function reviewCmd(what) {
+    if (!details || !details.reviewKey) return;
+    if (what === 'start') { details.reviewed = []; saveReview(); }
+    else if (what === 'end') { details.reviewed = null; vscode.postMessage({ type: 'review', key: details.reviewKey, files: null }); }
+    else if (what === 'next' && reviewing()) {
+      const k = fileOrder().find((i) => !details.reviewed.includes(details.files[i].path));
+      if (k === undefined) return;
+      const f = details.files[k];
+      // Unfold the folders around it so the row is visible.
+      for (const dir of [...collapsedDirs]) if (f.path.startsWith(dir + '/')) collapsedDirs.delete(dir);
+      openDiff(f);
+      const li = detailsEl.querySelector(`.file[data-k="${k}"]`);
+      if (li) li.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    renderFiles();
   }
 
   // Changed files as a flat list of paths, or as a folder tree (lay.files, kept across sessions).
@@ -559,8 +627,10 @@
   const collapsedDirs = new Set();
   function fileRow(f, k, name, pad) {
     const focus = filesFocus && (filesFocus.includes(f.path) || filesFocus.includes(f.oldPath));
-    const tip = `${STATUS[f.status] || f.status}: ${f.oldPath ? f.oldPath + ' → ' : ''}${f.path}. Click to open the diff`;
-    return `<li class="file${focus ? ' focus' : ''}" data-k="${k}" title="${esc(tip)}"${pad ? ` style="padding-left:${pad}px"` : ''}>
+    const rv = reviewing(), done = rv && details.reviewed.includes(f.path);
+    const tip = `${STATUS[f.status] || f.status}: ${f.oldPath ? f.oldPath + ' → ' : ''}${f.path}. Click to open the diff${rv ? ' (marks it reviewed)' : ''}`;
+    return `<li class="file${focus ? ' focus' : ''}${done ? ' reviewed' : ''}" data-k="${k}" title="${esc(tip)}"${pad ? ` style="padding-left:${pad}px"` : ''}>
+        ${rv ? `<span class="rv" role="checkbox" aria-checked="${done}" aria-label="Reviewed" title="${done ? 'Reviewed. Click to unmark' : 'Mark as reviewed'}">${done ? '✓' : ''}</span>` : ''}
         <span class="st st-${esc(f.status)}">${esc(f.status)}</span>
         <span class="fp">${name}</span>
         <span class="ad">${f.additions == null ? (f.status === 'U' ? '' : 'bin') : `<i class="plus">+${f.additions}</i> <i class="minus">−${f.deletions}</i>`}</span></li>`;
@@ -569,6 +639,7 @@
     const ul = detailsEl.querySelector('.d-files');
     if (!ul || !details) return;
     const files = details.files;
+    renderReviewBar();
     const tree = (lay.files || 'tree') === 'tree' && files.some((f) => f.path.includes('/'));
     detailsEl.querySelectorAll('[data-fv]').forEach((b) => b.classList.toggle('on', b.dataset.fv === (tree ? 'tree' : 'list')));
     if (!tree) {
@@ -621,10 +692,13 @@
     if (e.target.closest('[data-squash]')) { const rng = squashRange(); if (rng) action({ action: 'squashRange', sha: rng.from, target: rng.to }); return; }
     const u = e.target.closest('[data-url]');
     if (u) return vscode.postMessage({ type: 'openUrl', url: u.dataset.url });
+    const rb = e.target.closest('[data-rv]');
+    if (rb) return reviewCmd(rb.dataset.rv);
     const f = e.target.closest('.file');
     if (f && details) {
       const file = details.files[+f.dataset.k];
-      vscode.postMessage({ type: 'openFile', from: details.from === UNC ? 'HEAD' : details.from, to: details.to, path: file.path, oldPath: file.oldPath, status: file.status });
+      if (e.target.closest('.rv')) return markReviewed(file.path, !details.reviewed.includes(file.path));
+      openDiff(file);
     }
   });
 
@@ -637,7 +711,8 @@
     const fa = (act, p = file.path, ref = at) => () => vscode.postMessage({ type: 'fileAction', act, ref, path: p });
     const gone = file.status === 'D';
     const items = [
-      ['Open changes', () => vscode.postMessage({ type: 'openFile', from: details.from === UNC ? 'HEAD' : details.from, to: details.to, path: file.path, oldPath: file.oldPath, status: file.status })],
+      ['Open changes', () => openDiff(file)],
+      ...(reviewing() ? [[details.reviewed.includes(file.path) ? 'Mark as not reviewed' : 'Mark as reviewed', () => markReviewed(file.path, !details.reviewed.includes(file.path))]] : []),
       ['Open file', fa('openWorking')],
       ...(at ? [
         ['Open file at ' + short(at), fa('openAt'), gone ? 'disabled' : ''],
@@ -786,6 +861,7 @@
       ['Reset ' + cur + ' to here…', { ...base, action: 'reset' }, isHead ? 'disabled' : ''],
       null,
       ...editItems(c, base),
+      ['Review changes file by file', () => { pendingReview = c.sha; select(c.sha, true); }],
       ['Compare with working tree', () => compare(c.sha, UNC)],
       ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
       ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
@@ -852,6 +928,7 @@
       ['Move commit up (newer)', { ...base, action: 'moveCommit', dir: 'newer' }, c.sha === data.head ? 'disabled' : ''],
       ['Move commit down (older)', { ...base, action: 'moveCommit', dir: 'older' }, below],
       ['Squash into parent', { ...base, action: 'fixupCommit' }, below],
+      ['Stop at this commit to change it…', { ...base, action: 'editCommit' }, c.sha === data.head ? 'disabled' : ''],
       ['Drop commit…', { ...base, action: 'dropCommit' }, 'danger'],
       null,
     );
@@ -960,6 +1037,7 @@
       null,
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
       null,
+      ['Manage remote “' + remote + '”…', { action: 'manageRemotes', remote }],
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
     const isCur = name === cur;

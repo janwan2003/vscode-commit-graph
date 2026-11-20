@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Squash commits in git and VS Code: the last N commits, interactive rebase | Mergeline</title>
-<meta name="description" content="How to squash commits in git: git rebase -i HEAD~N with pick, squash, fixup and reword, the reset --soft shortcut, merge --squash, fixup commits with --autosquash, editing the todo list in VS Code, and staying safe.">
+<meta name="description" content="Squash commits in git: rebase -i HEAD~N with squash, fixup and reword, reset --soft, merge --squash, --autosquash, and editing the todo list in VS Code.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/squash-commits-vscode.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -147,6 +147,11 @@ f5903f4 HEAD@{5}: commit: WIP</span>
         <li><strong>Squash merge:</strong> check out the target branch, right-click the other branch&rsquo;s badge, choose <strong>Merge into &ldquo;&lt;branch&gt;&rdquo;&hellip;</strong> and pick <strong>Squash merge</strong>. The changes are staged for you to commit. Deleting the branch afterwards asks before force-deleting, because git does not see it as merged.</li>
         <li><strong>Check and push:</strong> the graph updates when the repository changes (click <em>Refresh</em> if it has not). Right-click the branch and choose <strong>Push</strong>; if the branch was already on the remote, the push is rejected, so run <code>git push --force-with-lease</code> in the terminal.</li>
       </ol>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
     </section>
   </div>
 </main>
@@ -173,6 +178,8 @@ f5903f4 HEAD@{5}: commit: WIP</span>
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>

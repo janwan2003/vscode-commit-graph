@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How to see a git branch graph in VS Code (3 ways) | Mergeline</title>
-<meta name="description" content="Three ways to visualize git branches in VS Code: git log --graph in the terminal, the built-in Source Control Graph, and a full graph extension. Commands, flags and when to use each.">
+<meta name="description" content="Three ways to visualize git branches in VS Code: git log --graph in a terminal, the built-in Source Control Graph, and a graph extension. When to use each.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/visualize-git-branches-vscode.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -116,7 +116,7 @@
         <li><strong>Install</strong> the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest release</a> with <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</li>
         <li><strong>Open the graph</strong> with the Mergeline button in the Source Control title bar, the status-bar button, or <strong>Mergeline: Show Commit Graph</strong>.</li>
         <li><strong>Fetch first.</strong> Click <em>Fetch</em> in the toolbar so <code>origin/*</code> branches are current.</li>
-        <li><strong>Narrow it down.</strong> Use the branch filter to follow one branch, or the remotes toggle to hide remote-tracking branches. This is the graphical version of <code>--branches</code> and <code>--all</code>.</li>
+        <li><strong>Narrow it down.</strong> Use the branch filter to follow one branch, or the <strong>Remote branches</strong> checkbox to hide remote-tracking branches. This is the graphical version of <code>--branches</code> and <code>--all</code>.</li>
         <li><strong>Inspect.</strong> Click a commit to open its details: message, author, committer, parents, and each changed file with its line counts. Click a file to open the diff. <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to compare the two; the <a href="compare-branches-commits-vscode.html">compare guide</a> explains which commits to pick and the matching <code>git diff</code> commands.</li>
       </ol>
     </section>
@@ -150,6 +150,8 @@
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

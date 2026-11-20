@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review a commit or a branch file by file in VS Code | Mergeline</title>
+<meta name="description" content="Code review a commit or a branch before merging: git show --stat, git diff main...feature, difftool in VS Code, and marking files as reviewed one by one.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/code-review-commits-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Review a commit or a branch file by file in VS Code">
+<meta property="og:description" content="See what a commit or branch changed, open each file in a diff, and keep track of which files you have already reviewed.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/code-review-commits-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Review a commit or a branch file by file in VS Code</h1>
+    <p>Not every review happens on a pull request page. You may want to read a colleague&rsquo;s branch before it is pushed, check a commit that landed while you were away, or go over your own branch before merging it. Each time, you get the list of changed files and read each diff without losing your place. Here is how with plain git, with VS Code&rsquo;s built-in views, and with Mergeline&rsquo;s review mode, which ticks off each file you have read.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#commit">Review one commit</a></li>
+        <li><a href="#branch">Review a branch before merging</a></li>
+        <li><a href="#difftool">Open each diff in VS Code with git difftool</a></li>
+        <li><a href="#builtin">What VS Code has built in</a></li>
+        <li><a href="#mergeline">Review file by file in Mergeline</a></li>
+        <li><a href="#tips">Tips for a faster review</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>See which files a commit changed, with line counts</td><td><code>git show --stat &lt;sha&gt;</code></td></tr>
+          <tr><td>See the whole change of one commit</td><td><code>git show &lt;sha&gt;</code></td></tr>
+          <tr><td>See what <code>feature</code> changed since it left <code>main</code></td><td><code>git diff main...feature</code></td></tr>
+          <tr><td>List those files with line counts</td><td><code>git diff --stat main...feature</code></td></tr>
+          <tr><td>List the commits on the branch, oldest first</td><td><code>git log --oneline --reverse main..feature</code></td></tr>
+          <tr><td>Open each changed file in VS Code&rsquo;s diff editor</td><td><code>git difftool --tool=vscode main...feature</code></td></tr>
+          <tr><td>Tick off files as you review them</td><td><a href="#mergeline">Mergeline&rsquo;s review mode</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="commit">Review one commit</h2>
+    <p>Start with the overview. <code>git show --stat</code> prints the commit&rsquo;s author, date and message, then one line per changed file:</p>
+<pre><span class="k">git show --stat</span> 9d55050
+<span class="o">commit 9d5505067eba2bf1390c5eeaefc00b1e532f93c1
+Author: Sam &lt;sam@example.com&gt;
+Date:   Fri Nov 20 15:26:44 2026 +0100
+
+    feature: change app, add test
+
+ app.js  | 3 ++-
+ test.js | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)</span></pre>
+    <p>Read the message first, so you know what the change is meant to do, then start with the file the others depend on.</p>
+    <p>To see whether each file was added, modified, deleted or renamed, use <code>--name-status</code> instead of <code>--stat</code>. It prints a letter per file (<code>A</code>, <code>M</code>, <code>D</code>, or <code>R</code> with a similarity score for renames). Then read the diff one file at a time by adding a path after <code>--</code>:</p>
+<pre><span class="k">git show --name-status</span> 9d55050
+<span class="k">git show</span> 9d55050 <span class="k">--</span> app.js</pre>
+    <p><code>git diff 9d55050^!</code> gives the same diff without the header; <code>^!</code> means &ldquo;this commit against its first parent&rdquo;.</p>
+
+    <h2 id="branch">Review a branch before merging</h2>
+    <p>When you review a branch, you want to see what the branch did, not everything that has happened on <code>main</code> since it was created. That is what three dots give you:</p>
+<pre><span class="k">git diff --stat</span> main...feature
+<span class="k">git diff</span> main...feature <span class="k">--</span> app.js</pre>
+    <p><code>main...feature</code> compares <code>feature</code> with the <em>merge base</em>, the last commit the two branches share. It is the same as <code>git diff $(git merge-base main feature) feature</code>, and it is what a pull request shows. Two dots (or a space) compare the two tips directly, so anything new on <code>main</code> shows up as if the branch had removed it: in our test, two dots listed a file only <code>main</code> had added; three dots did not. The <a href="compare-branches-commits-vscode.html">compare branches guide</a> explains the difference in detail.</p>
+    <p>Two more views help with a larger branch:</p>
+    <ul>
+      <li><code>git log --oneline --reverse main..feature</code> lists the branch&rsquo;s own commits, oldest first. (For <code>git log</code>, two dots mean &ldquo;commits in <code>feature</code> that are not in <code>main</code>&rdquo;.)</li>
+      <li><code>git log -p --reverse main..feature</code> walks through the branch commit by commit, each with its diff. That suits small, well-described commits; for a branch of &ldquo;WIP&rdquo; commits, the three-dot diff is easier.</li>
+    </ul>
+    <p>No checkout is needed: after <code>git fetch</code>, <code>git diff origin/main...origin/feature</code> reviews a remote branch. In Mergeline, remote branches show when <strong>Remote branches</strong> is ticked in the toolbar.</p>
+
+    <h2 id="difftool">Open each diff in VS Code with <code>git difftool</code></h2>
+    <p>Reading long diffs in a terminal is tiring. <code>git difftool</code> takes the same arguments as <code>git diff</code>, but opens each changed file in a diff viewer, one after another. The git we tested (2.53) already knows VS Code as a diff tool called <code>vscode</code>, which runs <code>code --wait --diff</code> on the old and new version of each file:</p>
+<pre><span class="k">git difftool --tool=vscode</span> main...feature
+<span class="k">git difftool -y --tool=vscode</span> 9d55050^!      <span class="c"># -y: do not ask before each file</span></pre>
+    <p>Close the diff tab and git opens the next file. Without <code>-y</code>, git asks before each one, so you can skip files. <code>git config --global diff.tool vscode</code> makes it the default. If your git does not list <code>vscode</code> in <code>git difftool --tool-help</code>, define it yourself with <code>git config --global difftool.vscode.cmd 'code --wait --diff $LOCAL $REMOTE'</code>.</p>
+    <p><code>git difftool -d</code> hands the tool two folders at once, which needs a folder-comparing tool such as Meld; VS Code&rsquo;s <code>--diff</code> compares two files. Either way <code>difftool</code> is a single pass: stop halfway and nothing records how far you got.</p>
+
+    <h2 id="builtin">What VS Code has built in</h2>
+    <p>We checked these against the git extension bundled with VS Code 1.147.</p>
+    <ul>
+      <li><strong>Source Control Graph.</strong> In the Source Control view, clicking a commit in the graph opens its changes in a multi-file diff editor, with every changed file stacked in one tab. Right-clicking a commit offers <strong>Compare with Merge Base</strong>, <strong>Compare with Remote</strong> and <strong>Compare with&hellip;</strong> (pick a branch or tag). All three run a three-dot diff, which is the right view for reviewing a branch.</li>
+      <li><strong>Timeline.</strong> With a file open, the Timeline section at the bottom of the Explorer lists the commits that touched that file. <strong>Open Changes</strong> shows that file&rsquo;s diff, and <strong>Open Commit</strong> shows the whole commit in the multi-file diff editor.</li>
+    </ul>
+    <p>The multi-file diff editor suits a small commit read in one scroll. We found no way in these views to mark a file as reviewed, so in a 40-file change you track your place yourself. If the change is already a pull request on GitHub, the website&rsquo;s <em>Files changed</em> tab has a <em>Viewed</em> checkbox per file; for local commits and branches, the options above are what you get.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Review file by file in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. Version 0.9 adds a review mode: a check mark per changed file, a count of what is left, and a button that takes you to the next file you have not read.</p>
+      <img src="screenshot-review.png" width="1280" height="800" loading="lazy" alt="Mergeline comparing two commits in review mode: the changed-files header reads 5 of 7 reviewed with Next unreviewed and End review buttons; five files in docs/ and src/ are ticked and faded, sync.ts and theme.css are still unticked.">
+      <ol class="steps">
+        <li><strong>Pick what to review.</strong> Select a commit in the graph. To review the difference between two commits, <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second one. To review a branch the way a pull request shows it, right-click the branch and choose <strong>Changes since it split from &ldquo;<em>current</em>&rdquo;</strong>, where <em>current</em> is the branch you have checked out. The details pane lists the changed files.</li>
+        <li><strong>Start the review.</strong> Click <strong>Review</strong> in the header of the changed-files list, or right-click a commit and choose <strong>Review changes file by file</strong>. Each file gets a checkbox, and the header shows how far you are, for example <em>3 of 12 reviewed</em>.</li>
+        <li><strong>Work through the files.</strong> Click <strong>Next unreviewed</strong> to open the next file you have not reviewed in VS Code&rsquo;s diff editor. Opening a file&rsquo;s diff marks it as reviewed. To change a mark, click the file&rsquo;s checkbox; that toggles it, so you can untick a file you want to look at again.</li>
+        <li><strong>Stop and come back.</strong> Your progress is kept per commit or comparison in the workspace, so you can close VS Code and continue later where you left off.</li>
+        <li><strong>Finish.</strong> Click <strong>End review</strong> to clear the marks.</li>
+      </ol>
+      <p>Review mode is not available for the uncommitted-changes row; use the Source Control view for that. The marks are Mergeline&rsquo;s own record, not git data, so nothing is added to your repository.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="tips">Tips for a faster review</h2>
+    <ul>
+      <li><strong>Skip generated files.</strong> Lock files and build output make the list longer without telling you much. Exclude them with a pathspec: <code>git diff --stat main...feature -- . ':!package-lock.json'</code>.</li>
+      <li><strong>Ignore re-indentation.</strong> When a change wraps code in a new block, the diff marks every line as changed. <code>git diff -w</code> ignores whitespace, so only the lines that really changed remain.</li>
+      <li><strong>Pure renames are quick.</strong> A moved file with no other change shows <code>0</code> changed lines in <code>--stat</code>.</li>
+    </ul>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Why does my branch diff include changes I did not make?</summary>
+      <p>You compared with two dots or a space, so the diff includes everything <code>main</code> gained since your branch started, shown as if you had removed it. Use three dots: <code>git diff main...feature</code>.</p>
+    </details>
+    <details>
+      <summary>How do I review a merge commit?</summary>
+      <p><code>git show</code> on a merge prints a combined diff that only shows lines where the merge differs from both parents, which is usually little or nothing. To see what the merge brought in, compare it with its first parent: <code>git diff &lt;merge&gt;^1 &lt;merge&gt;</code>. In Mergeline, <kbd>Ctrl</kbd>-click the merge and its first parent to compare the two.</p>
+    </details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html" aria-current="page">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

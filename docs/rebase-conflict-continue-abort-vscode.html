@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rebase, merge or cherry-pick stopped with conflicts in VS Code: continue, skip or abort | Mergeline</title>
-<meta name="description" content="A rebase, merge, cherry-pick or revert stopped with conflicts. Find out what is in progress, resolve the files in VS Code, then continue, skip or abort, and get back if it went wrong.">
+<meta name="description" content="A rebase, merge, cherry-pick or revert stopped with conflicts: see what is in progress, resolve in VS Code, then continue, skip or abort, or undo it.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/rebase-conflict-continue-abort-vscode.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -137,6 +137,11 @@ You are currently rebasing branch 'feature' on '0fd66d2'.
       </ol>
       <figure class="shot"><img src="screenshot-rebase.png" width="1280" height="800" loading="lazy" alt="Mergeline's bar above the commit graph: Rebasing main onto feature/dark-mode, step 2 of 5, stopped at a commit, 2 conflicted files, with Continue, Skip, Abort and Source Control buttons."><figcaption>A rebase stopped on a conflict, as shown above the graph.</figcaption></figure>
       <p>Edits made from the graph (<a href="edit-commit-message-vscode.html">editing a message</a>, <a href="reorder-commits-vscode.html">moving</a>, <a href="squash-commits-vscode.html">squashing</a> or <a href="drop-commit-vscode.html">dropping</a> a commit) stop in this same bar if a commit conflicts. See also <a href="interactive-rebase-vscode.html">interactive rebase</a> and <a href="git-rebase-vs-merge.html">rebase vs merge</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
     </section>
   </div>
 </main>
@@ -163,6 +168,8 @@ You are currently rebasing branch 'feature' on '0fd66d2'.
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>

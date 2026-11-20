@@ -32,6 +32,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
     window.postMessage({ type: 'settings', settings: { dateFormat: 'relative' } }, '*');
     window.postMessage({ type: 'repos', repos: [{ root: '/work/acme-app', name: 'acme-app' }], repo: '/work/acme-app' }, '*');
     // OPBAR=1: pretend a rebase stopped on a conflict (the bar above the graph).
+    if (${process.env.REVIEW === '1'}) P.details = P.review;
     if (${process.env.OPBAR === '1'}) {
       const c = P.data.commits.filter((x) => x.kind === 'commit');
       const onto = (P.data.refs.find((r) => r.type === 'head' && r.name !== P.data.branch) || {}).sha || c[6].sha;
@@ -42,6 +43,8 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
       if (P.details) {
         const i = P.data.commits.findIndex((c) => c.sha === P.details.sha);
         document.querySelector('.row[data-i="' + i + '"]').click();
+        // REVIEW=1: the details pane in review mode, with all but the last two files reviewed.
+        if (${process.env.REVIEW === '1'}) { P.details = P.review; P.details.reviewKey = P.details.from + '..' + P.details.sha; P.details.reviewed = P.details.files.slice(0, Math.max(1, P.details.files.length - 2)).map((f) => f.path); }
         setTimeout(() => window.postMessage(P.details, '*'), 30);
       }
       setTimeout(() => { document.querySelector('#find').value = 'search'; document.querySelector('#find').dispatchEvent(new Event('input')); }, 60);

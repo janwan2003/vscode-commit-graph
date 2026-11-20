@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Git rebase vs merge: when to use each, with examples | Mergeline</title>
-<meta name="description" content="What git merge and git rebase actually do to your history, when to use each, the one rule that keeps rebasing safe, handling conflicts, and how to undo either one.">
+<meta name="description" content="What git merge and git rebase do to your history, when to use each, the one rule that keeps rebasing safe, handling conflicts, and how to undo either one.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-rebase-vs-merge.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -129,6 +129,11 @@
         <li><strong>Conflicts:</strong> resolve them in the editor as usual. The uncommitted-changes row at the top of the graph shows the work in progress. Then continue or abort with the commands above and click <em>Refresh</em>.</li>
         <li><strong>Push:</strong> right-click the branch and choose <strong>push</strong>. If you rebased a branch that was already on the remote, a normal push is rejected; run <code>git push --force-with-lease</code> in the terminal instead. Mergeline asks before every action and uses a modal confirmation for destructive ones.</li>
       </ol>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
     </section>
   </div>
 </main>
@@ -160,6 +165,8 @@
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

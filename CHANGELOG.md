@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 (2026-11-20)
+
+- **Review a commit file by file.** Above a commit's changed files (or a comparison of two commits, or a branch's changes since it split off) there is now a **Review** button; right-click a commit → **Review changes file by file** does the same. Each file gets a check box and the header counts "N of M reviewed". **Next unreviewed** opens the next file's diff in VS Code's diff editor, and opening any file's diff ticks it. Click a check box (or right-click → Mark as not reviewed) to change it. Progress is kept per commit or comparison in the workspace, so you can close VS Code and carry on later; **End review** forgets it. The 200 most recent reviews are kept. Uncommitted changes have no review mode, since they keep changing.
+- **Manage remotes.** A **Remotes…** toolbar button (also **Mergeline: Manage Remotes** in the Command Palette, and **Manage remote “origin”…** on remote branch badges) lists the repository's remotes with their URLs. **Add remote…** asks for a name and URL and can fetch it at once. For a remote: **Fetch**, **Fetch and prune**, **Change URL…**, **Rename…** (git moves its remote-tracking branches and upstream settings along), **Remove…** (says first which remote-tracking branches are deleted and which local branches lose their upstream), **Copy URL** and **Open on GitHub/GitLab/Bitbucket**. The toolbar checkbox that hides remote branches is now labelled **Remote branches**.
+- **Stop at a commit to change it.** Right-click a commit on the checked-out branch → **Stop at this commit to change it…** replays the branch up to that commit and stops. Change files, stage them and press **Continue** in the bar: the staged changes are added to that commit (its message is kept) and the later commits are replayed on top. Abort puts everything back.
+
 ## 0.8.0 (2026-11-20)
 
 - **Show only some branches.** The toolbar's branch filter is now a checklist: tick any number of local or remote branches to see only their history together. **Current branch** shows just the checked-out one, **All branches** clears it, and a search box narrows long lists. It replaces the old single-branch dropdown.

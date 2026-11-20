@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Git file history in VS Code: see who changed a file and when | Mergeline</title>
-<meta name="description" content="How to see the git history of one file in VS Code: a file-history graph in Mergeline, git log -- path, --follow for renames, git blame, the pickaxe -S search, and VS Code's Timeline view.">
+<meta name="description" content="Git history of one file in VS Code: a file-history graph, git log -- path, --follow for renames, git blame, the pickaxe -S search and the Timeline view.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-file-history-vscode.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
@@ -56,7 +56,7 @@
         <li><strong>Inspect a change.</strong> Click a commit to open its details. The file you are tracking is highlighted in the list of changed files; click it to open the change in VS Code&rsquo;s diff editor. The commit&rsquo;s other files are listed too.</li>
         <li><strong>Go back.</strong> Click <strong>Show all commits</strong> in the banner to return to the full graph.</li>
       </ol>
-      <p>Stashes and the uncommitted-changes row are hidden in this mode, because they cannot be filtered by path. The branch filter and the remotes toggle still apply.</p>
+      <p>Stashes and the uncommitted-changes row are hidden in this mode, because they cannot be filtered by path. The branch filter and the <strong>Remote branches</strong> checkbox still apply.</p>
       <p class="note"><strong>Renames are followed</strong> (since 0.3.0). If the file was renamed or moved, Mergeline finds its earlier names with <code>git log --follow</code> and keeps going; the bar above the graph shows them (&ldquo;also as &hellip;&rdquo;). A different file that later reused an old name is left out. Like <code>--follow</code> itself, this relies on git&rsquo;s similarity guess, described below.</p>
     </section>
 
@@ -138,6 +138,8 @@
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

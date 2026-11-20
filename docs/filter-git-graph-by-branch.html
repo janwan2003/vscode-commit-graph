@@ -126,7 +126,7 @@
       <ol class="steps">
         <li><strong>Open the Branches dropdown</strong> in the toolbar. It is a checklist of your local and remote branches. Tick any number of them and the graph shows only their history: every commit reachable from at least one ticked branch, like <code>git log main feature/a</code>.</li>
         <li><strong>Current branch</strong> ticks just the branch you have checked out. <strong>All branches</strong> clears the selection and shows everything again.</li>
-        <li><strong>Hide remote branches</strong> with the <strong>Remotes</strong> checkbox in the toolbar. That is the graphical version of leaving out <code>--remotes</code>.</li>
+        <li><strong>Hide remote branches</strong> with the <strong>Remote branches</strong> checkbox in the toolbar. That is the graphical version of leaving out <code>--remotes</code>.</li>
         <li><strong>Or keep everything and dim the rest (new in 0.8).</strong> Turn on the setting <code>mergeline.dimOtherCommits</code>. Commits that are not reachable from <code>HEAD</code> are then drawn faded, so your branch&rsquo;s line stands out while the other branches stay in view.</li>
       </ol>
       <p>Everything else works on the filtered graph as usual: click a commit for its changes, or right-click it to cherry-pick, merge or compare. The <a href="git-log-graph.html#mergeline"><code>git log --graph</code> reference</a> lists the git options Mergeline uses.</p>
@@ -161,6 +161,8 @@
       <a href="interactive-rebase-vscode.html">Interactive rebase</a>
       <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
       <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
       <a href="filter-git-graph-by-branch.html" aria-current="page">Filter by branch</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>

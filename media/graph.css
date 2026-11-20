@@ -197,3 +197,12 @@ button:disabled { opacity: .5; cursor: default; }
 .row.dim .c-desc, .row.dim .c-date, .row.dim .c-author, .row.dim .c-hash { opacity: .45; }
 .row.dim .c-graph svg { opacity: .55; }
 .row.dim.sel .c-desc, .row.dim.sel .c-date, .row.dim.sel .c-author, .row.dim.sel .c-hash, .row.dim.sel .c-graph svg { opacity: 1; }
+
+/* review mode */
+.rvbar { display: inline-flex; align-items: baseline; gap: 6px; margin-left: 10px; font-weight: 400; }
+.rvbar button { padding: 0 7px; font-size: 11px; }
+.rvcount { color: var(--vscode-descriptionForeground); }
+.rvcount.done { color: var(--vscode-testing-iconPassed, #3fb950); }
+.rv { width: 13px; height: 13px; flex: none; border: 1px solid var(--vscode-checkbox-border, var(--vscode-descriptionForeground)); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; color: var(--vscode-testing-iconPassed, #3fb950); background: var(--vscode-checkbox-background, transparent); }
+.rv:hover { border-color: var(--vscode-focusBorder); }
+.file.reviewed .fp, .file.reviewed .ad, .file.reviewed .st { opacity: .55; }
