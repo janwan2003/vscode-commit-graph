@@ -111,10 +111,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 - Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.6.0
   (`mergeline-0.6.0.vsix`, 51 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  11 SEO guides (git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  14 SEO guides (session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (14 URLs).
+  404 and sitemap (17 URLs). Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -212,6 +212,25 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   - After push: CI (two runs) and Pages succeeded for 28b9853; live index (shows v0.5), new guide, drag screenshot, compare guide and
     sitemap (14 URLs) return 200; the v0.5.0 release asset is byte-identical (sha256 02a78c0b…); sitemap resubmitted (HTTP 204).
   - Not run this session: VSCodium (not installed; 610 MB extracted, disk had 3.6 GB free).
+- Verified 2026-11-20 (session 6), on the minified packaged 0.6.0 build:
+  - `pnpm typecheck` clean; `pnpm test` 19/19 (new `test/rewrite.test.ts`: todo building and sh quoting; reword of an older commit keeps
+    body, tree and older hashes; reword of HEAD leaves staged changes out; drop/fixup/squash range with a dirty file kept by autostash;
+    refusals for root fixup, other branch, merge in range, merge commit; `pushed` lists `origin/main`; a conflicting drop stops and a
+    second plan reports the rebase in progress). Also passed with `HOME=<empty>` and `GIT_CONFIG_NOSYSTEM=1` (CI conditions).
+  - `node scripts/e2e.mjs` in VS Code 1.147: 29/29 twice on the packaged build (plus once in development). New check: edit-menu labels read
+    back from the webview (3 items on a linear commit, none on a merge), reword with dirty + untracked files kept, Undo restores HEAD,
+    squash into parent, squash a 2-commit range (body lists both subjects), drop, merge refused with HEAD unchanged.
+  - Headless Chromium (`scripts/shot/shot.mjs`): tree view with nested folders, a joined `src/core/` row and a rename (looked at the PNG);
+    `EDITMENU=1` commit menu with the new group (saved as `docs/screenshot-edit.png`).
+  - `code --install-extension mergeline-0.6.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.6.0`.
+  - After push: the first CI run for ff74401 **failed** (real test defect: unit-test repos had no repo-local identity and CI has no global
+    one, so the rebase could not commit; reproduced locally with an empty HOME: 1 pass / 3 fail). Fixed in the next commit; CI and Pages
+    green for it. Live: index (v0.6, edit-history card), 3 new guides, screenshot-edit.png and sitemap (17 URLs) return 200; release asset
+    byte-identical (sha256 f42cf9d9…); sitemap resubmitted (HTTP 204, still pending). Guide facts (VS Code #239862 milestone "January
+    2025 Recovery 2", Git Graph #863 open, #870 closed 2025-02-18 with 357 👍, Git Graph manifest has no untrusted-workspace capability)
+    re-read with `gh api`.
+  - Not verified: the edit actions on Windows (the sequence editor is `cp '<path>'` run by Git's sh; paths use forward slashes) and
+    clicking the Undo / Abort buttons in a real notification (the e2e calls the `undoRewrite` action directly).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -220,6 +239,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 6): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 1, v0.5.0 0 (read before the v0.6.0 release); 0 stars,
+  0 forks; traffic views 0 (`gh api .../releases`, `.../traffic/views`). Search Console: no rows (2026-10-20 → 2026-11-20); sitemap still
+  pending (`sitemaps.list`), resubmitted with 17 URLs.
 
 - 2026-11-20 (session 5): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 0; 0 stars, 0 forks; traffic views 0
   (`gh api .../releases`, `.../traffic/views`). Search Console: no rows (2026-10-20 → 2026-11-20); sitemap still pending
@@ -243,15 +266,17 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
+2. Edit history, next pieces: a multi-line message editor for reword (today only the subject line changes), "Move commit up/down"
+   (reorder in the todo), and showing a stopped rebase in the graph (banner with Continue / Abort) instead of only the notification.
+3. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
    already resumable via `LayoutState`; stashes whose base is in the new page and the uncommitted row need care).
-3. Still missing that users ask for: avatars (opt-in; needs network, off by default), a commit search by changed path,
+4. Still missing that users ask for: avatars (opt-in; needs network, off by default), a commit search by changed path,
    and a "pull request" overlay later. Drag-and-drop could also accept a tag or a commit row as the source (cherry-pick on drop).
-4. Add VSCodium as a second CI e2e target (download the tarball, `node scripts/e2e.mjs <codium>`; 610 MB
-   extracted, so CI only, not locally every session). The CI workflow currently runs typecheck, unit tests and package only.
-5. History search positions in file-history mode are approximate (they come from the multi-name log, not
+5. Add e2e to CI (VS Code headless, then VSCodium as a second target: download the tarball, `node scripts/e2e.mjs <codium>`;
+   610 MB extracted, so CI only). CI runs typecheck, unit tests and package only, which is why the identity bug above was caught only there.
+6. History search positions in file-history mode are approximate (they come from the multi-name log, not
    the filtered one); fine for small file histories, revisit if users report misses.
-6. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
+7. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
    and ratings in `## Metrics` and submit to awesome-vscode style lists (they need a Marketplace link).
 
 ## Monetization plan
@@ -302,3 +327,9 @@ on the graph). The graph itself stays free.
   (git worktrees in VS Code, written by a subagent and checked against the code), drag screenshot, fixed the broken homepage tagline
   (`v0.2<middot; v0.4`). Verified: 15/15 unit, 28/28 e2e ×2 on the packaged build in VS Code 1.147, headless-Chromium drag/drop
   script, vsix install. After push: CI ×2 and Pages green for 28b9853, live pages 200, release asset byte-identical, sitemap resubmitted.
+- 2026-11-20 builder (session 6): store tokens still absent. Built 0.6.0: edit history from the graph (edit message, squash into parent,
+  drop, squash a Ctrl/Cmd-click range; autostash, merge/pushed guards, Undo, conflict → SCM/abort) and a folder-tree view of changed
+  files. Three guides by a subagent (edit commit message, drop commit, Git Graph menu not working; facts re-checked with `gh api`),
+  footer guide links on all pages, stale "0.2.0" on the alternative page fixed. Verified: 19/19 unit, 29/29 e2e ×2 on the packaged
+  build, vsix install, headless renders. After push: first CI run failed (test fixture lacked a git identity; fixed), then CI + Pages
+  green, live pages 200, release asset byte-identical, sitemap resubmitted.
