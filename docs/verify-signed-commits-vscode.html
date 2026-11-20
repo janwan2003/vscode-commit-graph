@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify signed commits: git verify-commit, --show-signature and %G? codes | Mergeline</title>
+<meta name="description" content="Check GPG and SSH commit signatures with git verify-commit, git log --show-signature and the %G? letters, fix allowedSignersFile errors, and VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/verify-signed-commits-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Verify signed commits: git verify-commit, --show-signature and %G? codes">
+<meta property="og:description" content="What each %G? letter means and when you get it, setting up GPG keys and an SSH allowed signers file for verification, the errors on the way, and signature status in VS Code.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/verify-signed-commits-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Verify signed commits in git</h1>
+    <p>A signed commit carries a cryptographic signature made with its author&rsquo;s private key. Anyone holding the matching public key can check that the commit was made by that key and has not been altered since. Git can sign with GPG (the default), with an SSH key, or with an X.509 certificate, and in every case it checks signatures with keys <em>on your machine</em>: it never asks a server. This guide covers <code>git verify-commit</code>, <code>git log --show-signature</code>, every <code>%G?</code> status letter and what produced it in our tests, setting up GPG and SSH so that checking works, the errors you will meet, and refusing to merge unsigned work.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#check">Check one commit</a></li>
+        <li><a href="#codes">The <code>%G?</code> letters</a></li>
+        <li><a href="#gpg">GPG: importing and trusting keys</a></li>
+        <li><a href="#ssh">SSH: the allowed signers file</a></li>
+        <li><a href="#sign">Signing errors</a></li>
+        <li><a href="#enforce">Refuse unsigned merges</a></li>
+        <li><a href="#mergeline">Signatures in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Check one commit (exit status 0 if good)</td><td><code>git verify-commit &lt;commit&gt;</code></td></tr>
+          <tr><td>See signatures in the log</td><td><code>git log --show-signature</code></td></tr>
+          <tr><td>One status letter per commit, for scripts</td><td><code>git log --format='%h %G? %GS %s'</code></td></tr>
+          <tr><td>Check a signed tag</td><td><code>git verify-tag &lt;tag&gt;</code></td></tr>
+          <tr><td>Verify SSH signatures</td><td><code>git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers</code></td></tr>
+          <tr><td>Sign with SSH</td><td><code>git config --global gpg.format ssh</code> and <code>user.signingkey ~/.ssh/id_ed25519.pub</code></td></tr>
+          <tr><td>Refuse to merge a branch whose tip is not signed</td><td><code>git merge --verify-signatures &lt;branch&gt;</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53, GnuPG 2.4 and OpenSSH 10.2 in throwaway repositories and keyrings, and quote the output we saw. Dates and key IDs are trimmed.</p>
+
+    <h2 id="check">Check one commit</h2>
+<pre><span class="k">git verify-commit</span> HEAD
+<span class="o">gpg: Signature made Fri Nov 20 16:20:56 2026 CET
+gpg:                using EDDSA key 2BD8F875D24DBF9D345187DDE44F242AD0DFD2BD
+gpg: Good signature from "Ana &lt;ana@example.com&gt;" [ultimate]</span>
+<span class="k">git log -1 --show-signature</span>          <span class="c"># the same lines, above the usual log entry</span></pre>
+    <p><code>git verify-commit</code> prints the verifier&rsquo;s report and sets its exit status, which is what you want in a script or CI job. For an unsigned commit it prints <strong>nothing</strong> and exits with status 1, so check the status rather than the output. <code>--show-signature</code> works with <code>git log</code> and <code>git show</code>; setting <code>log.showSignature true</code> turns it on for every log, at the cost of running a verification per commit.</p>
+    <p>The signature lives in the commit object itself, in a <code>gpgsig</code> header, which is why changing anything in the commit breaks it. <code>git cat-file commit HEAD</code> shows it: <code>-----BEGIN PGP SIGNATURE-----</code> for GPG, <code>-----BEGIN SSH SIGNATURE-----</code> for SSH.</p>
+
+    <h2 id="codes">The <code>%G?</code> letters</h2>
+    <p>In a <code>--format</code> string, <code>%G?</code> gives one letter per commit, <code>%GS</code> the signer&rsquo;s name, and <code>%GK</code> the key ID (for SSH, the key&rsquo;s fingerprint). We produced every letter on purpose; the right-hand column is what the verifier said:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Letter</th><th scope="col">Meaning</th><th scope="col">How we got it</th></tr></thead>
+        <tbody>
+          <tr><td><code>G</code></td><td>Good signature from a key you trust</td><td>GPG: <code>Good signature from "Ana &lt;ana@example.com&gt;" [ultimate]</code>. SSH: <code>Good "git" signature for ana@example.com with ED25519 key SHA256:&hellip;</code></td></tr>
+          <tr><td><code>U</code></td><td>Good signature, but the key&rsquo;s owner is not confirmed</td><td>GPG: imported the key without trusting it, <code>[unknown]</code> and <code>WARNING: This key is not certified with a trusted signature!</code>. SSH: a key not in the allowed signers file, <code>No principal matched.</code></td></tr>
+          <tr><td><code>X</code></td><td>Good signature that has expired</td><td>GPG key set to make signatures valid for one day: <code>Expired signature from &hellip;</code></td></tr>
+          <tr><td><code>Y</code></td><td>Good signature made by a key that has since expired</td><td>GPG key with a one-year lifetime, checked after it ended: <code>Note: This key has expired!</code></td></tr>
+          <tr><td><code>R</code></td><td>Good signature made by a key that has since been revoked</td><td>Imported the key&rsquo;s revocation certificate: <code>WARNING: This key has been revoked by its owner!</code></td></tr>
+          <tr><td><code>B</code></td><td>Bad signature: the commit does not match it</td><td>Edited a signed commit&rsquo;s message by hand. GPG: <code>BAD signature from &hellip;</code>. SSH: <code>Signature verification failed: incorrect signature</code></td></tr>
+          <tr><td><code>E</code></td><td>Signed, but cannot be checked</td><td>GPG without the signer&rsquo;s public key: <code>Can't check signature: No public key</code></td></tr>
+          <tr><td><code>N</code></td><td>No signature, <em>or one git could not even try to check</em></td><td>An unsigned commit; but also an SSH-signed commit with no allowed signers file, and any signed commit when <code>gpg.program</code> could not be run (see below)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Exit statuses differ more than the letters suggest. <code>git verify-commit</code> exited with 0 for <code>G</code> and, with GPG, also for <code>U</code>; it exited with 1 for an SSH <code>U</code> and for <code>X</code>, <code>Y</code>, <code>R</code>, <code>B</code>, <code>E</code> and <code>N</code>. If your script needs a trusted signature, test the letter, not just the exit status.</p>
+    <p>With SSH keys, <code>X</code>, <code>Y</code> and <code>R</code> did not appear in our tests. An allowed signers entry whose <code>valid-before</code> date had passed gave <code>U</code>, with <code>key has expired</code> in the output, and a key listed in <code>gpg.ssh.revocationFile</code> gave <code>B</code> with <code>Could not verify signature.</code></p>
+
+    <h2 id="gpg">GPG: importing and trusting keys</h2>
+<pre><span class="k">gpg --import</span> ana.asc                 <span class="c"># the signer's public key, from them or their key server</span>
+<span class="k">git log --format=</span>'%h %G? %GS' -1
+<span class="o">1006458 U Ana &lt;ana@example.com&gt;</span>
+<span class="k">gpg --lsign-key</span> ana@example.com      <span class="c"># vouch for it locally, after checking the fingerprint</span>
+<span class="k">git log --format=</span>'%h %G? %GS' -1
+<span class="o">1006458 G Ana &lt;ana@example.com&gt;</span></pre>
+    <p>Without the public key, the result is <code>E</code>. After a plain import, it is <code>U</code>: the signature is mathematically good, but GPG has no reason to believe the key belongs to the person named in it. That is GPG&rsquo;s web of trust. <code>--lsign-key</code> signs their key with yours, locally and never published, so you need a key of your own first; in a keyring without one, it changed nothing and the commit stayed <code>U</code>. Before signing the key or setting its owner trust with <code>gpg --edit-key &lt;key&gt;</code> and <code>trust</code>, compare the fingerprint, shown by <code>gpg --fingerprint ana@example.com</code>, with one the person gave you through another channel. Your own key is ultimately trusted from the start, which is why your own commits show <code>G</code>.</p>
+    <p>An expired key (<code>Y</code>) or an expired signature (<code>X</code>) does not mean the commit is forged; the signature was good when it was made. A revoked key (<code>R</code>) is different: its owner says it should no longer be relied on, possibly because it was stolen, so treat those commits with suspicion until you know why.</p>
+
+    <h2 id="ssh">SSH: the allowed signers file</h2>
+    <p>Signing with the SSH key you already use for pushing avoids GPG altogether:</p>
+<pre><span class="k">git config --global gpg.format</span> ssh
+<span class="k">git config --global user.signingkey</span> ~/.ssh/id_ed25519.pub
+<span class="k">git commit -S -m</span> "Signed with SSH"       <span class="c"># or: git config --global commit.gpgSign true</span></pre>
+    <p>Checking SSH signatures needs a list of which key belongs to whom, because an SSH key, unlike a GPG key, does not contain its owner&rsquo;s identity. Until you configure one, every check stops with:</p>
+<pre><span class="o">error: gpg.ssh.allowedSignersFile needs to be configured and exist for ssh signature verification</span></pre>
+    <p>The file has one line per key: the signer&rsquo;s email, then the public key as it appears in a <code>.pub</code> file. Start it with your own key:</p>
+<pre><span class="k">mkdir -p</span> ~/.config/git
+<span class="k">echo</span> "ana@example.com $(cat ~/.ssh/id_ed25519.pub)" &gt;&gt; ~/.config/git/allowed_signers
+<span class="k">git config --global gpg.ssh.allowedSignersFile</span> ~/.config/git/allowed_signers
+<span class="k">git log --format=</span>'%h %G? %GS' -1
+<span class="o">2e48a75 G ana@example.com</span></pre>
+    <p>Add a line for each colleague whose commits you want to check, with the public signing key they gave you. A key that is not in the file gives <code>U</code> and <code>No principal matched.</code>; the signature is valid, git just cannot say who made it. Git looks the key up in the file to name the signer, and does <em>not</em> compare that name with the commit&rsquo;s author: a commit authored as ana@example.com but signed with a key listed for bob@example.com showed <code>G bob@example.com</code>. Compare <code>%GS</code> with <code>%ae</code> yourself if that matters. Options such as <code>valid-before="20270101"</code> can go before the key to limit when it counts.</p>
+    <div class="note warn"><p><strong>An <code>N</code> is not proof that a commit is unsigned.</strong> Without the allowed signers file, git 2.53 printed the error above and then reported <code>N</code> for a commit that <em>was</em> SSH-signed, and <code>--show-signature</code> said <code>No signature</code>. The same happened for GPG-signed commits when <code>gpg.program</code> pointed at a program that did not exist (<code>fatal: cannot exec '&hellip;': No such file or directory</code>). To tell for sure, look for the <code>gpgsig</code> header in <code>git cat-file commit &lt;commit&gt;</code>. And when we pointed <code>gpg.ssh.allowedSignersFile</code> at a file that did not exist, git printed no error at all and reported <code>U</code>, so check the path if every SSH signature comes back untrusted.</p></div>
+    <p>The third format, X.509 (<code>gpg.format x509</code>), uses <code>gpgsm</code> and your organisation&rsquo;s certificates, and is verified the same way with <code>gpgsm</code>&rsquo;s trust settings.</p>
+
+    <h2 id="sign">Signing errors</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Message</th><th scope="col">Cause</th></tr></thead>
+        <tbody>
+          <tr><td><code>error: gpg failed to sign the data</code> &hellip; <code>gpg: signing failed: No secret key</code> &hellip; <code>fatal: failed to write commit object</code></td><td><code>user.signingkey</code> names a GPG key you do not have the private half of. <code>gpg --list-secret-keys --keyid-format long</code> shows the ones you do.</td></tr>
+          <tr><td><code>error: user.signingKey needs to be set for ssh signing</code></td><td><code>gpg.format</code> is <code>ssh</code> but no key is configured.</td></tr>
+          <tr><td><code>error: Couldn't load public key &lt;path&gt;: No such file or directory?</code></td><td>The path in <code>user.signingkey</code> is wrong. Point it at the <code>.pub</code> file.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A GPG error that mentions the terminal or <code>pinentry</code> usually means GPG wanted to ask for your passphrase and had nowhere to do it, which is common when committing from an editor. Running <code>export GPG_TTY=$(tty)</code> in your shell profile, or unlocking the key once in a terminal, typically fixes it.</p>
+
+    <h2 id="enforce">Refuse unsigned merges</h2>
+<pre><span class="k">git merge --verify-signatures</span> unsigned
+<span class="o">fatal: Commit 5e98bb5 does not have a GPG signature.</span>
+<span class="k">git merge --verify-signatures</span> signed2
+<span class="o">Commit 0b2f673 has a good GPG signature by Ana &lt;ana@example.com&gt;
+Fast-forward</span></pre>
+    <p><code>--verify-signatures</code>, on <code>git merge</code> and <code>git pull</code>, refuses unless the tip commit of what you are merging has a good signature from a trusted key; an untrusted one gave <code>fatal: Commit 0b2f673 has an untrusted GPG signature, allegedly by Ana &lt;ana@example.com&gt;.</code> It checks only the tip, not every commit underneath it. To check a whole range, loop over <code>git log --format='%h %G?' main..feature</code> and fail on anything but <code>G</code>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Signatures in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.12, the details pane shows a commit&rsquo;s signature when you click the commit, so you do not have to run <code>git verify-commit</code> on each one.</p>
+      <ol class="steps">
+        <li><strong>Click a commit</strong> in the graph. If it is signed, its details show the result, with the signer and key when git reports them.</li>
+        <li><strong>Read the status.</strong> The possible results are <strong>Good signature</strong>, good but from an <strong>untrusted</strong> key, <strong>expired</strong> (the signature, or the key that made it), signed with a <strong>revoked</strong> key, a <strong>BAD signature</strong>, or <strong>could not be checked</strong>. They correspond to the <code>%G?</code> letters above.</li>
+        <li><strong>If it could not be checked</strong>, your machine lacks the signer&rsquo;s public key, or for SSH the allowed signers file. Set them up as described in <a href="#gpg">GPG keys</a> or <a href="#ssh">the allowed signers file</a>, then select the commit again. Unlike a bare <code>%G?</code>, Mergeline recognises an SSH-signed commit even when the allowed signers file is missing and says it could not be checked, instead of showing nothing.</li>
+      </ol>
+      <p>Git does the checking, with your own GPG keyring and SSH allowed signers file; Mergeline only shows the answer and sends nothing anywhere. Unsigned commits show nothing, so the pane stays uncluttered on repositories that do not sign. Clicking a file in the details opens its diff, as described in the <a href="code-review-commits-vscode.html">review guide</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>GitHub says &ldquo;Verified&rdquo;, but git says untrusted. Which is right?</summary>
+      <p>Both, about different questions. A hosting service checks the signature against the keys uploaded to the author&rsquo;s account there. Your git checks against your own keyring or allowed signers file, which knows nothing about that account until you add the key. Import the key and confirm its fingerprint to get the same answer locally.</p>
+    </details>
+    <details>
+      <summary>Does a signature prove the commit is safe?</summary>
+      <p>No. It proves which key made the commit and that it has not changed since. It says nothing about whether the code is correct, and a good signature from a stolen key still checks out as good until the key is revoked.</p>
+    </details>
+    <details>
+      <summary>Do rebasing or cherry-picking keep signatures?</summary>
+      <p>No. They create new commits, and a signature covers the exact commit it was made for. The new commits are signed only if you sign them, for example with <code>commit.gpgSign true</code> set or <code>git rebase -S</code>.</p>
+    </details>
+    <p>Related: <a href="code-review-commits-vscode.html">review a commit file by file</a>, <a href="git-file-history-vscode.html">file history</a> and <a href="undo-git-reset-cherry-pick-revert.html">undo in git</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html" aria-current="page">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update a git branch without checking it out: git fetch origin main:main | Mergeline</title>
+<meta name="description" content="Bring main up to date without switching branches: git fetch origin main:main, why it is fast-forward only, its two errors, and git branch -f risks.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/update-branch-without-checkout.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Update a git branch without checking it out: git fetch origin main:main">
+<meta property="og:description" content="Fast-forward a branch you are not on, read the non-fast-forward and refusing-to-fetch errors, fetch . origin/main:main offline, and pull another branch into yours.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/update-branch-without-checkout.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Update a branch without checking it out</h1>
+    <p>You are working on <code>feature</code> and want your local <code>main</code> to match the server, perhaps to rebase onto it or to start a new branch from it. The usual route is to stash, switch to <code>main</code>, pull and switch back, which also rewrites your working files twice and can trigger a rebuild. Git can move <code>main</code> directly instead, as long as the move is a <em>fast-forward</em>: <code>main</code> has no commits of its own and only needs to catch up. This guide covers <code>git fetch origin main:main</code>, the two errors it gives and what they mean, an offline variant, why <code>git branch -f</code> is riskier, and how to pull a different branch into the one you are on.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#fetch"><code>git fetch origin main:main</code></a></li>
+        <li><a href="#rejected">&ldquo;[rejected] main -&gt; main (non-fast-forward)&rdquo;</a></li>
+        <li><a href="#refusing">&ldquo;refusing to fetch into branch &hellip; checked out at&rdquo;</a></li>
+        <li><a href="#local">Without the network: <code>git fetch . origin/main:main</code></a></li>
+        <li><a href="#force"><code>git branch -f</code> and <code>+main:main</code></a></li>
+        <li><a href="#pull">Pull another branch into yours</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Fast-forward <code>main</code> from the server while on another branch</td><td><code>git fetch origin main:main</code></td></tr>
+          <tr><td>Several branches at once</td><td><code>git fetch origin main:main develop:develop</code></td></tr>
+          <tr><td>Same, from what I already fetched (no network)</td><td><code>git fetch . origin/main:main</code></td></tr>
+          <tr><td>Update the branch I am on</td><td><code>git pull --ff-only</code></td></tr>
+          <tr><td>Merge the server&rsquo;s <code>main</code> into my current branch</td><td><code>git pull origin main</code></td></tr>
+          <tr><td>Move <code>main</code> even if that discards its own commits</td><td><code>git branch -f main origin/main</code> (read the warning first)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53, using a local bare repository as <code>origin</code> and a second clone to push from, and quote the output we saw. Paths in error messages are from that test.</p>
+
+    <h2 id="fetch"><code>git fetch origin main:main</code></h2>
+    <p>The <code>main:main</code> part is a <em>refspec</em>: <code>&lt;branch on the remote&gt;:&lt;branch here&gt;</code>. Without a refspec, <code>git fetch</code> only updates remote-tracking branches such as <code>origin/main</code>. With one, it also writes the fetched commit into your local branch <code>main</code>, but only if that is a fast-forward:</p>
+<pre><span class="k">git switch</span> feature
+<span class="k">git fetch origin</span> main:main
+<span class="o">From /tmp/mlg/origin
+   c598fd4..a979549  main       -> main
+   c598fd4..a979549  main       -> origin/main</span></pre>
+    <p>The first line is your local <code>main</code> moving forward; the second is <code>origin/main</code>, which git updates as well while it is at it. Your current branch, your working files and the index are not touched. If <code>main</code> is already up to date, the command prints nothing and exits successfully.</p>
+    <p>The two names do not have to match: <code>git fetch origin release/2.4:release</code> updates a local <code>release</code> from the remote&rsquo;s <code>release/2.4</code>. If the remote has no such branch, git stops with <code>fatal: couldn't find remote ref &lt;name&gt;</code> and updates nothing, including the other refspecs on the same command line.</p>
+
+    <h2 id="rejected">&ldquo;[rejected] main -&gt; main (non-fast-forward)&rdquo;</h2>
+<pre><span class="k">git fetch origin</span> main:main
+<span class="o">From /tmp/mlg/origin
+ ! [rejected]        main       -> main  (non-fast-forward)
+   a979549..6106665  main       -> origin/main</span></pre>
+    <p>Your local <code>main</code> has at least one commit that the server&rsquo;s <code>main</code> does not, so moving it would drop that commit. Git refuses, leaves <code>main</code> where it was and exits with status 1. Note the second line: <code>origin/main</code> was still updated, so <code>git log --oneline origin/main..main</code> now shows exactly the commits that blocked it.</p>
+    <p>What to do depends on those commits. If you want to keep them, check <code>main</code> out and pull with a merge or a rebase (<a href="git-rebase-vs-merge.html">which one</a>). If they were a mistake, for example commits you meant to make on a feature branch, move them to a branch first with <code>git branch my-work main</code>, then reset <code>main</code> as described under <a href="#force"><code>git branch -f</code></a>. The <a href="branch-ahead-behind-origin.html">ahead and behind guide</a> shows how to see this situation coming.</p>
+
+    <h2 id="refusing">&ldquo;refusing to fetch into branch &hellip; checked out at&rdquo;</h2>
+<pre><span class="k">git switch</span> main
+<span class="k">git fetch origin</span> main:main
+<span class="o">fatal: refusing to fetch into branch 'refs/heads/main' checked out at '/tmp/mlg/me'</span></pre>
+    <p>Fetching into the branch you are on would move the branch but leave your working files and index at the old commit, so every change since would look like something you had undone. Git refuses, and fetches nothing. On the current branch use <code>git pull --ff-only</code> (or a plain <code>git pull</code>) instead.</p>
+    <p>The same error appears for a branch that is checked out in <strong>another worktree</strong>, with that worktree&rsquo;s path: <code>fatal: refusing to fetch into branch 'refs/heads/main' checked out at '/tmp/mlg/wt'</code>. Run <code>git worktree list</code> to see where, then pull inside that folder. The <a href="git-worktree-vscode.html">worktree guide</a> explains why a branch can only be checked out once.</p>
+    <p><code>git fetch</code> has an <code>--update-head-ok</code> flag that disables this check. It exists for <code>git pull</code>&rsquo;s own use; running it yourself produces exactly the out-of-step working tree the check is there to prevent.</p>
+
+    <h2 id="local">Without the network: <code>git fetch . origin/main:main</code></h2>
+<pre><span class="k">git fetch</span>                        <span class="c"># once, from the server</span>
+<span class="k">git fetch .</span> origin/main:main
+<span class="o">From .
+   ef89be6..c598fd4  origin/main -> main</span></pre>
+    <p>The <code>.</code> is the current repository used as a remote, so this fetches from yourself: it fast-forwards <code>main</code> to your existing <code>origin/main</code> without contacting the server. It follows the same rules. A branch with its own commits gives <code>! [rejected]        origin/main -> main  (non-fast-forward)</code>, and a checked-out branch gives the &ldquo;refusing to fetch&rdquo; error. It is handy when you have just fetched, are offline, or want to fast-forward one local branch to another, such as <code>git fetch . feature:main</code>.</p>
+
+    <h2 id="force"><code>git branch -f</code> and <code>+main:main</code></h2>
+<pre><span class="k">git branch -f</span> main origin/main
+<span class="k">git fetch origin</span> +main:main
+<span class="o"> + a4255fe...c598fd4 main       -> main  (forced update)</span></pre>
+    <p>Both move <code>main</code> to the remote&rsquo;s commit <strong>whether or not it is a fast-forward</strong>. If <code>main</code> had commits of its own, they are no longer on any branch, with no question and no warning other than the <code>(forced update)</code> note. They are not deleted straight away: <code>git reflog main</code> lists where <code>main</code> pointed before, and the <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a> shows how to get them back. Use these only when you have checked, for example with <code>git log --oneline origin/main..main</code>, that there is nothing to lose.</p>
+    <p><code>git branch -f</code> also refuses the current branch, with a different message: <code>fatal: cannot force update the branch 'main' used by worktree at '/tmp/mlg/me'</code>. When the new start point is a remote-tracking branch, it may also set the branch&rsquo;s upstream (ours printed <code>branch 'main' set up to track 'origin/main'.</code>).</p>
+
+    <h2 id="pull">Pull another branch into yours</h2>
+    <p>The opposite task, bringing the server&rsquo;s <code>main</code> into the branch you are on, is a pull with an explicit branch:</p>
+<pre><span class="k">git switch</span> feature
+<span class="k">git pull --no-rebase origin</span> main
+<span class="o">From /tmp/mlg/origin
+ * branch            main       -> FETCH_HEAD
+Merge made by the 'ort' strategy.</span></pre>
+    <p>This fetches <code>main</code> and merges it into <code>feature</code>; your local <code>main</code> is not changed. Writing it as two steps, <code>git fetch origin main</code> and then <code>git merge origin/main</code>, gives the same result and lets you look at what arrived before merging. Use <code>--rebase</code> instead of <code>--no-rebase</code> to replay your commits on top. Without either, and without <code>pull.rebase</code> configured, git 2.53 stops on diverged branches with <code>fatal: Need to specify how to reconcile divergent branches.</code></p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.12 both tasks above are one right-click in the graph.</p>
+      <ol class="steps">
+        <li><strong>Update a branch you are not on.</strong> Right-click a local branch that is not checked out and tracks a remote branch, and choose <strong>Update from origin/&hellip; (fast-forward)</strong> (for <code>main</code>, <strong>Update from origin/main (fast-forward)</strong>). Mergeline runs <code>git fetch origin main:main</code> for it, using the remote and branch the branch tracks. Your current branch and files are not touched.</li>
+        <li><strong>If it cannot fast-forward</strong>, because the branch has commits of its own, nothing changes, and Mergeline says so and suggests checking it out and pulling (merge or rebase) instead. As with the command line, <code>origin/&hellip;</code> itself may still have moved.</li>
+        <li><strong>Pull a remote branch into yours.</strong> Right-click a remote branch, such as <code>origin/main</code>, and choose <strong>Fetch and merge into &ldquo;feature&rdquo; (pull)&hellip;</strong>, where the name in quotes is your current branch. Mergeline fetches that branch first, so you merge what is on the server now rather than what you fetched last time, then offers the usual merge choices: fast-forward, <code>--no-ff</code> or <code>--squash</code>.</li>
+      </ol>
+      <p>Before you use either, the branch badges show whether there is anything to do: <strong>&darr;N</strong> means N commits to pull as of your last fetch (see <a href="branch-ahead-behind-origin.html#mergeline">ahead and behind in Mergeline</a>). On the branch you have checked out, use <strong>Pull</strong> from its menu; the update item is offered only on other branches, and not on a branch whose upstream was deleted. Fetch and merge needs a checked-out branch to merge into, so it is unavailable on a detached HEAD.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Is <code>git fetch origin main:main</code> safe?</summary>
+      <p>Yes, in the sense that it cannot lose commits: without a leading <code>+</code> it only ever fast-forwards, and it never touches the branch you are on or your working files. The worst case is the <code>[rejected]</code> line, after which nothing has changed.</p>
+    </details>
+    <details>
+      <summary>Why not just <code>git pull</code> into <code>main</code> from another branch?</summary>
+      <p><code>git pull</code> always merges or rebases into the <em>current</em> branch. <code>git pull origin main</code> while on <code>feature</code> merges <code>main</code> into <code>feature</code>; it does not update your local <code>main</code>.</p>
+    </details>
+    <details>
+      <summary>Do I even need a local <code>main</code>?</summary>
+      <p>Often not. You can rebase onto or branch from <code>origin/main</code> directly after a <code>git fetch</code>: <code>git rebase origin/main</code>, or <code>git switch -c new-work origin/main</code>. A local <code>main</code> that you never update is what produces &ldquo;behind by 40 commits&rdquo; messages.</p>
+    </details>
+    <p>Related: <a href="branch-ahead-behind-origin.html">ahead and behind origin</a>, <a href="manage-git-remotes-vscode.html">manage remotes</a> and <a href="git-worktree-vscode.html">git worktrees</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html" aria-current="page">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

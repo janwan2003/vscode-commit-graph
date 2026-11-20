@@ -250,6 +250,7 @@ table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
 th, td { border: 1px solid var(--border); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
 thead th { background: var(--bg-soft); }
 td code { white-space: nowrap; }
+.table-wrap td:first-child, .table-wrap th:first-child { min-width: 11rem; }
 .yes { color: var(--ok); font-weight: 600; }
 .no { color: var(--no); font-weight: 600; }
 

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git log --first-parent explained: one line per merged pull request | Mergeline</title>
+<meta name="description" content="What git log --first-parent does: the first parent of a merge, one line per merged PR, --merges and --no-merges, bisect --first-parent, and VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-log-first-parent.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git log --first-parent explained: one line per merged pull request">
+<meta property="og:description" content="Which parent of a merge is first, reading a mainline one merge at a time, what each merge brought in, bisecting merges only, and the cases where first parent misleads.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-log-first-parent.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>git log --first-parent explained</h1>
+    <p>On a project where every change arrives through a merged pull request, <code>git log</code> on <code>main</code> interleaves every commit of every branch, so the history reads as a jumble of &ldquo;fix typo&rdquo; and &ldquo;wip&rdquo;. <code>--first-parent</code> follows only the line that <code>main</code> itself moved along: one merge commit per pull request, plus anything committed to <code>main</code> directly. This guide explains what the first parent is, how to read and search a mainline with it, how to see what one merge brought in, <code>git bisect --first-parent</code>, and the cases where it gives a misleading picture.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What &ldquo;first parent&rdquo; means</a></li>
+        <li><a href="#log"><code>git log --first-parent</code></a></li>
+        <li><a href="#merges">With <code>--merges</code> and <code>--no-merges</code></a></li>
+        <li><a href="#inside">What one merge brought in</a></li>
+        <li><a href="#branches">One branch or all branches</a></li>
+        <li><a href="#bisect"><code>git bisect --first-parent</code></a></li>
+        <li><a href="#pitfalls">When first parent misleads</a></li>
+        <li><a href="#mergeline">First parent in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>The mainline only, one line per merge</td><td><code>git log --oneline --first-parent</code></td></tr>
+          <tr><td>Just the merges: a list of merged pull requests</td><td><code>git log --oneline --first-parent --merges</code></td></tr>
+          <tr><td>Commits made on <code>main</code> directly, not merged in</td><td><code>git log --oneline --first-parent --no-merges</code></td></tr>
+          <tr><td>The commits one merge brought in</td><td><code>git log --oneline &lt;merge&gt;^1..&lt;merge&gt;^2</code></td></tr>
+          <tr><td>A merged pull request as one diff</td><td><code>git diff &lt;merge&gt;^1 &lt;merge&gt;</code></td></tr>
+          <tr><td>Find the merge that broke something</td><td><code>git bisect start --first-parent &lt;bad&gt; &lt;good&gt;</code></td></tr>
+          <tr><td>Count mainline commits (a build number)</td><td><code>git rev-list --count --first-parent HEAD</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in a throwaway repository with two merged pull requests and quote the output we saw.</p>
+
+    <h2 id="what">What &ldquo;first parent&rdquo; means</h2>
+    <p>An ordinary commit has one parent, the commit before it. A merge commit has two (occasionally more), and their order is recorded. The <strong>first parent</strong> is the commit the branch was at when you merged: the branch you were <em>on</em>. The <strong>second parent</strong> is the tip of the branch you merged <em>in</em>. When a pull request is merged into <code>main</code> with a merge commit, the first parent is the previous <code>main</code> and the second is the pull request&rsquo;s last commit.</p>
+<pre><span class="k">git log -1 --format=</span>'%p %s' 9da5bef
+<span class="o">7ec1913 c2e5549 Merge pull request #12 from ana/login</span>
+<span class="k">git log --oneline -1</span> 9da5bef^1   <span class="c"># first parent: main before the merge</span>
+<span class="o">7ec1913 Bump version</span>
+<span class="k">git log --oneline -1</span> 9da5bef^2   <span class="c"># second parent: the pull request's tip</span>
+<span class="o">c2e5549 Fix typo</span></pre>
+    <p>Following only first parents from the tip of <code>main</code> walks back through every state <code>main</code> has been in, one step per merge or direct commit, and never wanders into a feature branch.</p>
+
+    <h2 id="log"><code>git log --first-parent</code></h2>
+    <p>Our test repository has two pull requests merged into <code>main</code>, with three and two commits, plus one commit made on <code>main</code> directly:</p>
+<pre><span class="k">git log --oneline --graph</span>
+<span class="o">*   85bfe9a Merge pull request #13 from ana/search
+|\
+| * bbcd8bb Search: debounce
+| * d1822ce Add search box
+|/
+*   9da5bef Merge pull request #12 from ana/login
+|\
+| * c2e5549 Fix typo
+| * 6e176dc Validate password
+| * 81fca23 Add login form
+* | 7ec1913 Bump version
+|/
+* d710cb5 Initial</span>
+<span class="k">git log --oneline --first-parent</span>
+<span class="o">85bfe9a Merge pull request #13 from ana/search
+9da5bef Merge pull request #12 from ana/login
+7ec1913 Bump version
+d710cb5 Initial</span></pre>
+    <p>Nine commits become four. Nothing is hidden from the merges themselves: the merge commit&rsquo;s tree contains all of the pull request&rsquo;s changes. With <code>--graph</code> it draws a single straight line. It combines with the other <code>git log</code> options as usual, for example <code>--since</code>, <code>--author</code> or <code>--reverse</code>; see the <a href="git-log-graph.html"><code>git log --graph</code> guide</a> for the formatting ones.</p>
+    <p>With a path, <code>--first-parent</code> changes what a merge&rsquo;s diff is compared with: its first parent. So the merge itself is reported as changing the file, and the commits inside the pull request are not listed:</p>
+<pre><span class="k">git log --oneline --first-parent --</span> f
+<span class="o">9da5bef Merge pull request #12 from ana/login
+d710cb5 Initial</span></pre>
+    <p>The same applies to <code>git blame --first-parent</code>, which credits each line to the merge that brought it into <code>main</code> instead of to the original commit, and to <code>git describe --first-parent</code>, which counts only mainline commits since the tag (<code>v1-3-g85bfe9a</code> instead of <code>v1-8-g85bfe9a</code> in our test).</p>
+
+    <h2 id="merges">With <code>--merges</code> and <code>--no-merges</code></h2>
+<pre><span class="k">git log --oneline --first-parent --merges</span>
+<span class="o">85bfe9a Merge pull request #13 from ana/search
+9da5bef Merge pull request #12 from ana/login</span>
+<span class="k">git log --oneline --first-parent --no-merges</span>
+<span class="o">7ec1913 Bump version
+d710cb5 Initial</span></pre>
+    <p><code>--merges</code> keeps only commits with more than one parent, so on a pull-request workflow the result is a list of merged pull requests, a good starting point for release notes (add <code>v1.2.0..HEAD</code> to limit it to one release). <code>--no-merges</code> is the opposite: the commits that landed on <code>main</code> without going through a merge. On a project where every change should be reviewed, that list is worth checking.</p>
+    <p>Without <code>--first-parent</code>, <code>--merges</code> would also list merges made inside feature branches, such as &ldquo;Merge branch &lsquo;main&rsquo; into login&rdquo;, and <code>--no-merges</code> would list every commit of every pull request.</p>
+
+    <h2 id="inside">What one merge brought in</h2>
+<pre><span class="k">git log --oneline</span> 9da5bef^1..9da5bef^2
+<span class="o">c2e5549 Fix typo
+6e176dc Validate password
+81fca23 Add login form</span>
+<span class="k">git diff --stat</span> 9da5bef^1 9da5bef
+<span class="o"> f | 3 +++
+ 1 file changed, 3 insertions(+)</span></pre>
+    <p>The range means &ldquo;reachable from the pull request&rsquo;s tip but not from <code>main</code> before the merge&rdquo;, which is exactly the commits the merge added. git 2.53 also accepts the shorthand <code>9da5bef^-1</code>, which lists the same commits plus the merge itself. The diff against the first parent shows the whole pull request as one change; <code>git show --first-parent 9da5bef</code> prints the same thing with the commit message. To compare two branches in this way before merging, see <a href="compare-branches-commits-vscode.html">compare branches</a>.</p>
+
+    <h2 id="branches">One branch or all branches</h2>
+    <p><code>git log --first-parent</code> starts from <code>HEAD</code>; name a branch to follow its line instead: <code>git log --oneline --first-parent main</code>. Each branch has its own first-parent line, and <code>--all</code> follows all of them at once. In our test, where the two feature branches had not been deleted after merging, <code>git log --oneline --first-parent --all</code> listed all nine commits again, because each feature branch&rsquo;s own line contains its commits. For a clean mainline, name the branch rather than using <code>--all</code>, or delete merged branches (the <a href="branch-ahead-behind-origin.html#gone">ahead and behind guide</a> shows how to find them).</p>
+
+    <h2 id="bisect"><code>git bisect --first-parent</code></h2>
+    <p><code>git bisect</code> finds the commit that introduced a bug by testing commits between a good and a bad one. On a merge-heavy history it can land you inside a half-finished pull request whose intermediate commits do not even build. With <code>--first-parent</code> (git 2.29 and later) it tests only mainline commits and names the merge that broke things:</p>
+<pre><span class="k">git bisect start</span> main d710cb5
+<span class="o">Bisecting: 4 revisions left to test after this (roughly 2 steps)</span>
+<span class="k">git bisect reset</span>
+<span class="k">git bisect start --first-parent</span> main d710cb5
+<span class="o">Bisecting: 0 revisions left to test after this (roughly 1 step)
+[9da5bef0d3905022d091796a2fe8e5082eafc518] Merge pull request #12 from ana/login</span>
+<span class="k">git bisect bad</span>
+<span class="k">git bisect good</span>
+<span class="o">9da5bef0d3905022d091796a2fe8e5082eafc518 is the first bad commit</span></pre>
+    <p>Once you know the merge, you can bisect inside it if you need the exact commit: <code>git bisect start 9da5bef^2 9da5bef^1</code> (bad is the pull request&rsquo;s tip, good is <code>main</code> before the merge). Finish either session with <code>git bisect reset</code>.</p>
+
+    <h2 id="pitfalls">When first parent misleads</h2>
+    <ul>
+      <li><strong>Someone merged <code>main</code> into their copy of <code>main</code>.</strong> If a developer has local commits on <code>main</code>, runs <code>git pull</code> with merging, and pushes, the new merge&rsquo;s first parent is <em>their</em> local commit and the previous shared <code>main</code> becomes the second parent. From then on, the first-parent line runs through their work, and the merges that landed on the shared <code>main</code> between their last pull and this one drop out of <code>--first-parent</code> output. Using <code>git pull --rebase</code> or <code>--ff-only</code> on shared branches, or only changing <code>main</code> through pull requests, avoids it.</li>
+      <li><strong>A fast-forward merge leaves no merge commit.</strong> If a branch was merged with a fast-forward, its commits became part of the mainline directly, and <code>--first-parent</code> lists every one of them. Merging with <code>--no-ff</code> keeps the one-line-per-merge shape.</li>
+      <li><strong>Squash and rebase merges.</strong> Hosting services that squash a pull request into one commit, or rebase it onto <code>main</code>, create no merge commits at all. <code>--first-parent</code> then changes nothing; with squash merges the history already has one commit per pull request.</li>
+      <li><strong>Inside a feature branch</strong>, a &ldquo;Merge branch &lsquo;main&rsquo; into feature&rdquo; commit has the feature branch as its first parent, so <code>git log --first-parent feature</code> shows your own work plus those merges, which is usually what you want.</li>
+    </ul>
+
+    <section class="in-app" id="mergeline">
+      <h2>First parent in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.12 its toolbar has a <strong>First parent</strong> checkbox that follows only the first parent of merges, as <code>git log --first-parent</code> does. On a mainline full of merged pull requests you see one commit per merge, not every commit of every branch.</p>
+      <ol class="steps">
+        <li><strong>Tick First parent</strong> in the toolbar above the graph. The same switch is the setting <code>mergeline.firstParentOnly</code> (off by default), so it stays on until you untick it.</li>
+        <li><strong>Read the lines.</strong> Each branch shows its own first-parent line, and the commits a merge brought in are hidden behind that merge. Click a merge to see its details; its changed files are listed against its first parent, so they are everything the merge brought in.</li>
+        <li><strong>Search it.</strong> Find, including <strong>All history</strong>, searches the same view, so with First parent on it matches only commits on those lines, not the commits hidden inside merges. Untick First parent to search everything.</li>
+      </ol>
+      <p>To limit the graph to one branch as well, as in <code>git log --first-parent main</code>, combine it with the branch filter from <a href="filter-git-graph-by-branch.html">show only some branches</a>.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Does <code>--first-parent</code> hide changes?</summary>
+      <p>It hides commits, not changes. Every change from a merged branch is in the merge commit&rsquo;s tree, and the merge&rsquo;s diff against its first parent shows all of it. What you lose is the step-by-step story inside the pull request.</p>
+    </details>
+    <details>
+      <summary>How do I tell which parent is first?</summary>
+      <p><code>git log -1 --format=%p &lt;merge&gt;</code> lists the parents in order; the first hash is the first parent. <code>git log --graph</code> also draws the first parent straight down and the second off to the side.</p>
+    </details>
+    <details>
+      <summary>Can I make <code>--first-parent</code> the default?</summary>
+      <p>Not with a config setting for <code>git log</code>, but an alias does it: <code>git config --global alias.mainline "log --oneline --first-parent"</code>, then <code>git mainline</code>.</p>
+    </details>
+    <p>Related: <a href="git-log-graph.html"><code>git log --graph</code></a>, <a href="git-rebase-vs-merge.html">rebase vs merge</a> and <a href="filter-git-graph-by-branch.html">filter by branch</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html" aria-current="page">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

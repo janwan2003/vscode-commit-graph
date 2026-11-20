@@ -120,4 +120,20 @@
     <loc>https://janwan2003.github.io/vscode-commit-graph/git-archive-zip-commit-vscode.html</loc>
     <lastmod>2026-11-20</lastmod>
   </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/branch-ahead-behind-origin.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/update-branch-without-checkout.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/git-log-first-parent.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/verify-signed-commits-vscode.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
 </urlset>

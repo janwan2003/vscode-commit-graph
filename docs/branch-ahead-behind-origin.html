@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>&ldquo;Your branch is ahead of &lsquo;origin/main&rsquo; by N commits&rdquo;: ahead and behind in git | Mergeline</title>
+<meta name="description" content="What &quot;Your branch is ahead of 'origin/main' by 2 commits&quot; means, counting ahead/behind with git status -sb and rev-list, and cleaning up [gone] branches.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/branch-ahead-behind-origin.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="&ldquo;Your branch is ahead of &lsquo;origin/main&rsquo; by N commits&rdquo;: ahead and behind in git">
+<meta property="og:description" content="Ahead, behind and diverged explained: why the counts only change after a fetch, counting every branch at once, and removing branches whose upstream is gone.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/branch-ahead-behind-origin.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>&ldquo;Your branch is ahead of &lsquo;origin/main&rsquo; by N commits&rdquo;</h1>
+    <p><code>git status</code> compares your branch with the remote branch it tracks and tells you how far apart they are: <em>ahead</em> by the commits you have and the server does not, <em>behind</em> by the commits the server has and you do not, or <em>diverged</em> when both are true. This guide explains each message, why the numbers can be out of date, how to get the counts for one branch or all of them from the command line, and what to do with a branch whose upstream shows as <code>[gone]</code>.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#meaning">What ahead, behind and diverged mean</a></li>
+        <li><a href="#fetch">The counts are as of your last fetch</a></li>
+        <li><a href="#count">Count it for one branch</a></li>
+        <li><a href="#all">Every branch at once</a></li>
+        <li><a href="#fix">Getting back in sync</a></li>
+        <li><a href="#gone">Upstream <code>[gone]</code>: branches deleted on the remote</a></li>
+        <li><a href="#mergeline">Ahead and behind in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Refresh what git knows about the remote</td><td><code>git fetch</code></td></tr>
+          <tr><td>One-line status with the counts</td><td><code>git status -sb</code></td></tr>
+          <tr><td>Just the two numbers</td><td><code>git rev-list --left-right --count main...origin/main</code></td></tr>
+          <tr><td>The commits I have not pushed</td><td><code>git log --oneline @{u}..HEAD</code></td></tr>
+          <tr><td>The commits I have not pulled</td><td><code>git log --oneline HEAD..@{u}</code></td></tr>
+          <tr><td>Counts for every local branch</td><td><code>git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads</code></td></tr>
+          <tr><td>Notice branches deleted on the remote</td><td><code>git fetch --prune</code>, then <code>git branch -vv</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53, using a local bare repository as <code>origin</code> and a second clone to push from, and quote the output we saw.</p>
+
+    <h2 id="meaning">What ahead, behind and diverged mean</h2>
+    <p>Most local branches have an <em>upstream</em>: the remote-tracking branch they were cloned from or first pushed to with <code>-u</code>, such as <code>origin/main</code>. <code>git status</code> counts the commits that are on one side and not the other, and picks one of four messages:</p>
+<pre><span class="o">Your branch is up to date with 'origin/main'.
+
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+
+Your branch and 'origin/main' have diverged,
+and have 2 and 3 different commits each, respectively.
+  (use "git pull" if you want to integrate the remote branch with yours)</span></pre>
+    <ul>
+      <li><strong>Ahead by N</strong>: you made N commits that are not on the remote yet. Nothing is wrong; <code>git push</code> sends them.</li>
+      <li><strong>Behind by N</strong>: the remote has N commits you have not taken. &ldquo;Can be fast-forwarded&rdquo; means you have nothing of your own on top, so pulling just moves your branch forward with no merge commit.</li>
+      <li><strong>Diverged, N and M</strong>: both sides have new commits. The first number is yours (ahead), the second is theirs (behind). A plain push is refused until you combine them with a merge or a rebase.</li>
+    </ul>
+    <p>The comparison is between two commits, not two sets of files. Two commits with identical content but different hashes, such as a commit you rebased after pushing it, still count on both sides.</p>
+
+    <h2 id="fetch">The counts are as of your last fetch</h2>
+    <p><code>git status</code> never contacts the server. It compares your branch with your local copy of the remote branch, <code>origin/main</code>, which only moves when you run <code>git fetch</code>, <code>git pull</code> or <code>git push</code>. So the message can be stale. In our test, a colleague pushed three commits while we made two:</p>
+<pre><span class="k">git status</span>
+<span class="o">Your branch is ahead of 'origin/main' by 2 commits.</span>
+<span class="k">git fetch</span>
+<span class="k">git status</span>
+<span class="o">Your branch and 'origin/main' have diverged,
+and have 2 and 3 different commits each, respectively.</span></pre>
+    <p>&ldquo;Up to date with &lsquo;origin/main&rsquo;&rdquo; therefore means &ldquo;up to date with what I last fetched&rdquo;. Fetch first whenever the answer matters. <code>git fetch --all</code> fetches every remote, not just the current branch&rsquo;s.</p>
+
+    <h2 id="count">Count it for one branch</h2>
+<pre><span class="k">git status -sb</span>
+<span class="o">## main...origin/main [ahead 2, behind 3]</span>
+<span class="k">git rev-list --left-right --count</span> main...origin/main
+<span class="o">2	3</span>
+<span class="k">git rev-list --left-right --count</span> HEAD...@{upstream}   <span class="c"># the same, for whatever branch you are on</span></pre>
+    <p><code>-s</code> is the short status and <code>-b</code> adds the branch line; a branch that is in sync shows no brackets at all. <code>rev-list</code> prints two numbers separated by a tab: commits only on the left side of the three dots (yours, ahead) and only on the right (theirs, behind). The three dots matter: <code>A...B</code> means &ldquo;on either side but not both&rdquo;, and <code>--left-right</code> keeps the two sides apart. <code>@{upstream}</code>, or <code>@{u}</code> for short, means the current branch&rsquo;s upstream, so you do not have to type its name.</p>
+    <p>To see the commits rather than count them, use two dots, which means &ldquo;on the right, not on the left&rdquo;:</p>
+<pre><span class="k">git log --oneline</span> @{u}..HEAD    <span class="c"># mine, not pushed</span>
+<span class="k">git log --oneline</span> HEAD..@{u}    <span class="c"># theirs, not pulled</span></pre>
+    <p>A branch without an upstream has nothing to compare with: <code>git status -sb</code> shows just <code>## local-only</code>, and <code>@{u}</code> stops with <code>fatal: no upstream configured for branch 'local-only'</code>. Push it once with <code>git push -u origin local-only</code>, or point it at an existing remote branch with <code>git branch -u origin/main</code>.</p>
+
+    <h2 id="all">Every branch at once</h2>
+<pre><span class="k">git for-each-ref --format=</span>'%(refname:short) %(upstream:track)' <span class="k">refs/heads</span>
+<span class="o">feature
+main [ahead 2, behind 3]
+old [gone]</span>
+<span class="k">git branch -vv</span>
+<span class="o">  feature e19df8f [origin/feature] f1
+* main    a4255fe [origin/main: ahead 2, behind 3] Mine 2
+  old     e19df8f [origin/old: gone] f1</span></pre>
+    <p><code>%(upstream:track)</code> is empty for a branch that is in sync <em>or</em> has no upstream; add <code>%(upstream:short)</code> to the format to tell the two apart. <code>%(upstream:track,nobracket)</code> drops the brackets, which is easier to parse in a script. <code>git branch -vv</code> is the readable version: the upstream in brackets, then the counts after a colon.</p>
+    <p>Both read local data, so they are only as fresh as your last <code>git fetch</code>, just like <code>git status</code>.</p>
+
+    <h2 id="fix">Getting back in sync</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Status</th><th scope="col">Usual fix</th></tr></thead>
+        <tbody>
+          <tr><td>Ahead</td><td><code>git push</code></td></tr>
+          <tr><td>Behind</td><td><code>git pull</code>, or <code>git merge --ff-only @{u}</code> after a fetch, which refuses to make a merge commit</td></tr>
+          <tr><td>Diverged</td><td><code>git pull --rebase</code> to replay your commits on top of theirs, or <code>git pull --no-rebase</code> to merge; see <a href="git-rebase-vs-merge.html">rebase vs merge</a>. A plain <code>git pull</code> with neither set stops with <code>fatal: Need to specify how to reconcile divergent branches.</code></td></tr>
+          <tr><td>Diverged because you rebased pushed commits</td><td><code>git push --force-with-lease</code>, only on a branch nobody else builds on</td></tr>
+          <tr><td>Behind, on a branch you are not on</td><td><code>git fetch origin main:main</code>; see <a href="update-branch-without-checkout.html">update a branch without checking it out</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>If you are ahead with commits you did not mean to make, for example on <code>main</code> instead of a feature branch, create a branch at the current commit with <code>git branch my-work</code>, then move <code>main</code> back to the remote with <code>git reset --hard origin/main</code>. The <a href="undo-git-reset-cherry-pick-revert.html">undo guide</a> explains what <code>--hard</code> overwrites.</p>
+
+    <h2 id="gone">Upstream <code>[gone]</code>: branches deleted on the remote</h2>
+    <p>When a pull request is merged, the hosting service usually deletes its branch on the server. Your local branch still points at <code>origin/that-branch</code>, which no longer exists. Git only notices when you prune. A plain <code>git fetch</code> left our deleted branch&rsquo;s <code>origin/old</code> in place; <code>--prune</code> removed it:</p>
+<pre><span class="k">git fetch --prune</span>
+<span class="o"> - [deleted]         (none)     -> origin/old</span>
+<span class="k">git branch -vv</span>
+<span class="o">  old     e19df8f [origin/old: gone] f1</span>
+<span class="k">git switch</span> old <span class="k">&amp;&amp; git status</span>
+<span class="o">Your branch is based on 'origin/old', but the upstream is gone.
+  (use "git branch --unset-upstream" to fixup)</span></pre>
+    <p>To prune on every fetch from now on, set <code>git config --global fetch.prune true</code>. Pruning only removes remote-tracking branches (<code>origin/&hellip;</code>); your local branches are never deleted by a fetch.</p>
+    <p>To list the local branches whose upstream is gone and delete them:</p>
+<pre><span class="k">git for-each-ref --format=</span>'%(refname:short) %(upstream:track)' <span class="k">refs/heads</span> | awk '$2 == "[gone]" {print $1}'
+<span class="o">old</span>
+<span class="k">git branch -d</span> old
+<span class="o">error: the branch 'old' is not fully merged
+hint: If you are sure you want to delete it, run 'git branch -D old'</span></pre>
+    <p><code>-d</code> refuses when the branch has commits that git cannot find in its upstream, or, once the upstream is gone, in your current branch. That is a real warning if you made commits after the pull request was merged. It is also common after a <em>squash merge</em> or <em>rebase merge</em> on the server, where your original commits never land on <code>main</code> under the same hashes. Check with <code>git log --oneline main..old</code> what would be lost, then use <code>-D</code> if you are sure. If you want to keep the branch and silence the message instead, <code>git branch --unset-upstream old</code> removes its upstream.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Ahead and behind in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.12 it shows the ahead and behind counts on the branch badges in the graph, for every branch at once, so you do not have to run <code>git branch -vv</code>.</p>
+      <ol class="steps">
+        <li><strong>Read the badge.</strong> A local branch that tracks a remote branch shows <strong>&uarr;N</strong> for commits you have not pushed and <strong>&darr;N</strong> for commits you have not pulled. A branch that is in sync shows neither.</li>
+        <li><strong>Hover it</strong> for the details, for example &ldquo;Compared with origin/main as of the last fetch: 2 commits to push, 3 to pull&rdquo;. Like <code>git status</code>, the counts come from your last fetch.</li>
+        <li><strong>Watch for &#x2715;.</strong> It means the branch&rsquo;s upstream was deleted on the remote, the same as <code>[gone]</code> above. Fetch and prune from the <strong>Remotes&hellip;</strong> button so Mergeline sees deletions; the <a href="manage-git-remotes-vscode.html">remotes guide</a> covers it.</li>
+        <li><strong>Act on it.</strong> Right-click the branch to push, pull, or delete it (Mergeline asks before force-deleting an unmerged branch). For a branch that is behind and not checked out, choose <strong>Update from origin/&hellip; (fast-forward)</strong>, described in <a href="update-branch-without-checkout.html#mergeline">update a branch without checkout</a>.</li>
+      </ol>
+      <p><strong>What it does not do:</strong> Mergeline does not fetch in the background, so the arrows do not change until you fetch. Branches with no upstream have no arrows.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Git says &ldquo;up to date&rdquo;, but I know someone pushed. Why?</summary>
+      <p>Because <code>git status</code> compares with your last fetch, not with the server. Run <code>git fetch</code> and check again.</p>
+    </details>
+    <details>
+      <summary>I pulled, and now I am ahead by one commit. What is it?</summary>
+      <p>A merge commit. When both sides had new commits, <code>git pull --no-rebase</code> (or a plain <code>git pull</code> with <code>pull.rebase false</code> configured) combines them with a merge commit, which exists only on your side until you push. <code>git log --oneline @{u}..HEAD</code> shows it.</p>
+    </details>
+    <details>
+      <summary>Why is my branch ahead after <code>git commit --amend</code> or a rebase?</summary>
+      <p>Rewriting a commit you already pushed gives it a new hash, so git counts your new version as ahead and the pushed version as behind: the branch has diverged. If you meant to replace the pushed commit, push with <code>git push --force-with-lease</code>; if others use the branch, do not rewrite it.</p>
+    </details>
+    <details>
+      <summary>How do I compare with a branch other than the upstream?</summary>
+      <p>Give both names: <code>git rev-list --left-right --count feature...main</code> counts commits only on <code>feature</code> and only on <code>main</code>. The <a href="compare-branches-commits-vscode.html">compare branches guide</a> shows the commits and files behind those numbers.</p>
+    </details>
+    <p>Related: <a href="update-branch-without-checkout.html">update a branch without checking it out</a>, <a href="manage-git-remotes-vscode.html">manage remotes</a> and <a href="git-rebase-vs-merge.html">rebase vs merge</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html" aria-current="page">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
