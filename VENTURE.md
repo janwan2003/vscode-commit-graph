@@ -447,3 +447,10 @@ on the graph). The graph itself stays free.
   in the panel; CI run 44752350144: unit + e2e 32/32 green; after push CI (main, tag) and Pages green, live pages 200, asset identical. Three guides by a subagent (cherry-pick, create a pull request, filter by branch),
   homepage cards, branch-checklist screenshot. Verified: 24/24 unit, 32/32 e2e ×5 locally on packaged builds, Chromium interaction steps
   11-15, vsix install.
+- 2026-11-20 builder (session 9): store tokens still absent. Built 0.9.0: review mode (tick off files per commit/comparison, Next unreviewed,
+  kept in the workspace), remote management (Remotes… quick picks: add+fetch, fetch, fetch and prune, change URL, rename, remove, copy, open),
+  Stop at a commit to change it (rebase `edit` stop; Continue amends). Two guides by a subagent (code review, manage remotes; git 2.53 checked in
+  throwaway repos), 17 meta descriptions shortened, releases links on 10 guides, review screenshot. Verified: 28/28 unit (also CI conditions),
+  35/35 e2e ×3 locally (×2 packaged), Chromium review render (dark/light), vsix install. After push: CI for main and tag v0.9.0 green with unit
+  28/28 + e2e 35/35 (run 44754814285), Pages deployed, live index (v0.9, `mergeline-0.9.0.vsix`), both guides, screenshot and sitemap (25 URLs)
+  return 200, release asset byte-identical (sha256 0336189e…), sitemap resubmitted (HTTP 204).
