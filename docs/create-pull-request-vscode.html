@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create a pull request from VS Code (GitHub, GitLab, Bitbucket) | Mergeline</title>
+<meta name="description" content="Open a pull or merge request from VS Code: push with an upstream, the new-PR URLs for GitHub, GitLab and Bitbucket, gh pr create, and extensions.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/create-pull-request-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Create a pull request from VS Code (GitHub, GitLab, Bitbucket)">
+<meta property="og:description" content="Push the branch, then open the forge's new pull request page: the URLs, the gh CLI, the official extensions, and a one-click route from the graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/create-pull-request-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Create a pull request from VS Code (GitHub, GitLab, Bitbucket)</h1>
+    <p>A pull request (GitLab calls it a merge request) always needs two things: your branch has to be on the server, and someone has to fill in the form that asks for it to be merged. Git itself does neither of those for you in one step. This guide shows the quickest ways from a branch in VS Code to that form: a push, a URL, the command line, or an extension.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#push">Step 1: push the branch</a></li>
+        <li><a href="#urls">Step 2: open the new pull request page</a></li>
+        <li><a href="#cli">From the command line</a></li>
+        <li><a href="#extensions">With a forge extension</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Do</th></tr></thead>
+        <tbody>
+          <tr><td>Push a new branch and remember where it went</td><td><code>git push -u origin &lt;branch&gt;</code></td></tr>
+          <tr><td>Open GitHub&rsquo;s new pull request form</td><td><code>https://github.com/&lt;owner&gt;/&lt;repo&gt;/compare/&lt;branch&gt;?expand=1</code></td></tr>
+          <tr><td>Open GitLab&rsquo;s new merge request form</td><td><code>https://gitlab.com/&lt;group&gt;/&lt;project&gt;/-/merge_requests/new?merge_request[source_branch]=&lt;branch&gt;</code></td></tr>
+          <tr><td>Open Bitbucket&rsquo;s new pull request form</td><td><code>https://bitbucket.org/&lt;workspace&gt;/&lt;repo&gt;/pull-requests/new?source=&lt;branch&gt;</code></td></tr>
+          <tr><td>Create a GitHub pull request from the terminal</td><td><code>gh pr create</code></td></tr>
+          <tr><td>Create and review pull requests inside VS Code</td><td>The <em>GitHub Pull Requests</em> or <em>GitLab</em> extension</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="push">Step 1: push the branch</h2>
+    <p>The forge can only offer a pull request for a branch it has. The first time you push a new branch, say where it goes and ask git to remember it:</p>
+<pre><span class="k">git push -u origin</span> feature/login
+<span class="o">To github.com:you/app.git
+ * [new branch]      feature/login -&gt; feature/login
+branch 'feature/login' set up to track 'origin/feature/login'.</span></pre>
+    <p><code>-u</code> (long form <code>--set-upstream</code>) makes <code>origin/feature/login</code> the branch&rsquo;s <em>upstream</em>: the remote branch it tracks. After that, a plain <code>git push</code> or <code>git pull</code> knows where to go, and VS Code&rsquo;s status bar shows how many commits you are ahead or behind. <code>git push -u origin HEAD</code> does the same for whatever branch you are on, without typing its name.</p>
+    <p>Without an upstream, a plain <code>git push</code> stops with:</p>
+<pre><span class="o">fatal: The current branch feature/login has no upstream branch.
+To push the current branch and set the remote as upstream, use
+
+    git push --set-upstream origin feature/login</span></pre>
+    <p>To have git set the upstream on the first push automatically, run <code>git config --global push.autoSetupRemote true</code>. In VS Code, <strong>Publish Branch&hellip;</strong> in the Source Control view does the same for a branch with no upstream.</p>
+
+    <h2 id="urls">Step 2: open the new pull request page</h2>
+    <p>Each forge has a web address that opens its &ldquo;new pull request&rdquo; form with your branch already filled in. You choose the target branch, title and description there. Replace the parts in angle brackets; branch names with slashes, like <code>feature/login</code>, work as they are.</p>
+
+    <h3>GitHub</h3>
+<pre>https://github.com/&lt;owner&gt;/&lt;repo&gt;/compare/&lt;branch&gt;?expand=1
+https://github.com/&lt;owner&gt;/&lt;repo&gt;/compare/&lt;base&gt;...&lt;branch&gt;?expand=1</pre>
+    <p>The first form compares your branch with the repository&rsquo;s default branch. The second names the base, for example <code>compare/release...feature/login</code>. <code>expand=1</code> shows the pull request form straight away instead of only the diff. GitHub&rsquo;s documentation on <a href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/using-query-parameters-to-create-a-pull-request">query parameters for pull requests</a> describes the <code>base...branch</code> form with <code>quick_pull=1</code>, which also accepts <code>title</code> and <code>body</code>. For GitHub Enterprise, use your server&rsquo;s address instead of <code>github.com</code>.</p>
+
+    <h3>GitLab</h3>
+<pre>https://gitlab.com/&lt;group&gt;/&lt;project&gt;/-/merge_requests/new?merge_request[source_branch]=&lt;branch&gt;</pre>
+    <p>This is the link GitLab itself prints after you push a new branch (&ldquo;To create a merge request for &hellip;, visit:&rdquo;), with the square brackets encoded as <code>%5B</code> and <code>%5D</code>; see GitLab&rsquo;s <a href="https://docs.gitlab.com/topics/git/merge/">merge guide</a>. You pick the target branch on the form. For a self-managed GitLab, use its address. GitLab can also open the merge request during the push: <code>git push -o merge_request.create</code> (with <code>-o merge_request.target=&lt;branch&gt;</code> to set the target), per its <a href="https://docs.gitlab.com/topics/git/commit/">push options</a> page.</p>
+
+    <h3>Bitbucket Cloud</h3>
+<pre>https://bitbucket.org/&lt;workspace&gt;/&lt;repo&gt;/pull-requests/new?source=&lt;branch&gt;</pre>
+    <p>This address is widely used, but as of November 2026 we could not find it in Atlassian&rsquo;s public documentation, so treat it as a convenience: check that the form shows the right source branch before you submit. Atlassian&rsquo;s documented route is <strong>Create</strong> &rarr; <strong>Pull request</strong> in the repository, or the create button on the branch&rsquo;s page. Bitbucket Data Center (self-hosted) uses different addresses.</p>
+    <p>All three pages need you to be signed in to the forge in your browser, which you usually are already.</p>
+
+    <h2 id="cli">From the command line</h2>
+    <p>GitHub&rsquo;s CLI, <code>gh</code>, creates the pull request without a browser once you have run <code>gh auth login</code>:</p>
+<pre><span class="k">gh pr create --fill</span>                 <span class="c"># title and body from your commits</span>
+<span class="k">gh pr create --base</span> release --draft
+<span class="k">gh pr create --web</span>                  <span class="c"># open the form in the browser instead</span></pre>
+    <p>If the branch is not fully pushed yet, <code>gh</code> asks where to push it (its help text says so). GitLab&rsquo;s equivalent is <code>glab mr create</code>.</p>
+
+    <h2 id="extensions">With a forge extension</h2>
+    <p>Both big forges publish their own VS Code extension, and they do much more than open a form:</p>
+    <ul>
+      <li><strong>GitHub Pull Requests</strong> (by GitHub) adds a <em>GitHub Pull Requests: Create Pull Request</em> command, according to <a href="https://code.visualstudio.com/docs/sourcecontrol/github">VS Code&rsquo;s GitHub documentation</a>. It also lists pull requests and issues, checks pull requests out, and lets you review them with comments in the editor. You sign in to GitHub first.</li>
+      <li><strong>GitLab for VS Code</strong> (by GitLab, marketplace ID <code>GitLab.gitlab-workflow</code>) lets you review and discuss merge requests, see pipelines and browse issues. You connect it to GitLab with OAuth or a personal access token, per <a href="https://docs.gitlab.com/editor_extensions/visual_studio_code/setup/">GitLab&rsquo;s setup guide</a>.</li>
+    </ul>
+    <p>If you review code every day, one of these is worth installing. If you only want to get from a branch to the form, a URL is lighter: no sign-in inside the editor and no token to manage.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.8 it can open the new pull request page for any branch you can see in the graph.</p>
+      <ol class="steps">
+        <li><strong>Right-click a branch badge,</strong> either a local branch that tracks a remote branch or a remote branch itself, and choose <strong>Create pull request on GitHub</strong> (or GitLab, or Bitbucket, depending on where the remote is).</li>
+        <li><strong>Your browser opens the forge&rsquo;s form</strong> for that branch, using the URLs above. For a local branch, Mergeline uses the name of the remote branch it tracks. The forge picks the target branch, and you can change it on the form.</li>
+        <li><strong>Not pushed yet?</strong> Mergeline tells you and offers to push the branch first. You can also right-click the branch and choose <strong>Push</strong>, which sets the upstream like <code>git push -u</code>.</li>
+      </ol>
+      <p>Mergeline only builds the address from your remote&rsquo;s URL and hands it to your browser. It makes no network request of its own (apart from a push you ask for) and needs no sign-in or token. It recognises <code>github.com</code>, <code>gitlab.com</code> and <code>bitbucket.org</code>, plus self-hosted servers whose host name contains &ldquo;github&rdquo; or &ldquo;gitlab&rdquo;.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html" aria-current="page">Create a pull request</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to cherry-pick a commit in git and VS Code | Mergeline</title>
+<meta name="description" content="Copy a commit to another branch with git cherry-pick: ranges, -x, -m 1 for merges, --no-commit, conflicts, and cherry-picking from VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/cherry-pick-commit-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="How to cherry-pick a commit in VS Code">
+<meta property="og:description" content="git cherry-pick, ranges, -x, merge commits with -m 1, --no-commit, continue, skip or abort on conflicts, and doing it from the graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/cherry-pick-commit-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>How to cherry-pick a commit in VS Code</h1>
+    <p>You fixed a bug on a feature branch and the fix is needed on <code>main</code> or a release branch today, without the rest of the feature. That is what cherry-pick is for. It takes the change one commit made and applies it to the branch you are on, as a new commit. This guide covers the command and its useful options, what to do when it conflicts, and how to do it from VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What cherry-pick does</a></li>
+        <li><a href="#basic">Pick one commit, several, or a range</a></li>
+        <li><a href="#options">Useful options: <code>-x</code>, <code>--no-commit</code></a></li>
+        <li><a href="#merge">Cherry-picking a merge commit</a></li>
+        <li><a href="#conflicts">Conflicts: continue, skip or abort</a></li>
+        <li><a href="#builtin">In VS Code&rsquo;s built-in graph</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Copy one commit onto my current branch</td><td><code>git cherry-pick &lt;commit&gt;</code></td></tr>
+          <tr><td>Copy several commits, in this order</td><td><code>git cherry-pick &lt;c1&gt; &lt;c2&gt;</code></td></tr>
+          <tr><td>Copy a range, from A to B inclusive</td><td><code>git cherry-pick A^..B</code></td></tr>
+          <tr><td>Record where the copy came from</td><td><code>git cherry-pick -x &lt;commit&gt;</code></td></tr>
+          <tr><td>Apply the changes but not commit yet</td><td><code>git cherry-pick --no-commit &lt;commit&gt;</code></td></tr>
+          <tr><td>Copy what a merge brought in</td><td><code>git cherry-pick -m 1 &lt;merge&gt;</code></td></tr>
+          <tr><td>Carry on after fixing a conflict</td><td><code>git add &lt;files&gt;</code>, then <code>git cherry-pick --continue</code></td></tr>
+          <tr><td>Give up and go back</td><td><code>git cherry-pick --abort</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="what">What cherry-pick does</h2>
+    <p>Git works out what a commit changed compared with its parent, and applies that change to your current branch. It then makes a new commit with the same message and author. The new commit has a different hash, because it has a different parent.</p>
+    <p>Two things follow from that. First, the original commit stays where it was; nothing is moved. Second, the same change now exists twice in history. If the two branches are merged later, git usually notices the change is already there, but it can conflict if the code around it has changed. So cherry-pick is best for a few specific commits, like a fix for a release branch. If you want <em>everything</em> on a branch, merge or rebase instead; see <a href="git-rebase-vs-merge.html">rebase vs merge</a>.</p>
+
+    <h2 id="basic">Pick one commit, several, or a range</h2>
+    <p>Check out the branch that should receive the change, then name the commit:</p>
+<pre><span class="k">git switch</span> release
+<span class="k">git cherry-pick</span> 2d3f8f2</pre>
+    <p>Find the hash with <code>git log --oneline feature/a</code>, or copy it from a graph. Several commits are applied in the order you list them, each as its own new commit:</p>
+<pre><span class="k">git cherry-pick</span> 2d3f8f2 0d810e7</pre>
+    <p>For a run of consecutive commits, use a range. Watch the caret:</p>
+<pre><span class="k">git cherry-pick</span> A^..B    <span class="c"># A, B and everything between them</span>
+<span class="k">git cherry-pick</span> A..B     <span class="c"># everything after A up to B: A itself is left out</span></pre>
+    <p><code>A..B</code> means &ldquo;commits reachable from B but not from A&rdquo;, so <code>A</code> is excluded. Forgetting the <code>^</code> is a common mistake. When we tried it, the second commit depended on the first, so leaving the first out made the pick stop on a conflict.</p>
+
+    <h2 id="options">Useful options</h2>
+    <ul>
+      <li><strong><code>-x</code></strong> adds a line to the new commit&rsquo;s message saying where it came from:
+<pre><span class="o">a1
+
+(cherry picked from commit 2d3f8f23457bf38dd0ef6169bcebcbb3911da3c6)</span></pre>
+        This is handy on release branches, because anyone can trace the fix back to the original. It only makes sense when the original commit is pushed, so others can look it up.</li>
+      <li><strong><code>--no-commit</code></strong> (or <code>-n</code>) applies the changes to your working tree and stages them, but makes no commit. Pick several commits this way and commit once, to get a single combined commit. It is also a way to look at the result before you commit it.</li>
+      <li><strong><code>--edit</code></strong> (or <code>-e</code>) opens the editor so you can change the message before committing.</li>
+    </ul>
+    <p>To undo a cherry-pick you have not pushed yet, remove the new commit with <code>git reset --keep HEAD~1</code>. If it is pushed, revert it instead. The <a href="undo-git-reset-cherry-pick-revert.html">undo guide</a> explains the difference.</p>
+
+    <h2 id="merge">Cherry-picking a merge commit</h2>
+    <p>A merge commit has two parents, so &ldquo;what this commit changed&rdquo; has two answers. Git refuses until you choose:</p>
+<pre><span class="k">git cherry-pick</span> c7a5063
+<span class="o">error: commit c7a5063... is a merge but no -m option was given.
+fatal: cherry-pick failed</span></pre>
+    <p><code>-m 1</code> says &ldquo;compare with the first parent&rdquo;. The first parent is the branch that was merged <em>into</em>, usually <code>main</code>. So the result is everything the merged branch brought in, as one new commit:</p>
+<pre><span class="k">git cherry-pick -m 1</span> c7a5063</pre>
+    <p><code>-m 2</code> would compare with the second parent instead, which is rarely what you want. If you only need some of the commits from that branch, picking them one by one is often clearer than picking the merge.</p>
+
+    <h2 id="conflicts">Conflicts: continue, skip or abort</h2>
+    <p>If the change does not apply cleanly, git stops and tells you which files conflict:</p>
+<pre><span class="o">CONFLICT (content): Merge conflict in a.txt
+error: could not apply 2d3f8f2... a1</span></pre>
+    <p>The cherry-pick is now in progress. <code>git status</code> says so. You have three ways out:</p>
+    <ul>
+      <li><strong>Resolve and continue.</strong> Fix the files (VS Code lists them under <em>Merge Changes</em> in Source Control), <code>git add</code> them, then run <code>git cherry-pick --continue</code>. Git makes the commit and moves on to the next one, if you picked several.</li>
+      <li><strong>Skip this commit</strong> with <code>git cherry-pick --skip</code>. Its changes are left out and git goes on with the next commit in the list.</li>
+      <li><strong>Abort</strong> with <code>git cherry-pick --abort</code>. Your branch goes back to where it was before you started, including commits the same cherry-pick already made.</li>
+    </ul>
+    <p>These work just like the rebase versions. The <a href="rebase-conflict-continue-abort-vscode.html">conflict guide</a> covers resolving in VS Code in more detail.</p>
+
+    <h2 id="builtin">In VS Code&rsquo;s built-in graph</h2>
+    <p>VS Code&rsquo;s Source Control view has a graph of recent commits. In VS Code 1.147, right-clicking a commit there offers <strong>Cherry Pick</strong>. It applies that commit to your current branch. (We read this from the menus of the git extension bundled with VS Code 1.147; older versions may differ.) By default the graph follows your current branch, so to reach a commit on another branch you may first need to pick that branch in the graph&rsquo;s branch picker (the <a href="filter-git-graph-by-branch.html#builtin">branch filter guide</a> describes it). If the pick conflicts, resolve the files in Source Control; the terminal commands above still apply. There is no option for <code>-x</code>, ranges or <code>--no-commit</code>, so use the terminal for those.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. It draws every branch, so the commit you want is on screen next to the branch it should go to.</p>
+      <ol class="steps">
+        <li><strong>Right-click a commit</strong> on any branch and choose <strong>Cherry-pick onto &ldquo;<em>branch</em>&rdquo;</strong>, where <em>branch</em> is the branch you have checked out. If the commit is a merge, Mergeline asks which parent is the mainline (that is the <code>-m</code> number; parent 1 is usually right).</li>
+        <li><strong>Or drag it (new in 0.8).</strong> Drag a commit row onto the current branch&rsquo;s badge, or onto the commit your branch points to (the <code>HEAD</code> row). A menu opens with <strong>Cherry-pick onto &ldquo;<em>branch</em>&rdquo;</strong>. Nothing runs until you choose it.</li>
+        <li><strong>If it stops on a conflict,</strong> a bar above the graph says a cherry-pick is in progress, which commit it stopped at and how many files conflict. Resolve and stage the files in Source Control, then press <strong>Continue</strong>. <strong>Skip</strong> leaves that commit out, and <strong>Abort</strong> puts the branch back. The bar also appears for a cherry-pick you started in a terminal.</li>
+      </ol>
+      <p>Mergeline runs a plain <code>git cherry-pick</code> (with <code>-m</code> for merges), so it does not add <code>-x</code>. To pick a range, use the terminal command above; the new commits appear in the graph when it refreshes.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html" aria-current="page">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

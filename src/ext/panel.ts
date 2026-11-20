@@ -145,10 +145,14 @@ export class GraphPanel implements vscode.Disposable {
     }, ms);
   }
 
+  /** Resolves when no load is running and none is queued (so callers see fresh lastData). */
+  private waiters: (() => void)[] = [];
+
   async refresh(force: boolean): Promise<void> {
     if (this.loading) {
+      // A load is running; queue one more and resolve once that one has finished.
       this.again = true;
-      return;
+      return new Promise<void>((r) => this.waiters.push(r));
     }
     this.loading = true;
     try {
@@ -160,6 +164,10 @@ export class GraphPanel implements vscode.Disposable {
       if (this.again) {
         this.again = false;
         this.refresh(true);
+      } else {
+        const w = this.waiters;
+        this.waiters = [];
+        w.forEach((f) => f());
       }
     }
   }

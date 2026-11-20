@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Show only some branches in a git graph (git log and VS Code) | Mergeline</title>
+<meta name="description" content="Filter a git graph to the branches you care about: git log with branch names, --branches patterns, ^main, --first-parent, and branch filters in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/filter-git-graph-by-branch.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Show only some branches in a git graph (git log and VS Code)">
+<meta property="og:description" content="Name branches, use --branches and --remotes patterns, exclude main, simplify with --first-parent, and filter the graph in VS Code.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/filter-git-graph-by-branch.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Show only some branches in a git graph</h1>
+    <p>A graph of every branch is useful for about a week. After that, old feature branches, release branches and a dozen remote branches make it too wide to read. Usually you care about two or three of them: <code>main</code> and the branch you are working on, or everything under <code>feature/</code>. Git can draw just those. This guide shows how with <code>git log</code>, and how to do the same in VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#names">Name the branches you want</a></li>
+        <li><a href="#patterns">All branches, remotes, or a pattern</a></li>
+        <li><a href="#exclude">Leave out what is already on main</a></li>
+        <li><a href="#simplify">Make a busy branch simpler</a></li>
+        <li><a href="#builtin">In VS Code&rsquo;s built-in graph</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to see&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Two branches and where they split</td><td><code>git log --graph --oneline main feature/x</code></td></tr>
+          <tr><td>All local branches, no remotes</td><td><code>git log --graph --oneline --branches</code></td></tr>
+          <tr><td>Only remote-tracking branches</td><td><code>git log --graph --oneline --remotes</code></td></tr>
+          <tr><td>Every branch matching a pattern</td><td><code>git log --graph --oneline --branches='feature/*'</code></td></tr>
+          <tr><td>Commits on my branch that are not on main</td><td><code>git log --oneline main..feature/x</code></td></tr>
+          <tr><td>Just the merges and direct commits on main</td><td><code>git log --oneline --first-parent main</code></td></tr>
+          <tr><td>Only where branches and tags point</td><td><code>git log --graph --oneline --simplify-by-decoration --branches</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="names">Name the branches you want</h2>
+    <p><code>git log</code> with no branch shows the history of the branch you are on. Give it branch names and it shows the history of those branches together, joined where they share commits:</p>
+<pre><span class="k">git log --graph --oneline</span> main feature/a
+<span class="o">*   c7a5063 (HEAD -&gt; main, origin/main) Merge feature/b
+|\
+| * 4ef1585 (origin/feature/b, feature/b) b1
+* | d882386 three
+|/
+| * 0d810e7 (origin/feature/a, feature/a) a2
+| * 2d3f8f2 a1
+|/
+* a980ab8 two
+* 433d70d base</span></pre>
+    <p>Any other branch that is not part of that history is simply not drawn. Here <code>feature/b</code> still appears because it was merged into <code>main</code>. You can name as many branches as you like, and tags or commit hashes work too. In a terminal the branch names in brackets appear by default; add <code>--decorate</code> if your output does not show them. For how to read the lines, see the <a href="git-log-graph.html"><code>git log --graph</code> reference</a>.</p>
+
+    <h2 id="patterns">All branches, remotes, or a pattern</h2>
+    <ul>
+      <li><code>--branches</code> starts from every local branch. <code>--remotes</code> starts from every remote-tracking branch, like <code>origin/main</code>. <code>--all</code> adds tags, stashes and everything else.</li>
+      <li>Both take a pattern. <code>--branches='feature/*'</code> shows every local branch under <code>feature/</code>; <code>--remotes='origin/feature/*'</code> does the same for the remote ones. Quote the pattern so your shell does not expand the <code>*</code>.</li>
+      <li>Combine them: <code>git log --graph --oneline main --branches='feature/*'</code> shows <code>main</code> plus all feature branches.</li>
+      <li>To leave some branches out of a pattern, put <code>--exclude</code> <em>before</em> it: <code>git log --oneline --exclude='feature/old*' --branches</code>. We checked: placed after <code>--branches</code>, it has no effect.</li>
+    </ul>
+<pre><span class="k">git log --graph --oneline --branches=</span>'feature/*'
+<span class="o">* 0d810e7 (origin/feature/a, feature/a) a2
+* 2d3f8f2 a1
+| * 4ef1585 (origin/feature/b, feature/b) b1
+|/
+* a980ab8 two
+* 433d70d base</span></pre>
+    <p>Remote-tracking branches only move when you fetch. Run <code>git fetch --prune</code> first, or the graph shows the remote as it was last time.</p>
+
+    <h2 id="exclude">Leave out what is already on main</h2>
+    <p>Often the question is not &ldquo;show me this branch&rdquo; but &ldquo;show me what this branch adds&rdquo;. A <code>^</code> in front of a branch name hides every commit reachable from it:</p>
+<pre><span class="k">git log --oneline</span> feature/a ^main
+<span class="k">git log --oneline</span> main..feature/a      <span class="c"># the same thing, shorter</span>
+<span class="o">0d810e7 a2
+2d3f8f2 a1</span></pre>
+    <p>Both list only the commits on <code>feature/a</code> that are not on <code>main</code>. The <code>^</code> form lets you combine more: <code>git log --graph --oneline --branches ^main</code> shows every local branch&rsquo;s unmerged work and nothing else. The <a href="compare-branches-commits-vscode.html">compare guide</a> explains two dots and three dots.</p>
+
+    <h2 id="simplify">Make a busy branch simpler</h2>
+    <p><strong><code>--first-parent</code></strong> follows only the first parent of each merge. On <code>main</code> that means the merges and the commits made directly on it, without the commits inside each merged branch:</p>
+<pre><span class="k">git log --graph --oneline --first-parent</span> main
+<span class="o">* c7a5063 (HEAD -&gt; main, origin/main) Merge feature/b
+* d882386 three
+* a980ab8 two
+* 433d70d base</span></pre>
+    <p><strong><code>--simplify-by-decoration</code></strong> keeps only commits that a branch or tag points to, plus a few git needs to keep the graph connected. It turns a long history into a map of where branches are:</p>
+<pre><span class="k">git log --graph --oneline --simplify-by-decoration --branches</span>
+<span class="o">* 0d810e7 (origin/feature/a, feature/a) a2
+| * c7a5063 (HEAD -&gt; main, origin/main) Merge feature/b
+| * 4ef1585 (origin/feature/b, feature/b) b1
+|/
+* 433d70d base</span></pre>
+
+    <h2 id="builtin">In VS Code&rsquo;s built-in graph</h2>
+    <p>The graph in VS Code&rsquo;s Source Control view has a branch picker in its title bar. In VS Code 1.147 it offers <strong>Auto</strong>, the current branch together with its remote branch and the branch VS Code considers its base; <strong>All</strong>, every branch; or a list where you tick one or more branches, tags or remote branches to show. (We read these labels from the strings shipped with VS Code 1.147.) It is a good quick filter. It has no equivalent of <code>^main</code>, <code>--first-parent</code> or a name pattern; for those, use the terminal. For a wider comparison of the built-in graph and extensions, see <a href="visualize-git-branches-vscode.html">seeing a branch graph in VS Code</a>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. By default it shows all branches, tags and remote branches. From version 0.8 you can narrow that to any set of branches.</p>
+      <ol class="steps">
+        <li><strong>Open the Branches dropdown</strong> in the toolbar. It is a checklist of your local and remote branches. Tick any number of them and the graph shows only their history: every commit reachable from at least one ticked branch, like <code>git log main feature/a</code>.</li>
+        <li><strong>Current branch</strong> ticks just the branch you have checked out. <strong>All branches</strong> clears the selection and shows everything again.</li>
+        <li><strong>Hide remote branches</strong> with the <strong>Remotes</strong> checkbox in the toolbar. That is the graphical version of leaving out <code>--remotes</code>.</li>
+        <li><strong>Or keep everything and dim the rest (new in 0.8).</strong> Turn on the setting <code>mergeline.dimOtherCommits</code>. Commits that are not reachable from <code>HEAD</code> are then drawn faded, so your branch&rsquo;s line stands out while the other branches stay in view.</li>
+      </ol>
+      <p>Everything else works on the filtered graph as usual: click a commit for its changes, or right-click it to cherry-pick, merge or compare. The <a href="git-log-graph.html#mergeline"><code>git log --graph</code> reference</a> lists the git options Mergeline uses.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="filter-git-graph-by-branch.html" aria-current="page">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
