@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Jira issues in git commits: clickable issue keys in VS Code | Mergeline</title>
+<meta name="description" content="Make Jira, Linear or YouTrack keys in commit messages clickable in VS Code. Write keys git can find, search them with git log --grep, and set up links.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/link-jira-issues-git-commits-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Link Jira issues in git commits: clickable issue keys in VS Code">
+<meta property="og:description" content="Issue keys in commit messages, a trailer hook, git log --grep, and turning PROJ-123 into a link with one regular expression.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/link-jira-issues-git-commits-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Link Jira issues in git commits: clickable issue keys in VS Code</h1>
+    <p>Many teams put the issue key in every commit message: <code>PROJ-123 Fix login retry</code>. Git treats that as plain text. It does not know what Jira is, so the key only becomes useful when something turns it back into a link. This guide covers how to write keys so they are easy to find, a hook that adds them for you, how to search history by key with plain git, and how to make the keys clickable in VS Code with one setting in Mergeline.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#where">Where to put the key</a></li>
+        <li><a href="#hook">Add the key from the branch name</a></li>
+        <li><a href="#search">Find commits by issue key</a></li>
+        <li><a href="#patterns">Write the pattern</a></li>
+        <li><a href="#mergeline">Clickable keys in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run or set</th></tr></thead>
+        <tbody>
+          <tr><td>Find commits that mention one issue</td><td><code>git log --oneline --grep='PROJ-13'</code></td></tr>
+          <tr><td>Find commits that mention any key of a project</td><td><code>git log --oneline -E --grep='PROJ-[0-9]+'</code></td></tr>
+          <tr><td>Add the key as a trailer while committing</td><td><code>git commit -m "Fix crash" --trailer "Refs: PROJ-14"</code></td></tr>
+          <tr><td>Print only the trailer values</td><td><code>git log --format='%(trailers:key=Refs,valueonly)'</code></td></tr>
+          <tr><td>Make keys clickable in the commit details</td><td>Mergeline setting <code>mergeline.issueLinks</code> (from 0.11)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every git command on this page with git 2.53 in a throwaway repository and quote the output we saw.</p>
+
+    <h2 id="where">Where to put the key</h2>
+    <p>There are two common habits, and either works:</p>
+    <ul>
+      <li><strong>In the subject:</strong> <code>PROJ-12 Fix login retry</code>. Visible in every one-line log and in the graph, at the cost of a few characters of the subject.</li>
+      <li><strong>As a trailer</strong> at the end of the message, after a blank line: <code>Refs: PROJ-14</code>. A <em>trailer</em> is a <code>Key: value</code> line in the last paragraph of a message; git can add and read them. Subjects stay short, and tools can pick the value out reliably.</li>
+    </ul>
+<pre><span class="k">git commit -m</span> "Fix crash" <span class="k">-m</span> "Longer body." <span class="k">--trailer</span> "Refs: PROJ-14"
+<span class="k">git log -1 --format=%B</span>
+<span class="o">Fix crash
+
+Longer body.
+
+Refs: PROJ-14</span>
+<span class="k">git log -1 --format=</span>'%(trailers:key=Refs,valueonly)'
+<span class="o">PROJ-14</span></pre>
+    <p>Whichever you choose, write the key exactly as your tracker does, in capitals with the hyphen: a link pattern that expects <code>PROJ-12</code> will not match <code>proj 12</code>.</p>
+
+    <h2 id="hook">Add the key from the branch name</h2>
+    <p>If your branches are named after issues, such as <code>feature/PROJ-42-login</code>, a <code>prepare-commit-msg</code> hook can add the trailer so nobody has to remember. Save this as <code>.git/hooks/prepare-commit-msg</code> and make it executable (<code>chmod +x</code>):</p>
+<pre>#!/bin/sh
+# Add "Refs: ABC-123" when the branch name contains an issue key.
+case "$2" in ""|message) ;; *) exit 0 ;; esac
+key=$(git branch --show-current | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1)
+[ -n "$key" ] || exit 0
+grep -q "$key" "$1" || git interpret-trailers --in-place --trailer "Refs: $key" "$1"</pre>
+    <p>In our test on <code>feature/PROJ-42-login</code>, <code>git commit -m "Tidy login form"</code> produced a message ending in <code>Refs: PROJ-42</code>; a message that already contained <code>PROJ-42</code> was left alone, and on <code>main</code> nothing was added. The <code>case</code> line skips merges, squashes and <code>-c</code>/<code>-C</code> reuse, where the message comes from elsewhere. Hooks are local to your clone and are not pushed, so each teammate installs it (or your team shares it through <code>core.hooksPath</code>).</p>
+
+    <h2 id="search">Find commits by issue key</h2>
+<pre><span class="k">git log --oneline --grep=</span>'PROJ-13'
+<span class="o">daf588a PROJ-13 Fix login retry</span>
+<span class="k">git log --oneline -E --grep=</span>'PROJ-[0-9]+'
+<span class="o">daf588a PROJ-13 Fix login retry
+c85a64a PROJ-12 Initial commit</span>
+<span class="k">git log --oneline -i --grep=</span>'proj-12'      <span class="c"># ignore case</span>
+<span class="o">c85a64a PROJ-12 Initial commit</span></pre>
+    <p><code>--grep</code> searches the whole message, subject, body and trailers. Add <code>--all</code> to look in every branch rather than only the current one. Watch out for prefixes: in our test <code>--grep='PROJ-1'</code> returned four commits, including <code>PROJ-12</code> and <code>PROJ-13</code>. <code>-E --grep='PROJ-1([^0-9]|$)'</code> returned only the one for <code>PROJ-1</code>.</p>
+
+    <h2 id="patterns">Write the pattern</h2>
+    <p>To turn keys into links, a tool needs a regular expression that finds them and a URL to send each one to. The usual Jira-style pattern is &ldquo;capital letters, a hyphen, digits&rdquo;. We ran it with JavaScript&rsquo;s <code>RegExp</code> over a sample message:</p>
+<pre><span class="k">\b[A-Z][A-Z0-9]+-\d+\b</span>  on  "Fix PROJ-12 and AB2-7; see utf-8 and ISO-8601 and SHA-256"
+<span class="o">PROJ-12, AB2-7, ISO-8601, SHA-256</span></pre>
+    <p>It works, but it also matched <code>ISO-8601</code> and <code>SHA-256</code>, which are not issues. If that happens in your messages, list your real project keys instead: <code>\b(?:PROJ|OPS)-\d+\b</code>. Capture groups let you reuse part of a match: with <code>\bAB#(\d+)\b</code> on <code>Fixes AB#1234</code>, group 1 is <code>1234</code>, which is what an Azure Boards work-item URL needs.</p>
+    <p>For the URL, open one issue in your browser and look at its address; replace the key with the placeholder. Common shapes (check yours, since sites and workspaces differ):</p>
+    <ul>
+      <li>Jira Cloud: <code>https://yourcompany.atlassian.net/browse/PROJ-12</code></li>
+      <li>Linear: <code>https://linear.app/yourteam/issue/ENG-91</code></li>
+      <li>YouTrack: <code>https://youtrack.example.com/issue/PROJ-12</code></li>
+      <li>Azure Boards: <code>https://dev.azure.com/yourorg/yourproject/_workitems/edit/1234</code></li>
+    </ul>
+
+    <section class="in-app" id="mergeline">
+      <h2>Clickable keys in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.11 it can turn any pattern in a commit message into a link.</p>
+      <ol class="steps">
+        <li><strong>Open your settings JSON</strong> (<strong>Preferences: Open User Settings (JSON)</strong> in the Command Palette).</li>
+        <li><strong>Add <code>mergeline.issueLinks</code></strong>, a list of objects with a <code>pattern</code> (a JavaScript regular expression) and a <code>url</code>. In the URL, <code>$0</code> is the whole match and <code>$1</code>, <code>$2</code> &hellip; are capture groups. In JSON every backslash is written twice:
+<pre>"mergeline.issueLinks": [
+  { "pattern": "\\b[A-Z][A-Z0-9]+-\\d+\\b", "url": "https://yourcompany.atlassian.net/browse/$0" },
+  { "pattern": "\\bAB#(\\d+)\\b", "url": "https://dev.azure.com/yourorg/yourproject/_workitems/edit/$1" }
+]</pre></li>
+        <li><strong>Click a commit.</strong> In the details pane, every match in the subject and body is a link; clicking it opens the issue in your browser.</li>
+      </ol>
+      <p>GitHub, GitLab and Bitbucket <code>#123</code> references keep working without any setting: Mergeline builds those links from the remote&rsquo;s URL. Nothing is fetched for either kind of link.</p>
+      <p><strong>What it does not do:</strong> it does not contact Jira or any other tracker, so it cannot show an issue&rsquo;s title or status, check that the issue exists, or sign you in. A key that matches your pattern becomes a link whether or not that issue is real, which is why a narrow pattern is worth the effort. It also does not change your commits; the messages stay as they are.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Does this work with self-hosted Jira (Data Center)?</summary>
+      <p>Yes, as long as your browser can open the URL. Only the URL template changes, for example <code>https://jira.example.com/browse/$0</code>. Mergeline never connects to it; your browser does, with your usual sign-in.</p>
+    </details>
+    <details>
+      <summary>Can I have several trackers at once?</summary>
+      <p>Yes. <code>mergeline.issueLinks</code> is a list, so add one entry per tracker, each with its own pattern and URL, as in the example above.</p>
+    </details>
+    <details>
+      <summary>Why is my pattern not matching?</summary>
+      <p>Usually a single backslash in the JSON: <code>"\b"</code> in JSON is a backspace character, not a word boundary. Write <code>"\\b"</code> and <code>"\\d"</code>. Mergeline also shows a warning naming any entry it skipped, for example a <code>url</code> that does not start with <code>http://</code> or <code>https://</code>, or a pattern that is not a valid regular expression. Test the pattern on a real message first, for example in your browser&rsquo;s developer console with <code>"PROJ-12 fix".match(/\b[A-Z][A-Z0-9]+-\d+\b/g)</code>.</p>
+    </details>
+    <details>
+      <summary>Do the links show in a plain <code>git log</code>?</summary>
+      <p>No. Git prints the message as text. VS Code&rsquo;s terminal makes full <code>https://</code> addresses clickable, so a trailer such as <code>Refs: https://yourcompany.atlassian.net/browse/PROJ-14</code> is clickable there, but a bare key is not.</p>
+    </details>
+    <p>Related: <a href="edit-commit-message-vscode.html">edit a commit message</a> (to add a forgotten key), <a href="create-pull-request-vscode.html">create a pull request</a> and <a href="find-commit-that-changed-file.html">find the commit that changed a file</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="link-jira-issues-git-commits-vscode.html" aria-current="page">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

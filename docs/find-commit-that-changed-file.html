@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find which commit changed a file or folder: search git history by path | Mergeline</title>
+<meta name="description" content="Find the commits that changed a file, folder or file type: git log -- path, globs, deleted files, --all, --full-history, -S, and a path: search in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/find-commit-that-changed-file.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Find which commit changed a file or folder: search git history by path">
+<meta property="og:description" content="git log with paths, globs and :(icase), commits on other branches, merges git hides, deleted files, and searching by path in a VS Code graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/find-commit-that-changed-file.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Find which commit changed a file or folder</h1>
+    <p>&ldquo;When did the auth code last change?&rdquo; &ldquo;Which commit deleted the setup doc?&rdquo; &ldquo;Who touched <code>package.json</code> on any branch?&rdquo; All of these are searches of history by path, and <code>git log</code> answers them once you know how it reads paths. This guide covers paths, folders and patterns, searching every branch, the commits git hides by default, deleted files, and a <code>path:</code> search in VS Code. For the full history of one file, with renames and blame, see the <a href="git-file-history-vscode.html">file history guide</a>.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#path">A file or a folder</a></li>
+        <li><a href="#patterns">Patterns: <code>*.md</code>, globs and case</a></li>
+        <li><a href="#all">Every branch, and merges git hides</a></li>
+        <li><a href="#deleted">Added or deleted files</a></li>
+        <li><a href="#content">By path and content</a></li>
+        <li><a href="#mergeline">Search by path in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Commits that changed a file or folder</td><td><code>git log --oneline -- src/auth</code></td></tr>
+          <tr><td>The last commit that changed it</td><td><code>git log -1 -- src/auth</code></td></tr>
+          <tr><td>Same, on every branch</td><td><code>git log --oneline --all -- src/auth</code></td></tr>
+          <tr><td>Every Markdown file, at any depth</td><td><code>git log --oneline --all -- '*.md'</code></td></tr>
+          <tr><td>Any path containing &ldquo;auth&rdquo;, any case</td><td><code>git log --oneline --all -- ':(icase)*auth*'</code></td></tr>
+          <tr><td>Include commits git simplifies away</td><td><code>git log --oneline --full-history -- src/auth</code></td></tr>
+          <tr><td>The commit that deleted a file</td><td><code>git log --oneline --diff-filter=D -- docs/setup.md</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in a throwaway repository and quote the output we saw.</p>
+
+    <h2 id="path">A file or a folder</h2>
+<pre><span class="k">git log --oneline --</span> src/auth
+<span class="o">0e68aeb Auth: token refresh
+1427501 Initial</span>
+<span class="k">git log -1 --format=</span>'%h %an %ad %s' <span class="k">--date=short --</span> src/auth
+<span class="k">git log --oneline --stat --</span> src/auth           <span class="c"># which files, how many lines</span></pre>
+    <p>Everything after <code>--</code> is a path. A folder matches every file inside it, at any depth. You can list several paths, and exclude some with <code>:!</code>: <code>git log -- src ':!src/auth'</code>. Paths are relative to the directory you run git in; from inside <code>src/</code>, <code>git log -- auth</code> gave the same two commits. Start a path with <code>:/</code> to make it relative to the top of the repository from anywhere.</p>
+    <p>A plain path matches from the start, not anywhere: <code>git log -- auth</code> run at the top found nothing, because there is no top-level <code>auth</code>. Matching is also case-sensitive, so <code>src/AUTH</code> found nothing either. The next section covers both.</p>
+
+    <h2 id="patterns">Patterns: <code>*.md</code>, globs and case</h2>
+<pre><span class="k">git log --oneline --all --</span> '*.md'                <span class="c"># any .md file, any folder</span>
+<span class="k">git log --oneline --all --</span> ':(glob)*.md'         <span class="c"># .md files at the top level only</span>
+<span class="k">git log --oneline --all --</span> ':(glob)**/*.md'      <span class="c"># any folder again</span>
+<span class="k">git log --oneline --all --</span> ':(icase)*auth*'      <span class="c"># "auth" anywhere in the path, any case</span></pre>
+    <p>Quote patterns so your shell does not expand them first. By default git&rsquo;s <code>*</code> also matches <code>/</code>, so <code>'*.md'</code> found commits to <code>README.md</code> and to <code>docs/setup.md</code>: five commits in our test. With the <code>:(glob)</code> prefix, <code>*</code> stops at a slash and only <code>**</code> crosses folders: <code>':(glob)*.md'</code> found just the two commits that changed the top-level <code>README.md</code>. <code>:(icase)</code> ignores case, and the two combine as <code>':(glob,icase)**/login*'</code>.</p>
+
+    <h2 id="all">Every branch, and merges git hides</h2>
+    <p><code>git log</code> looks only at the current branch&rsquo;s history unless you say otherwise. <code>--all</code> adds every branch, remote branch and tag. In our test, <code>git log -- '*.md'</code> on <code>main</code> found four commits; with <code>--all</code> it found a fifth, <code>Docs on other branch</code>, made on a branch that was never merged.</p>
+    <p>Git also <em>simplifies</em> history when you give a path. If a merge left the path exactly as one parent had it, git follows only that parent and skips the other side. We merged a branch that changed <code>src/auth</code> but kept <code>main</code>&rsquo;s version of the files. The plain log showed two commits; <code>--full-history</code> showed four:</p>
+<pre><span class="k">git log --oneline --full-history --</span> src/auth
+<span class="o">b7b3f26 Merge feature (ours)
+bcd7749 Feature tweak to login
+0e68aeb Auth: token refresh
+1427501 Initial</span></pre>
+    <p>When a change you are sure was made does not show up, add <code>--full-history</code> before concluding it never happened.</p>
+
+    <h2 id="deleted">Added or deleted files</h2>
+<pre><span class="k">git log --oneline --</span> docs/setup.md
+<span class="o">5e56430 Remove setup doc
+204f702 Docs: setup</span>
+<span class="k">git log --oneline --diff-filter=D --name-only --</span> docs
+<span class="o">5e56430 Remove setup doc
+docs/setup.md</span></pre>
+    <p>For a file that no longer exists the <code>--</code> is required: without it git stopped with <code>fatal: ambiguous argument 'docs/setup.md': unknown revision or path not in the working tree</code>. <code>--diff-filter=D</code> keeps only commits that deleted a matching file, and <code>--name-only</code> says which; use <code>A</code> for the commit that added it. If the file was renamed rather than deleted, <code>--follow</code> traces it back through its old name, for one file at a time.</p>
+
+    <h2 id="content">By path and content</h2>
+<pre><span class="k">git log --oneline --all -S</span> retryTimeout <span class="k">--</span> src/api
+<span class="o">b4920a3 API: retry</span></pre>
+    <p><code>-S</code> finds commits that added or removed a string; with a path it searches only those files. <code>-G</code> takes a regular expression instead. Both are explained in the <a href="git-file-history-vscode.html#lines">file history guide</a>.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Search by path in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.11 its Find box searches by changed path as well as by subject, author, hash and branch name, and shows the matches in the graph, on their branches.</p>
+      <ol class="steps">
+        <li><strong>Open Find</strong> with <kbd>Ctrl</kbd>+<kbd>F</kbd> (<kbd>Cmd</kbd>+<kbd>F</kbd> on macOS) in the graph.</li>
+        <li><strong>Type <code>path:</code> and some text</strong>, for example <code>path:src/auth</code>, <code>path:package.json</code> or <code>path:*.md</code>, and press <kbd>Enter</kbd>.</li>
+        <li><strong>Step through the matches</strong> with next and previous. Mergeline searches the whole history, not only the commits loaded so far, and loads a match&rsquo;s place in the graph when you get to it.</li>
+      </ol>
+      <p>Plain text matches any changed file or folder whose path contains it, ignoring case, much like <code>':(icase)*auth*'</code> above. If the text has <code>*</code>, <code>?</code> or <code>[</code>, it is used as a glob pattern instead.</p>
+      <p><strong>What it does not do:</strong> it searches paths, not file contents, so use <code>git log -S</code> for that, and it steps through matches in the full graph rather than hiding the other commits. To narrow the graph to one file and follow it through renames, use <strong>Show File History in Mergeline</strong> from the <a href="git-file-history-vscode.html#mergeline">file history guide</a>. It also applies git&rsquo;s default history simplification, the same as a plain <code>git log -- &lt;path&gt;</code>: a side branch whose change to the path was thrown away by its merge (for example <code>-s ours</code>) does not match. Run <code>git log --full-history -- &lt;path&gt;</code> in a terminal for those.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>How do I see what a found commit changed in that file?</summary>
+      <p><code>git show &lt;commit&gt; -- &lt;path&gt;</code> shows the diff for just that path, and <code>git log -p -- &lt;path&gt;</code> shows it for every match at once. In Mergeline, click the commit and then the file in its details.</p>
+    </details>
+    <details>
+      <summary>Why does <code>git log -- auth</code> find nothing?</summary>
+      <p>Plain paths match from the start of the path, relative to where you run git, so <code>auth</code> means a top-level <code>auth</code> file or folder. Write the full path, <code>src/auth</code>, or a pattern such as <code>'*auth*'</code>.</p>
+    </details>
+    <details>
+      <summary>Which commit introduced a bug in this folder?</summary>
+      <p>When you can test for the bug, <code>git bisect</code> is faster than reading the log: it checks out commits between a good and a bad one and asks you which is which. Passing a path, <code>git bisect start &lt;bad&gt; &lt;good&gt; -- src/auth</code>, limits it to commits that changed that folder.</p>
+    </details>
+    <p>Related: <a href="git-file-history-vscode.html">git file history in VS Code</a>, <a href="git-log-graph.html"><code>git log --graph</code></a> and <a href="filter-git-graph-by-branch.html">show only some branches</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html" aria-current="page">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

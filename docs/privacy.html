@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy policy | Mergeline</title>
-<meta name="description" content="Mergeline collects nothing and makes no network requests of its own. Git runs on your machine; fetch and push go to your own remotes, only when you ask.">
+<meta name="description" content="Mergeline collects nothing. Unless you turn on avatars it makes no network requests of its own; fetch and push go to your remotes only when you ask.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/privacy.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Mergeline">
 <meta property="og:title" content="Privacy policy | Mergeline">
-<meta property="og:description" content="Mergeline collects nothing: no telemetry, no analytics, no account, no network requests of its own.">
+<meta property="og:description" content="Mergeline collects nothing: no telemetry, no analytics, no account, and no network requests of its own unless you turn on avatars.">
 <meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/privacy.html">
 <meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="style.css">
@@ -34,13 +34,14 @@
     <h1>Privacy policy</h1>
     <p class="small">Last updated 20 November 2026. Applies to the Mergeline extension and to this website.</p>
 
-    <div class="note"><p><strong>Short version:</strong> Mergeline collects nothing and makes no network requests of its own. It runs git on your computer. Fetch and push reach your own remotes, and only when you ask for them.</p></div>
+    <div class="note"><p><strong>Short version:</strong> Mergeline collects nothing, and unless you turn on avatars it makes no network requests of its own. It runs git on your computer. Fetch and push reach your own remotes, and only when you ask for them.</p></div>
 
     <h2>The extension</h2>
     <ul>
       <li><strong>No telemetry or analytics.</strong> Mergeline does not record or report which commands you use, how often you open the graph, errors, repository names, or anything about your machine.</li>
       <li><strong>No account.</strong> There is no sign-in, licence key or registration, so there is no personal data about you to hold.</li>
-      <li><strong>No network requests of its own.</strong> Mergeline has no server. It does not check for updates, ping anything, or download avatars or other images. The graph view loads no remote scripts, fonts or styles.</li>
+      <li><strong>No network requests of its own.</strong> Mergeline has no server. It does not check for updates or ping anything, and with the default settings it does not download avatars or other images (see the next point). The graph view loads no remote scripts, fonts or styles.</li>
+      <li><strong>Avatars, only if you turn them on.</strong> The <code>mergeline.showAvatars</code> setting is off by default. When you turn it on, VS Code loads each author&rsquo;s picture from <code>avatars.githubusercontent.com</code> for GitHub noreply email addresses, or from <code>gravatar.com</code>, in which case the request contains an MD5 hash of the author&rsquo;s email address. Mergeline sends nothing else with these requests, and nothing at all while the setting is off. As with any image on the web, the service receives your IP address, and an MD5 hash is not anonymous: anyone who already knows an address can compute the same hash and recognise it.</li>
       <li><strong>Git runs locally.</strong> To draw the graph, Mergeline runs git commands such as <code>git log</code>, <code>git for-each-ref</code>, <code>git status</code> and <code>git show</code> in your workspace. Their output is shown in the editor and is not sent anywhere.</li>
       <li><strong>Remotes only when you ask.</strong> A few actions talk to a remote because that is their whole purpose: <em>Fetch</em>, pushing a branch or tag, and deleting a branch or tag on the remote. They go to the remotes configured in your repository (for example <code>origin</code>), and they run only when you choose them. When VS Code&rsquo;s built-in git extension is available, push and fetch go through it, so authentication uses your existing credential helper or the editor&rsquo;s sign-in prompt. Mergeline never sees or stores your credentials.</li>
       <li><strong>Your git configuration still applies.</strong> Because Mergeline runs real git, anything you have set up in git runs too: hooks such as <code>pre-push</code>, credential helpers, and so on. Those are yours, not Mergeline&rsquo;s.</li>
@@ -76,6 +77,7 @@
       <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
       <a href="git-log-graph.html">git log --graph</a>
       <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
@@ -95,6 +97,8 @@
       <a href="create-pull-request-vscode.html">Create a pull request</a>
       <a href="code-review-commits-vscode.html">Review file by file</a>
       <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
       <a href="filter-git-graph-by-branch.html">Filter by branch</a>
       <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
     </nav>

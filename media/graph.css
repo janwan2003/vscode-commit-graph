@@ -210,3 +210,14 @@ button:disabled { opacity: .5; cursor: default; }
 #opbar button.link { background: none; border: none; padding: 0; margin: 0; font: inherit; font-family: var(--vscode-editor-font-family); color: var(--vscode-textLink-foreground); cursor: pointer; min-width: 0; }
 #opbar button.link:hover { text-decoration: underline; background: none; }
 #opbar button.link:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+
+/* Avatars (mergeline.showAvatars): initials under the image, so a missing image still shows something. */
+.av { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 16px; height: 16px; margin-right: 5px; vertical-align: middle; position: relative; top: -1px; border-radius: 50%; overflow: hidden; font-size: 8px; font-weight: 700; line-height: 1; color: #fff; background: var(--av, var(--lane-0)); }
+.av-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--vscode-editor-background); }
+.d-meta .av { width: 20px; height: 20px; font-size: 9px; vertical-align: -5px; }
+/* Tags on the commit in the details pane: name, tagger and the annotated tag's message. */
+.d-tags { margin: 0 0 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.d-tag { border-left: 3px solid var(--lane-3); padding: 2px 8px; background: color-mix(in srgb, var(--lane-3) 8%, transparent); }
+.d-tag .badge { margin-right: 6px; }
+.d-tag .tmeta { color: var(--vscode-descriptionForeground); }
+.d-tag pre { margin: 3px 0 0; white-space: pre-wrap; font-family: inherit; }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.0 (2026-11-20)
+
+- **Find commits by changed path.** Type `path:` and some text in Find (`path:src/auth`, `path:package.json`, `path:*.md`) and press Enter: Mergeline searches the whole history, not just the loaded commits, for commits that changed a file or folder whose path contains the text (case-insensitive), or matches the glob when it has `*`, `?` or `[`. Step through the matches as usual; an unloaded match is loaded when you reach it. It uses git's default history simplification, like `git log -- <path>`.
+- **Issue links for any tracker.** New setting `mergeline.issueLinks`: rules like `{ "pattern": "\\bPROJ-\\d+\\b", "url": "https://yourcompany.atlassian.net/browse/$0" }` turn Jira, Linear, YouTrack or other keys in commit and tag messages into links (`$0` is the match, `$1`… its groups). Invalid rules are skipped with a warning. GitHub, GitLab and Bitbucket `#123` links still work without it.
+- **Save as archive.** Right-click a commit, branch, remote branch or tag → **Save as archive (zip, tar.gz)…** writes the tracked files at that commit to a `.zip`, `.tar.gz` or `.tar` (`git archive`, with one top folder named after the file; `export-ignore` paths are left out).
+- **Tag details.** The details pane lists the tags on a commit: annotated tags with their tagger, date and message, lightweight tags marked as such. Tag badges gain **Show tag details**.
+- **Avatars (opt-in).** New setting `mergeline.showAvatars` (off by default) shows author avatars in the graph and the details pane: GitHub noreply addresses use the GitHub avatar, other addresses Gravatar (an MD5 hash of the email). Authors without an avatar get their initials in a coloured circle. While the setting is off, nothing is requested.
+
 ## 0.10.0 (2026-11-20)
 
 - **Fixup commits.** Right-click a commit on the checked-out branch → **Create fixup commit for this** turns your staged changes into a `fixup!` commit for it (`git commit --fixup`). If nothing is staged it offers to stage your changes to tracked files first (`git add -u`; new files are left out). When the branch has `fixup!`, `squash!` or `amend!` commits, the commit menu offers **Squash N fixup commits into their targets…**: one `git rebase --autosquash` from the parent of the oldest target, with no editor, the usual autostash, a warning when the commits are already pushed, and Undo.

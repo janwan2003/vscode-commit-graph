@@ -108,4 +108,16 @@
     <loc>https://janwan2003.github.io/vscode-commit-graph/resolve-merge-conflicts-vscode.html</loc>
     <lastmod>2026-11-20</lastmod>
   </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/find-commit-that-changed-file.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/link-jira-issues-git-commits-vscode.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
+  <url>
+    <loc>https://janwan2003.github.io/vscode-commit-graph/git-archive-zip-commit-vscode.html</loc>
+    <lastmod>2026-11-20</lastmod>
+  </url>
 </urlset>

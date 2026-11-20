@@ -31,7 +31,13 @@ account, has no paid tier and sends no telemetry.
 ![Bar above the graph: Rebasing main onto feature/dark-mode, step 2 of 5, 2 conflicted files, with Continue, Skip, Abort and Source Control buttons](docs/screenshot-rebase.png)
 
 - **Worktrees**: other worktrees show as a ⧉ badge on the commit they have checked out. Create one from a branch or commit, open it in a new window, or remove it, from the right-click menus.
-- **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches. **All history** (or Enter when nothing loaded matches) searches every commit the graph can show, not just the loaded ones (`git log --grep` / `--author`, hash prefix, ref names), and loads as far as needed to show the match.
+- **Issue links**: `#123` links to GitHub, GitLab or Bitbucket on its own. For Jira, Linear or any tracker, add rules to `mergeline.issueLinks` and matching keys in commit and tag messages become links:
+  ```json
+  "mergeline.issueLinks": [{ "pattern": "\\bPROJ-\\d+\\b", "url": "https://yourcompany.atlassian.net/browse/$0" }]
+  ```
+- **Tags and avatars**: the details pane shows each tag on the commit, with the tagger, date and message of annotated tags. Author avatars are opt-in (`mergeline.showAvatars`); see Settings.
+![Details of a tagged commit: the annotated tag v1.0.0 with tagger and message, PROJ-142 and PROJ-157 as links, and author avatars in the graph](docs/screenshot-tags.png)
+- **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches. **All history** (or Enter when nothing loaded matches) searches every commit the graph can show, not just the loaded ones (`git log --grep` / `--author`, hash prefix, ref names), and loads as far as needed to show the match. Type `path:` and some text (`path:src/auth`, `path:*.md`) and press Enter to step through every commit that changed a matching file or folder (case-insensitive; a glob when it has `*`, `?` or `[`).
 - **File history**: right-click a file (Explorer, editor tab or editor) → **Show File History in Mergeline** to see only the commits that touched it, still drawn as a connected graph. Renamed or moved files are followed back through their old names (shown in the bar above the graph).
 - **Filter**: tick the branches you want in the **Branches** checklist (any number, local or remote) to see only their history, or pick **Current branch**. Hide remote branches with one click. The `mergeline.dimOtherCommits` setting fades commits that are not in your branch's history.
 ![The Branches checklist with main and release/1.1 ticked; a commit that is not in main's history is dimmed](docs/screenshot-branches.png)
@@ -44,10 +50,10 @@ account, has no paid tier and sends no telemetry.
 
 | On | Actions |
 |---|---|
-| Commit | Create branch here · Add tag (lightweight or annotated) · Check out (detached) · Cherry-pick · Revert · Merge into current branch (fast-forward, `--no-ff` or `--squash`) · Rebase current branch onto it · Interactive rebase from here (in a terminal) · Reset current branch to it (soft, mixed or hard) · On the checked-out branch: Edit commit message (subject and body) · Move commit up / down · Squash into parent · Stop at this commit to change it · Create fixup commit for this · Squash fixup commits into their targets · Drop commit · Squash N commits into one (with a Ctrl/Cmd-click selection) · Review changes file by file · Compare with working tree · Create worktree here (detached) · Open on GitHub/GitLab/Bitbucket · Copy hash or subject |
-| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Create pull request on GitHub/GitLab/Bitbucket · Rename · Delete (asks before force-deleting an unmerged branch) · Copy name |
-| Remote branch | Check out as a local tracking branch · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Open on GitHub/GitLab/Bitbucket · Create pull request · Delete on remote · Manage remote · Copy name |
-| Tag | Push · Merge · Delete locally or also on the remote · Copy name |
+| Commit | Create branch here · Add tag (lightweight or annotated) · Check out (detached) · Cherry-pick · Revert · Merge into current branch (fast-forward, `--no-ff` or `--squash`) · Rebase current branch onto it · Interactive rebase from here (in a terminal) · Reset current branch to it (soft, mixed or hard) · On the checked-out branch: Edit commit message (subject and body) · Move commit up / down · Squash into parent · Stop at this commit to change it · Create fixup commit for this · Squash fixup commits into their targets · Drop commit · Squash N commits into one (with a Ctrl/Cmd-click selection) · Review changes file by file · Compare with working tree · Create worktree here (detached) · Open on GitHub/GitLab/Bitbucket · Save as archive (zip, tar.gz, tar) · Copy hash or subject |
+| Branch | Check out (or open its worktree, if another worktree has it) · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Push (sets upstream) · Pull · Create pull request on GitHub/GitLab/Bitbucket · Rename · Delete (asks before force-deleting an unmerged branch) · Save as archive · Copy name |
+| Remote branch | Check out as a local tracking branch · Merge · Rebase onto · Compare with current branch · Changes since it split from the current branch · Check out in new worktree · Open on GitHub/GitLab/Bitbucket · Create pull request · Delete on remote · Manage remote · Save as archive · Copy name |
+| Tag | Show tag details · Push · Merge · Save as archive · Delete locally or also on the remote · Copy name |
 | Stash | Apply · Pop · Create branch from stash · Drop |
 | Worktree badge | Open in new window · Copy path · Remove worktree (asks again before discarding uncommitted changes) · Prune missing worktrees |
 | Branch dropped on a branch or commit | Merge into it · Rebase onto it · Move the branch there (reset, if current) · Compare · Changes since they split |
@@ -72,6 +78,8 @@ Push, pull and fetch go through VS Code's built-in Git, so your usual credential
 | `mergeline.statusBarButton` | true | Show the status-bar button. |
 | `mergeline.dateFormat` | relative | `relative`, `iso` or `locale`. |
 | `mergeline.dimOtherCommits` | false | Dim commits that are not in the checked-out branch's history. |
+| `mergeline.issueLinks` | [] | Rules that turn issue keys in messages into links: `{ "pattern": "<regex>", "url": "https://…/$0" }` (`$1`… are groups). |
+| `mergeline.showAvatars` | false | Show author avatars. When on, VS Code loads them from `avatars.githubusercontent.com` (GitHub noreply emails) or `gravatar.com` (an MD5 hash of the email); otherwise nothing is requested. Authors without one show initials. |
 
 ## Why Mergeline
 
@@ -79,7 +87,7 @@ Push, pull and fetch go through VS Code's built-in Git, so your usual credential
 - **Free, with nothing paywalled.** The graph and every action are free. There is no account and no "Pro" tier.
 - **Open source and forkable.** MIT licence. You can fork it, fix it and publish your fork.
 - **Everywhere.** The end-to-end suite passes in VS Code and in VSCodium. It uses only the standard extension API, which Cursor and Windsurf also provide, and it runs git wherever your workspace is, so remote (SSH, WSL, container) sessions work the same way.
-- **Private.** Mergeline makes no network requests of its own. Fetch and push talk only to your own remotes, and only when you ask. Web links (Open on GitHub, issue numbers) open in your browser only when you click them.
+- **Private.** Mergeline makes no network requests of its own (the one exception is avatars, off by default: `mergeline.showAvatars`). Fetch and push talk only to your own remotes, and only when you ask. Web links (Open on GitHub, issue numbers) open in your browser only when you click them.
 
 ## Requirements
 

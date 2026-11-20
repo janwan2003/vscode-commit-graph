@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download a git commit, branch or tag as a zip: git archive in VS Code | Mergeline</title>
+<meta name="description" content="Save any commit, branch or tag as a .zip or .tar.gz with git archive: --format, -o, --prefix, one folder only, export-ignore, and doing it in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-archive-zip-commit-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Download a git commit, branch or tag as a zip: git archive in VS Code">
+<meta property="og:description" content="git archive for any commit, branch or tag: zip or tar.gz, a top-level folder, one subfolder, what is left out, and export-ignore.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-archive-zip-commit-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Download a git commit, branch or tag as a zip with <code>git archive</code></h1>
+    <p>Sometimes you need the files of a project as they were at one point, without the history: a release to hand to a customer, a snapshot to attach to a ticket, or an old version to unpack next to the current one. Zipping your project folder is the wrong tool, because it picks up <code>.git</code>, build output, <code>node_modules</code>, <code>.env</code> files and whatever you have not committed. <code>git archive</code> packs exactly what a commit contains. This guide covers the command, its useful options, what is and is not included, and how to do it from the graph in VS Code.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#basic">Zip a commit, branch or tag</a></li>
+        <li><a href="#included">What is in the archive</a></li>
+        <li><a href="#exportignore">Leave files out: <code>export-ignore</code></a></li>
+        <li><a href="#options">A top folder, one subfolder</a></li>
+        <li><a href="#mergeline">Save as archive in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Zip the current commit</td><td><code>git archive -o project.zip HEAD</code></td></tr>
+          <tr><td>A tag as <code>.tar.gz</code></td><td><code>git archive -o project-1.0.tar.gz v1.0</code></td></tr>
+          <tr><td>A remote branch, or any commit</td><td><code>git archive -o snap.zip origin/main</code> or <code>&hellip; 4e7d0c2</code></td></tr>
+          <tr><td>Put everything inside one top folder</td><td><code>git archive --prefix=project-1.0/ -o project-1.0.zip v1.0</code></td></tr>
+          <tr><td>Only one subfolder</td><td><code>git archive -o src.zip HEAD src/</code></td></tr>
+          <tr><td>See which formats your git supports</td><td><code>git archive --list</code></td></tr>
+          <tr><td>Find the commit a <code>.tar</code> was made from</td><td><code>git get-tar-commit-id &lt; project.tar</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in throwaway repositories and quote the output we saw.</p>
+
+    <h2 id="basic">Zip a commit, branch or tag</h2>
+<pre><span class="k">git archive --format=zip -o</span> /tmp/out.zip HEAD
+<span class="k">git archive -o</span> /tmp/out.tar.gz v1.0       <span class="c"># format taken from the file name</span>
+<span class="k">git archive -o</span> /tmp/out.tar main
+<span class="k">git archive --list</span>
+<span class="o">tar
+tgz
+tar.gz
+zip</span></pre>
+    <p>The last argument is what to pack: a branch, a remote branch such as <code>origin/main</code>, a tag, a hash, or an expression like <code>HEAD~3</code>. With <code>-o</code>, git picks the format from the file extension: in our test <code>out.zip</code> came out as a zip archive, <code>out.tar.gz</code> and <code>.tgz</code> as gzip-compressed tar, and <code>.tar</code> as plain tar. <code>--format=zip</code> sets it explicitly. Without <code>-o</code>, git writes a tar archive to standard output, which is handy for piping: <code>git archive HEAD | tar -x -C /tmp/snapshot</code>.</p>
+    <p>Zip opens anywhere with a double-click, including Windows; <code>.tar.gz</code> is the norm for Linux and source releases and is usually smaller. For zip, <code>-9</code> asks for the best compression.</p>
+
+    <h2 id="included">What is in the archive</h2>
+    <p>Only the files git tracks, exactly as they are in that commit. In our test repository, which also had an untracked <code>notes.txt</code>, an ignored <code>.env</code> and an ignored <code>node_modules/</code>, the zip of <code>HEAD</code> listed:</p>
+<pre><span class="o">.gitignore
+README.md
+docs/
+docs/guide.md
+package.json
+src/
+src/auth/
+src/auth/login.ts</span></pre>
+    <ul>
+      <li><strong>No <code>.git</code> folder</strong>, so no history; the receiver gets files, not a repository.</li>
+      <li><strong>No untracked or ignored files</strong>, even if they are on your disk.</li>
+      <li><strong>No uncommitted changes.</strong> We edited <code>README.md</code> without committing; the archive of <code>HEAD</code> still had the committed text. Commit first if you want your edits in.</li>
+      <li><strong>Submodules are empty folders.</strong> A submodule at <code>lib/sub</code> appeared only as <code>lib/sub/</code>, with nothing inside.</li>
+      <li><strong>File dates are the commit date</strong>, not today. After a commit made with a 2024 date, every file in the archive was dated 2024-03-05.</li>
+      <li><strong>The commit is recorded.</strong> For a tar archive, <code>git get-tar-commit-id</code> printed the full hash of the commit it was made from, and a zip carries the same hash as its archive comment (<code>unzip -l</code> shows it on the second line).</li>
+    </ul>
+
+    <h2 id="exportignore">Leave files out: <code>export-ignore</code></h2>
+    <p>Tests, CI configuration and other files your users do not need can be kept out of every archive with a line in <code>.gitattributes</code>:</p>
+<pre>tests/          export-ignore
+.gitattributes  export-ignore</pre>
+    <p>After committing that, the archive of the commit no longer had <code>tests/</code> or <code>.gitattributes</code>. Git reads the <code>.gitattributes</code> <em>of the commit being archived</em>: when we added <code>docs/ export-ignore</code> without committing it, <code>docs/</code> was still included. <code>--worktree-attributes</code> makes git use your working copy&rsquo;s attributes instead; with it, <code>docs/</code> was left out. Archiving an old tag therefore follows the rules that were in place at that tag.</p>
+
+    <h2 id="options">A top folder, one subfolder</h2>
+<pre><span class="k">git archive --prefix=</span>myapp-1.0/ <span class="k">-o</span> myapp-1.0.tar.gz v1.0
+<span class="o">myapp-1.0/
+myapp-1.0/README.md
+myapp-1.0/src/auth/login.ts  &hellip;</span>
+<span class="k">git archive -o</span> src.zip HEAD src/          <span class="c"># keeps the src/ folder</span>
+<span class="k">git archive</span> HEAD:src | tar -t              <span class="c"># contents of src/ at the top</span>
+<span class="o">auth/
+auth/login.ts</span></pre>
+    <p><code>--prefix</code> puts every path under one folder, so unpacking does not spill files into the current directory. Keep the trailing slash; without it the prefix is glued to each file name. Paths after the commit limit the archive to those files or folders. <code>HEAD:src</code> archives the folder&rsquo;s contents with <code>src/</code> itself removed from the paths.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Save as archive in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.11 you can save any point in the graph as an archive without typing a ref.</p>
+      <ol class="steps">
+        <li><strong>Right-click</strong> a commit, a branch badge (local or remote) or a tag, and choose <strong>Save as archive (zip, tar.gz)&hellip;</strong></li>
+        <li><strong>Choose where and which format</strong> in the save dialog: <code>.zip</code>, <code>.tar.gz</code> or <code>.tar</code>.</li>
+        <li>Mergeline runs <code>git archive</code> on that commit and writes the file. Everything goes inside one top folder named after the file, so <code>app-v1.0.zip</code> unpacks into <code>app-v1.0/</code>, as with <code>--prefix</code> above.</li>
+      </ol>
+      <p>The archive follows the rules above: the tracked files at that commit only, no <code>.git</code> folder, no untracked or ignored files, and paths marked <code>export-ignore</code> in <code>.gitattributes</code> are left out. To archive a single subfolder, or to use <code>--worktree-attributes</code>, run the command in the terminal.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Is this the same as &ldquo;Download ZIP&rdquo; on GitHub or GitLab?</summary>
+      <p>The result is similar, but the web button only works for commits that are pushed, and it downloads from the server. <code>git archive</code> runs on your machine and works for any commit you have, including local branches nobody else has seen.</p>
+    </details>
+    <details>
+      <summary>Can I get just the files that changed in one commit?</summary>
+      <p>Not with a plain <code>git archive</code>, which always packs whole trees. You can pass it the changed paths: <code>git archive -o changed.zip HEAD $(git diff --name-only HEAD~1 HEAD)</code>. That fails if the commit deleted a file, because the path no longer exists in <code>HEAD</code>, and file names with spaces need more care.</p>
+    </details>
+    <details>
+      <summary>How do I unpack an old version next to my project?</summary>
+      <p><code>mkdir /tmp/v1 &amp;&amp; git archive v1.0 | tar -x -C /tmp/v1</code>. If you want to build and work in it with git, a <a href="git-worktree-vscode.html">worktree</a> is usually better, since it keeps the history.</p>
+    </details>
+    <p>Related: <a href="git-file-history-vscode.html">see an old version of one file</a>, <a href="compare-branches-commits-vscode.html">compare branches and commits</a> and <a href="git-worktree-vscode.html">git worktrees</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html" aria-current="page">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

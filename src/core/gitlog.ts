@@ -204,12 +204,30 @@ export async function searchLog(cwd: string, o: LogOptions, query: string, refs:
     if (e instanceof GitError && EMPTY_REPO.test(e.message)) return '';
     throw e;
   });
-  const [all, msg, author] = await Promise.all([run([]), run(['-i', '-F', `--grep=${q}`]), run(['-i', '-F', `--author=${q}`])]);
   const hit = new Set<string>();
-  for (const out of [msg, author]) for (const h of out.split('\n')) if (h) hit.add(h);
+  const pq = pathQuery(q);
+  let all: string;
+  let hex = false;
   const lq = q.toLowerCase();
-  for (const r of refs) if (r.name.toLowerCase().includes(lq)) hit.add(r.sha);
-  const hex = /^[0-9a-f]{4,40}$/.test(lq);
+  if (pq !== null) {
+    // "path:<text>": commits that changed a matching file or folder. The path search ignores the
+    // file-history filter; intersecting with `all` (which keeps it) gives both.
+    if (!pq) return { matches: [], total: 0 };
+    const specs = pathSpecs(pq);
+    const touched = git(cwd, [...logArgs({ ...o, paths: undefined }, ['--format=%H']), ...specs]).catch((e) => {
+      if (e instanceof GitError && EMPTY_REPO.test(e.message)) return '';
+      throw e;
+    });
+    const [a, t] = await Promise.all([run([]), touched]);
+    all = a;
+    for (const h of t.split('\n')) if (h) hit.add(h);
+  } else {
+    const [a, msg, author] = await Promise.all([run([]), run(['-i', '-F', `--grep=${q}`]), run(['-i', '-F', `--author=${q}`])]);
+    all = a;
+    for (const out of [msg, author]) for (const h of out.split('\n')) if (h) hit.add(h);
+    for (const r of refs) if (r.name.toLowerCase().includes(lq)) hit.add(r.sha);
+    hex = /^[0-9a-f]{4,40}$/.test(lq);
+  }
   const matches: HistoryMatch[] = [];
   let total = 0;
   let index = 0;
@@ -222,6 +240,53 @@ export async function searchLog(cwd: string, o: LogOptions, query: string, refs:
     index++;
   }
   return { matches, total };
+}
+
+/** The text after a leading "path:" in a find query (trimmed, "./" and "/" stripped), or null when the query is not a path search. */
+export function pathQuery(q: string): string | null {
+  const m = /^path:\s*(.*)$/i.exec(q.trim());
+  if (!m) return null;
+  return m[1].trim().replace(/^(\.\/|\/)+/, '');
+}
+
+/**
+ * Pathspecs (from the repository root, case-insensitive) for a path search. With a glob
+ * character (* ? [) the text is a glob, matched at the top and in any folder. Otherwise it
+ * matches the exact path or folder, and any file or folder whose path contains the text.
+ */
+export function pathSpecs(p: string): string[] {
+  if (/[*?[]/.test(p)) return [`:(top,icase,glob)${p}`, `:(top,icase,glob)**/${p}`, `:(top,icase,glob)**/${p}/**`];
+  return [`:(top,icase,literal)${p}`, `:(top,icase,glob)**/*${p}*`, `:(top,icase,glob)**/*${p}*/**`];
+}
+
+export interface TagInfo {
+  name: string;
+  /** False for a lightweight tag (no tagger or message). */
+  annotated: boolean;
+  tagger?: string;
+  email?: string;
+  date?: number;
+  message?: string;
+}
+
+/** Tags that point at `sha` (annotated tags peeled), with the tagger and message of annotated ones. */
+export async function readTags(cwd: string, sha: string): Promise<TagInfo[]> {
+  const out = await git(cwd, ['for-each-ref', `--points-at=${sha}`, '--sort=-creatordate', `--format=%(refname:short)${US}%(objecttype)${US}%(taggername)${US}%(taggeremail)${US}%(taggerdate:unix)${US}%(contents:subject)${US}%(contents:body)${RS}`, 'refs/tags']);
+  return parseTags(out);
+}
+
+export function parseTags(out: string): TagInfo[] {
+  const tags: TagInfo[] = [];
+  for (const rec of out.split(RS)) {
+    const r = rec.replace(/^\n/, '');
+    if (!r) continue;
+    const [name, type, tagger, email, date, subject, ...body] = r.split(US);
+    // contents:subject/body leave out a signed tag's signature block.
+    const b = body.join(US).replace(/\s+$/, '');
+    if (type === 'tag') tags.push({ name, annotated: true, tagger, email: email.replace(/^<|>$/g, ''), date: Number(date) || undefined, message: (subject ?? '') + (b ? '\n\n' + b : '') });
+    else tags.push({ name, annotated: false });
+  }
+  return tags;
 }
 
 export function parseRefs(out: string): Ref[] {

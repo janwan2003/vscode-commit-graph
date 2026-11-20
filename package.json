@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -188,6 +188,24 @@
           "type": "boolean",
           "default": false,
           "description": "Dim commits that are not in the checked-out branch's history, so its line stands out."
+        },
+        "mergeline.showAvatars": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show author avatars in the graph and the details pane. Off by default: when on, VS Code loads images from `avatars.githubusercontent.com` (GitHub noreply emails) or `gravatar.com` (an MD5 hash of the email). Authors without an avatar show their initials."
+        },
+        "mergeline.issueLinks": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Turn issue keys in commit messages into links, e.g. Jira: `[{ \"pattern\": \"\\\\b[A-Z][A-Z0-9]+-\\\\d+\\\\b\", \"url\": \"https://yourcompany.atlassian.net/browse/$0\" }]`. `pattern` is a JavaScript regular expression; in `url`, `$0` is the whole match and `$1`… are its groups. GitHub, GitLab and Bitbucket `#123` links work without this.",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "url"],
+            "properties": {
+              "pattern": { "type": "string", "description": "JavaScript regular expression, e.g. \\b[A-Z][A-Z0-9]+-\\d+\\b" },
+              "url": { "type": "string", "description": "Link template: $0 is the whole match, $1… the groups. Must start with http:// or https://." }
+            }
+          }
         }
       }
     }

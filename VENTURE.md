@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.10.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 10).
+**Mergeline 0.11.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 11).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.10.0
-  (`mergeline-0.10.0.vsix`, 67 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.11.0
+  (`mergeline-0.11.0.vsix`, 72 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  27 SEO guides (session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  30 SEO guides (session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (27 URLs). Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (30 URLs). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -180,6 +180,14 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   in `src/ext/panel.ts`); **append-only Load more** (`GraphPanel.load` keeps the `LayoutState`; when only the page size changed and the shown
   commits are a prefix of the new list it posts `{type:'append'}` with just the new rows; webview `appendData`). Fixed with it: the webview's
   `headReach`/`editableSet` caches are keyed on `data` and went stale on append.
+  **0.11.0 added:** **find by changed path** (Find `path:<text>` + Enter → `searchLog` runs `git log -- <pathspecs>` from `pathSpecs` in
+  `src/core/gitlog.ts`: `:(top,icase,literal)p`, `**/*p*`, `**/*p*/**`, or the glob at top and in folders; default simplification, not
+  `--full-history`, so merges that only bring a side branch in do not match); **issue links** (setting `mergeline.issueLinks`, validated by
+  `issueLinkRules` in `src/core/remote.ts`, applied by `linkify` in `media/graph.js` to commit and tag messages, overlaps resolved by start);
+  **Save as archive** on commit/branch/remote/tag menus (action `archive` in `src/ext/actions.ts`: save dialog, `git archive --format --prefix`);
+  **tag details** (`readTags`: `for-each-ref --points-at`, annotated with tagger/date/subject+body, shown as `.d-tag` blocks; tag menu
+  "Show tag details"); **opt-in avatars** (`mergeline.showAvatars`, `src/core/misc.ts` `avatarUrl`: GitHub noreply → avatars.githubusercontent.com,
+  else Gravatar md5 `d=404`; initials circle underneath; CSP `img-src` allows only those two hosts).
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -357,6 +365,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 11): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2, v0.9.0 2, v0.10.0 2
+  (read before the v0.11.0 release); 0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`,
+  `.../traffic/clones`). Search Console: no rows (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never
+  downloaded, 0 errors (`sitemaps.list`).
+
 - 2026-11-20 (session 10): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2, v0.9.0 1 (read before the
   v0.10.0 release); 0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
   (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`).
@@ -399,13 +412,13 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Edit history, next pieces (0.10 shipped fixup commits): review mode "Review changes since it split" on branch menus and a keyboard shortcut
-   for Next unreviewed; a "Squash now" end-to-end check (click the notification button).
-3. Load more now appends (0.10). Next for big repos: measure webview-side time per append on git.git (Chromium shot with a large payload), and a
-   "jump to date/commit" that loads straight to it.
-4. Still missing that Git Graph users have: avatars (opt-in; needs network, off by default) and a commit search by changed path
-   (0.9 shipped remote management and review mode). Drag-and-drop: cherry-pick onto a non-current branch (checks it out first). (Session 9 fixed the over-long meta descriptions and missing releases links.)
-5. CI now runs e2e in the latest stable VS Code (session 8). Add VSCodium as a second target (download the tarball,
+2. Big repos: "jump to date/commit" that loads straight to it, and measure webview-side time per append on git.git (Chromium shot with a
+   large payload). Path search on git.git: time `path:` queries (one `git log -- <3 pathspecs>` over all refs) and add a progress hint if slow.
+3. Review mode follow-ups: "Review changes since it split" on branch menus and a keyboard shortcut for Next unreviewed; a "Squash now"
+   end-to-end check (click the notification button).
+4. Still missing vs Git Graph: drag-and-drop cherry-pick onto a non-current branch (checks it out first); avatars for GitLab/Bitbucket hosts
+   (0.11 covers GitHub noreply + Gravatar only).
+5. CI runs e2e in the latest stable VS Code (session 8). Add VSCodium as a second target (download the tarball,
    `node scripts/e2e.mjs <codium>`; 610 MB extracted, so CI only).
 6. History search positions in file-history mode are approximate (they come from the multi-name log, not
    the filtered one); fine for small file histories, revisit if users report misses.
@@ -492,3 +505,10 @@ on the graph). The graph itself stays free.
   a mutation run proving the cache check, Chromium renders, vsix install. After push: CI for main (run 44757653429) and tag v0.10.0 (run 44757673441)
   green, unit 29/29 + e2e 37/37 each; Pages deployed; live index (v0.10, `mergeline-0.10.0.vsix`), both guides, screenshot and sitemap (27 URLs)
   return 200; release asset byte-identical (sha256 1111c60a…); sitemap resubmitted (HTTP 204). Inbox: 0.10.0 line appended.
+- 2026-11-20 builder (session 11): store tokens still absent. Built 0.11.0: find by changed path (`path:` in Find, whole history), issue links
+  for any tracker (`mergeline.issueLinks`), Save as archive (zip/tar.gz/tar) on commit/branch/tag menus, tag details (tagger, date, message)
+  in the details pane, opt-in avatars (`mergeline.showAvatars`, GitHub noreply + Gravatar, initials fallback). Three guides by a subagent (find
+  the commit that changed a file, link Jira issues, git archive; git 2.53 checked in throwaway repos), privacy page + index FAQ updated for the
+  avatar exception, index card, README, screenshot-tags.png. Verified: 35/35 unit, 42/42 e2e ×2 on the packaged build (5 new checks: path
+  search incl. the webview's Enter flow, tag details, issue links, avatars on/off, archive zip + tar.gz contents), Chromium renders dark/light,
+  vsix installs as plainbyte.mergeline@0.11.0, docs link/HTML/meta check (32 pages, 0 real problems).

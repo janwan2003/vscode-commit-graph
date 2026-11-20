@@ -3,6 +3,8 @@ const vscode = require('vscode');
 const assert = require('assert');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
+const path = require('path');
+const os = require('os');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(fn, ms = 15000, what = 'condition') {
@@ -309,6 +311,59 @@ exports.run = async function run() {
     const c = bySubject('Initial commit');
     await act({ action: 'copyHash', sha: c.sha });
     assert.equal(await vscode.env.clipboard.readText(), c.sha);
+  });
+
+  await check('find "path:": the webview waits for Enter, then searches the whole history for commits that changed matching paths', async () => {
+    const expect = git('log', '--format=%H', '--branches', '--tags', '--remotes', 'HEAD', '--', 'parser.txt', 'src.txt').split('\n').filter(Boolean).sort();
+    assert.ok(expect.length >= 1);
+    await panel.testMessage({ type: 'searchHistory', q: 'path:PARSER' });
+    const h = panel.lastHistory;
+    assert.equal(h.q, 'path:PARSER');
+    // parser.txt itself (not src.txt: the name differs), case-insensitive.
+    const parserOnly = git('log', '--format=%H', '--branches', '--tags', '--remotes', 'HEAD', '--', 'parser.txt').split('\n').filter(Boolean).sort();
+    assert.deepEqual(h.matches.map((m) => m.sha).sort(), parserOnly);
+    const pong = async (pred, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && pred(panel.lastPong) && panel.lastPong; }, 10000, what);
+    await panel.testPost({ type: 'find', q: 'path:parser' });
+    await pong((p) => p.count === 'Enter: search history', 'hint before Enter');
+    await panel.testPost({ type: 'find', q: 'path:parser', enter: true });
+    const p = await pong((p) => /in history/.test(p.count), 'history count after Enter');
+    assert.equal(p.count, `1/${parserOnly.length} in history`);
+    assert.ok(parserOnly.includes(p.selected), 'first match selected');
+    await panel.testPost({ type: 'find', q: '' });
+  });
+
+  await check('details: tags on a commit with tagger and message (annotated) or marked lightweight', async () => {
+    const sha = git('rev-parse', 'v1.0.0^{commit}');
+    await panel.testMessage({ type: 'details', sha });
+    const t = (panel.lastDetails.tags || []).find((x) => x.name === 'v1.0.0');
+    assert.ok(t && t.annotated, JSON.stringify(panel.lastDetails.tags));
+    assert.equal(t.message, 'Release 1.0.0');
+    const light = git('rev-parse', 'v0.1.0^{commit}');
+    await panel.testMessage({ type: 'details', sha: light });
+    assert.deepEqual(panel.lastDetails.tags, [{ name: 'v0.1.0', annotated: false }]);
+    await panel.testPost({ type: 'reveal', sha });
+    await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.tagBlocks.some((b) => /v1\.0\.0.*Annotated tag by .*Release 1\.0\.0/.test(b)); }, 10000, 'webview shows the annotated tag');
+  });
+
+  await check('issue links setting: matches in the message become links; invalid rules are skipped', async () => {
+    const cfg = () => vscode.workspace.getConfiguration('mergeline');
+    await cfg().update('issueLinks', [{ pattern: '(src)\\.txt', url: 'https://issues.example.com/$1?k=$0' }, { pattern: '(', url: 'https://bad' }], vscode.ConfigurationTarget.Workspace);
+    const c = bySubject('Rename src.txt to parser.txt');
+    await sleep(500);
+    await panel.testPost({ type: 'reveal', sha: c.sha });
+    const p = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === c.sha && panel.lastPong.links.length && panel.lastPong; }, 10000, 'issue link in details');
+    assert.deepEqual(p.links, ['https://issues.example.com/src?k=src.txt']);
+    await cfg().update('issueLinks', undefined, vscode.ConfigurationTarget.Workspace);
+    await until(async () => { panel.lastPong = null; await panel.testPost({ type: 'reveal', sha: c.sha }); await panel.ping(); await sleep(200); return panel.lastPong && panel.lastPong.links.length === 0; }, 10000, 'link gone when the setting is removed');
+  });
+
+  await check('avatars: off by default (no images, no initials); on shows one per commit row', async () => {
+    const cfg = () => vscode.workspace.getConfiguration('mergeline');
+    await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.avatars === 0; }, 10000, 'no avatars by default');
+    await cfg().update('showAvatars', true, vscode.ConfigurationTarget.Workspace);
+    await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.avatars > 5; }, 10000, 'avatars shown');
+    await cfg().update('showAvatars', undefined, vscode.ConfigurationTarget.Workspace);
+    await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.avatars === 0; }, 10000, 'avatars off again');
   });
 
   // Actions that prompt: stub the prompts in this API instance. If the extension
@@ -712,6 +767,28 @@ exports.run = async function run() {
       git('branch', '-q', '-D', 'via-up');
     });
     fs.rmSync(bare, { recursive: true, force: true });
+    await check('save as archive: zip and tar.gz of a tag with a folder prefix, tracked files only', async () => {
+      const out = fs.mkdtempSync(path.join(os.tmpdir(), 'mergeline-arch-'));
+      const prev = w.showSaveDialog;
+      try {
+        const sha = git('rev-parse', 'v1.0.0^{commit}');
+        w.showSaveDialog = async () => vscode.Uri.file(path.join(out, 'rel.tar.gz'));
+        await act({ action: 'archive', sha, ref: 'v1.0.0' });
+        const list = execFileSync('tar', ['tzf', path.join(out, 'rel.tar.gz')], { encoding: 'utf8' }).split('\n').filter(Boolean);
+        const tracked = git('ls-tree', '-r', '--name-only', sha).split('\n');
+        assert.deepEqual(list.filter((f) => !f.endsWith('/')).sort(), tracked.map((f) => 'rel/' + f).sort());
+        w.showSaveDialog = async () => vscode.Uri.file(path.join(out, 'snap.zip'));
+        await act({ action: 'archive', sha, subject: 'x' });
+        assert.equal(fs.readFileSync(path.join(out, 'snap.zip')).subarray(0, 2).toString(), 'PK');
+        // Cancelled dialog: nothing written.
+        w.showSaveDialog = async () => undefined;
+        await act({ action: 'archive', sha });
+        assert.deepEqual(fs.readdirSync(out).sort(), ['rel.tar.gz', 'snap.zip']);
+      } finally {
+        w.showSaveDialog = prev;
+        fs.rmSync(out, { recursive: true, force: true });
+      }
+    });
   }
   Object.assign(w, { showInputBox: orig.input, showQuickPick: orig.pick, showWarningMessage: orig.warn });
 

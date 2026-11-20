@@ -29,7 +29,9 @@ const P = ${payload};
 window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMessage(m) {
   if (window.__onPost) window.__onPost(m);
   if (m.type === 'ready') {
-    window.postMessage({ type: 'settings', settings: { dateFormat: 'relative' } }, '*');
+    window.postMessage({ type: 'settings', settings: ${process.env.TAGS === '1'} ? { dateFormat: 'relative', showAvatars: true, issueLinks: [{ pattern: 'PROJ-[0-9]+', url: 'https://acme.atlassian.net/browse/$0' }] } : { dateFormat: 'relative' } }, '*');
+    // TAGS=1: avatars on, a Jira issue-link rule, and the details of the commit tagged v1.0.0.
+    if (${process.env.TAGS === '1'}) P.details = P.tagged;
     window.postMessage({ type: 'repos', repos: [{ root: '/work/acme-app', name: 'acme-app' }], repo: '/work/acme-app' }, '*');
     // OPBAR=1: pretend a rebase stopped on a conflict (the bar above the graph).
     if (${process.env.REVIEW === '1'}) P.details = P.review;

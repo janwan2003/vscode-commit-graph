@@ -4,7 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees } from '../../src/core/gitlog';
+import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags } from '../../src/core/gitlog';
+import { avatarMap } from '../../src/core/misc';
 import { layout } from '../../src/core/graph';
 
 const d = mkdtempSync(join(tmpdir(), 'mergeline-demo-'));
@@ -38,7 +39,7 @@ c('src/search.ts', 'Search: highlight matched terms', 1);
 g('checkout', '-q', 'main');
 c('src/app.ts', 'Fix race on startup', 2);
 t += 3600; g('merge', '-q', '--no-ff', '-m', "Merge branch 'feature/search'", 'feature/search');
-g('tag', '-a', 'v1.0.0', '-m', 'Release 1.0.0');
+g('tag', '-a', 'v1.0.0', '-m', 'Release 1.0.0\n\nFull-text search (PROJ-142) and offline sync (PROJ-157).');
 g('checkout', '-q', 'feature/dark-mode');
 c('src/theme.css', 'Dark theme: respect prefers-color-scheme', 4);
 g('checkout', '-q', 'main');
@@ -69,8 +70,14 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
   const out = {
-    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name) },
+    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
     details: { type: 'details', sha: sel.sha, info, from: info.parents[0], to: sel.sha, files },
+    // TAGS=1 in shot.mjs: the commit tagged v1.0.0, with its tags.
+    tagged: await (async () => {
+      const sha = state.refs.find((r) => r.name === 'v1.0.0')!.sha;
+      const ti = await readCommitInfo(d, sha);
+      return { type: 'details', sha, info: ti, tags: await readTags(d, sha), from: ti.parents[0], to: sha, files: await readChanges(d, ti.parents[0], sha) };
+    })(),
     // REVIEW=1 in shot.mjs: HEAD compared with the first commit (many files).
     review: await (async () => {
       const first = log[log.length - 1].sha;

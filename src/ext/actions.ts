@@ -8,6 +8,7 @@ import { readOperation, unmerged, leftoverMarkers, opArgs, opNames, NO_EDITOR, O
 import { GitApiRepo } from './repos';
 import { readRemotes, remoteNameProblem, remoteUsage, Remote } from '../core/remotes';
 import { webRepo } from '../core/remote';
+import { archiveFormat } from '../core/misc';
 
 export interface ActionMsg {
   action: string;
@@ -134,6 +135,27 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       const msg = await vscode.window.showInputBox({ prompt: 'Tag message (leave empty for a lightweight tag)' });
       if (msg === undefined) return false;
       return run(ctx, msg ? ['tag', '-a', name, '-m', msg, sha] : ['tag', name, sha], `Create tag ${name}`);
+    }
+    case 'archive': {
+      // The tracked files at this commit (git archive: no .git, nothing untracked, export-ignore honoured).
+      const tag = (m.ref ? m.ref.replace(/[^\w.-]+/g, '-') : short(sha)) || short(sha);
+      const base = `${path.basename(ctx.root)}-${tag}`;
+      const uri = await vscode.window.showSaveDialog({
+        title: `Save ${m.ref ?? label} as an archive`,
+        defaultUri: vscode.Uri.file(path.join(path.dirname(ctx.root), `${base}.zip`)),
+        filters: { 'Zip archive': ['zip'], 'Gzipped tar': ['tar.gz', 'tgz'], 'Tar archive': ['tar'] },
+      });
+      if (!uri) return false;
+      const fmt = archiveFormat(uri.fsPath);
+      const name = path.basename(uri.fsPath).replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') || base;
+      const file = fmt.ext ? uri.fsPath : `${uri.fsPath}.zip`;
+      const ok = await run(ctx, ['archive', `--format=${fmt.format}`, `--prefix=${name}/`, '-o', file, sha], `Save archive ${path.basename(file)}`);
+      if (ok) {
+        vscode.window.showInformationMessage(`Mergeline: saved ${path.basename(file)}`, 'Reveal in file manager').then((pick) => {
+          if (pick) vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(file));
+        });
+      }
+      return false;
     }
     case 'cherryPick': {
       const args = ['cherry-pick'];

@@ -60,3 +60,37 @@ export function pullRequestUrl(r: WebRepo, branch: string): string {
   if (r.forge === 'bitbucket') return `${r.base}/pull-requests/new?source=${encodeURIComponent(branch)}`;
   return `${r.base}/compare/${branch.split('/').map(encodeURIComponent).join('/')}?expand=1`;
 }
+
+export interface IssueLinkRule {
+  pattern: string;
+  url: string;
+}
+
+/**
+ * The valid entries of the `mergeline.issueLinks` setting: a regular expression that
+ * compiles and an http(s) URL template ($0 = whole match, $1… = groups). Others are dropped,
+ * with a reason for each, so a typo in settings.json does not break the details pane.
+ */
+export function issueLinkRules(raw: unknown): { rules: IssueLinkRule[]; problems: string[] } {
+  const rules: IssueLinkRule[] = [];
+  const problems: string[] = [];
+  if (!Array.isArray(raw)) return { rules, problems: raw == null ? [] : ['mergeline.issueLinks must be an array'] };
+  raw.forEach((r, i) => {
+    const p = r && typeof r === 'object' ? (r as any).pattern : undefined;
+    const u = r && typeof r === 'object' ? (r as any).url : undefined;
+    if (typeof p !== 'string' || !p || typeof u !== 'string') return problems.push(`entry ${i + 1}: needs "pattern" and "url" strings`);
+    if (!/^https?:\/\//i.test(u)) return problems.push(`entry ${i + 1}: url must start with http:// or https://`);
+    try {
+      if (new RegExp(p, 'g').test('')) return problems.push(`entry ${i + 1}: pattern matches empty text`);
+    } catch (e) {
+      return problems.push(`entry ${i + 1}: ${String((e as Error).message)}`);
+    }
+    rules.push({ pattern: p, url: u });
+  });
+  return { rules, problems };
+}
+
+/** The link for one match of a rule: $0 and $1…$9 replaced (each part URI-encoded). */
+export function issueLinkUrl(template: string, m: string[]): string {
+  return template.replace(/\$(\d)/g, (_, d) => encodeURIComponent(m[Number(d)] ?? ''));
+}

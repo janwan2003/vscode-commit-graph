@@ -28,6 +28,9 @@
   /** History search results for query `q`: { q, matches: [{sha, index}], total }; null when off. */
   let hist = null;
   let histPending = null; // query sent, answer not back yet
+  /** Avatar image URL by author email (only when mergeline.showAvatars is on); failed URLs are not tried again. */
+  let avatarBy = {};
+  const avatarFailed = new Set();
   let pendingReveal = null; // sha to select once it is loaded
   /** Saved layout: column widths in px (graph null = automatic), hidden columns, details height. */
   const COLS = { graph: 'Graph', date: 'Date', author: 'Author', hash: 'Commit' };
@@ -46,8 +49,8 @@
     <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
     <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
     <span class="grow"></span>
-    <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref)" spellcheck="false" aria-label="Find">
-      <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span><button id="findall" title="Search the whole history (message, author, hash, ref), not just the loaded commits" hidden>All history</button></span>
+    <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref, path:…)" title="Find in loaded commits. Type path:src/auth or path:*.md and press Enter to find commits that changed matching files anywhere in history." spellcheck="false" aria-label="Find">
+      <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span><button id="findall" title="Search the whole history (message, author, hash, ref, or path:… for changed files), not just the loaded commits" hidden>All history</button></span>
     <button id="remotesbtn" class="secondary" title="Manage remotes: add, fetch, prune, change URL, rename, remove">Remotes…</button>
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
     <button id="refresh" title="Refresh">Refresh</button>
@@ -100,7 +103,8 @@
   $('#find').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       // Nothing among the loaded commits: look through the whole history instead.
-      if (!matches.length && !hist && data && data.hasMore && e.target.value.trim()) searchAll();
+      if (!hist && isPathQuery(e.target.value) && data) searchAll();
+      else if (!matches.length && !hist && data && data.hasMore && e.target.value.trim()) searchAll();
       else step(e.shiftKey ? -1 : 1);
     }
     if (e.key === 'Escape') { e.target.value = ''; runFind(false); scroller.focus(); }
@@ -187,10 +191,11 @@
       case 'message': openMessageEditor(m.sha, m.message); break;
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       // Test hook (only the extension can post here): click an element, optionally with Ctrl.
+      case 'find': { const f = $('#find'); f.value = m.q; f.dispatchEvent(new Event('input')); if (m.enter) f.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); break; }
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -213,6 +218,7 @@
   function setData(m) {
     const repoChanged = !data || data.repo !== m.repo;
     data = m;
+    avatarBy = m.avatars || {};
     rowCache = new Map();
     loadingMore = false;
     $('#msg').hidden = true;
@@ -274,6 +280,7 @@
     }
     data.width = m.width;
     data.hasMore = m.hasMore;
+    if (m.avatars) Object.assign(avatarBy, m.avatars);
     reachFor = null; // caches keyed on `data`, which was extended in place
     editableFor = null;
     $('#orderhint').hidden = !(data.order !== 'topo' && data.width > 20);
@@ -449,6 +456,20 @@
     return out.join('');
   }
 
+  /** Initials in a coloured circle, with the author's image on top when avatars are on and it loads. */
+  function avatarHtml(name, email, url) {
+    const words = String(name || email || '?').replace(/[<>]/g, '').trim().split(/\s+/).filter(Boolean);
+    const ini = ((words[0] || '?')[0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
+    let h = 0;
+    for (const ch of String(email || name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const img = url && !avatarFailed.has(url) ? `<img class="av-img" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '';
+    return `<span class="av" style="--av:var(--lane-${h % 8})" aria-hidden="true">${esc(ini)}${img}</span>`;
+  }
+  document.addEventListener('error', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'IMG' && t.classList.contains('av-img')) { avatarFailed.add(t.getAttribute('src')); t.remove(); }
+  }, true);
+
   function fmtDate(t) {
     const d = new Date(t * 1000);
     if (settings.dateFormat === 'iso') return d.toISOString().slice(0, 16).replace('T', ' ');
@@ -483,7 +504,7 @@
         <div class="c-graph">${graphSvg(c, row)}</div>
         <div class="c-desc">${refBadges(c)}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
         <div class="c-date" title="${c.kind === 'uncommitted' ? '' : esc(new Date(c.date * 1000).toString())}">${c.kind === 'uncommitted' ? '' : esc(fmtDate(c.date))}</div>
-        <div class="c-author" title="${esc(c.email)}">${esc(c.author)}</div>
+        <div class="c-author" title="${esc(c.email)}">${settings.showAvatars && c.kind !== 'uncommitted' ? avatarHtml(c.author, c.email, avatarBy[c.email]) : ''}${esc(c.author)}</div>
         <div class="c-hash">${c.kind === 'uncommitted' ? '' : esc(short(c.sha))}</div></div>`;
     }
     rowsEl.innerHTML = h;
@@ -531,22 +552,58 @@
     render();
   }
 
-  // URLs, #123 issue references (when the remote is on a known forge) and full commit hashes
-  // in a commit message become links. Everything else is escaped.
+  // URLs, #123 issue references (when the remote is on a known forge), full commit hashes and
+  // matches of the user's mergeline.issueLinks rules (e.g. Jira keys) in a commit message become
+  // links. Where two overlap, the one that starts first wins. Everything else is escaped.
   const LINK_RE = /\bhttps?:\/\/[^\s<>"'`]*[^\s<>"'`.,;:!?)\]}]|(?<![\w/&#])#(\d{1,7})\b|\b([0-9a-f]{40})\b/g;
+  let ruleCache = null, ruleKey = '';
+  function issueRules() {
+    const list = settings.issueLinks || [];
+    const key = JSON.stringify(list);
+    if (key !== ruleKey) {
+      ruleKey = key;
+      ruleCache = [];
+      for (const r of list) { try { ruleCache.push({ re: new RegExp(r.pattern, 'g'), url: r.url }); } catch { /* checked by the extension */ } }
+    }
+    return ruleCache;
+  }
+  function issueUrl(tpl, m) { return tpl.replace(/\$(\d)/g, (_, d) => encodeURIComponent(m[+d] == null ? '' : m[+d])); }
   function linkify(text) {
-    let out = '', last = 0, m;
+    const spans = [];
+    let m;
     LINK_RE.lastIndex = 0;
     while ((m = LINK_RE.exec(text))) {
       let a = null;
       if (m[1] !== undefined) { if (data.web) a = `<span class="link" data-url="${esc(data.web.issue + m[1])}" title="${esc(data.web.issue + m[1])}">`; }
       else if (m[2] !== undefined) { if (indexBySha.has(m[2])) a = `<span class="link" data-goto="${m[2]}" title="Go to commit">`; }
       else a = `<span class="link" data-url="${esc(m[0])}" title="${esc(m[0])}">`;
-      if (!a) continue;
-      out += esc(text.slice(last, m.index)) + a + esc(m[0]) + '</span>';
-      last = m.index + m[0].length;
+      if (a) spans.push([m.index, m.index + m[0].length, a]);
+    }
+    for (const r of issueRules()) {
+      r.re.lastIndex = 0;
+      let guard = 0;
+      while ((m = r.re.exec(text)) && guard++ < 1000) {
+        if (!m[0]) { r.re.lastIndex++; continue; }
+        const u = issueUrl(r.url, m);
+        spans.push([m.index, m.index + m[0].length, `<span class="link issue" data-url="${esc(u)}" title="${esc(u)}">`]);
+      }
+    }
+    spans.sort((x, y) => x[0] - y[0] || y[1] - x[1]);
+    let out = '', last = 0;
+    for (const [a, b, open] of spans) {
+      if (a < last) continue;
+      out += esc(text.slice(last, a)) + open + esc(text.slice(a, b)) + '</span>';
+      last = b;
     }
     return out + esc(text.slice(last));
+  }
+
+  /** The tags on a commit: annotated ones with tagger, date and message; lightweight ones by name. */
+  function tagsHtml(tags) {
+    if (!tags || !tags.length) return '';
+    return `<div class="d-tags">${tags.map((t) => `<div class="d-tag" data-tag="${esc(t.name)}"><span class="badge tag">${esc(t.name)}</span>${t.annotated
+      ? `<span class="tmeta">Annotated tag by ${esc(t.tagger || 'unknown')}${t.date ? ', ' + esc(new Date(t.date * 1000).toLocaleString()) : ''}</span>${t.message ? `<pre>${linkify(t.message)}</pre>` : ''}`
+      : '<span class="tmeta">Lightweight tag (no message)</span>'}</div>`).join('')}</div>`;
   }
 
   const STATUS = { A: 'Added', M: 'Modified', D: 'Deleted', R: 'Renamed', C: 'Copied', T: 'Type changed', U: 'Untracked' };
@@ -569,9 +626,10 @@
       head = `<div class="d-title">${linkify(i.message.split('\n')[0])}</div>
         <div class="d-meta"><span>Commit <code class="link" data-copy="${esc(i.sha)}" title="Copy">${esc(i.sha)}</code></span>
         <span>Parents ${i.parents.map((p) => `<code class="link" data-goto="${esc(p)}">${esc(short(p))}</code>`).join(' ') || 'none'}</span>
-        <span>Author <b>${esc(i.author)}</b> &lt;${esc(i.email)}&gt;, ${esc(new Date(i.authorDate * 1000).toLocaleString())}</span>
+        <span>Author ${settings.showAvatars ? avatarHtml(i.author, i.email, m.avatar) : ''}<b>${esc(i.author)}</b> &lt;${esc(i.email)}&gt;, ${esc(new Date(i.authorDate * 1000).toLocaleString())}</span>
         ${i.committer !== i.author || i.commitDate !== i.authorDate ? `<span>Committer ${esc(i.committer)}, ${esc(new Date(i.commitDate * 1000).toLocaleString())}</span>` : ''}
         ${data.web ? `<span><span class="link" data-url="${esc(data.web.commit + i.sha)}" title="${esc(data.web.commit + i.sha)}">Open on ${esc(data.web.name)}</span></span>` : ''}</div>
+        ${tagsHtml(m.tags)}
         ${body ? `<pre class="d-body">${linkify(body)}</pre>` : ''}`;
     } else if (c.kind === 'uncommitted') head = `<div class="d-title">Uncommitted changes</div>`;
     if (m.error) head += `<div class="d-err">${esc(m.error)}</div>`;
@@ -760,11 +818,21 @@
   });
 
   // ---------- find ----------
+  /** "path:<text>" searches the whole history for commits that changed a matching file or folder. */
+  function isPathQuery(v) { return /^path:\s*\S/i.test(String(v).trim()); }
   function runFind(jump) {
     const raw = $('#find').value.trim();
     const q = raw.toLowerCase();
     if (hist && hist.q !== raw) hist = null;
     matches = [];
+    if (!hist && isPathQuery(raw)) {
+      // Only git knows which commits touched a path: wait for Enter (or All history).
+      matchPos = -1;
+      $('#count').textContent = histPending === raw ? 'searching…' : 'Enter: search history';
+      $('#findall').hidden = false;
+      render();
+      return;
+    }
     if (hist) {
       for (const m of hist.matches) { const i = indexBySha.get(m.sha); if (i !== undefined) matches.push(i); }
     } else if (q && data) {
@@ -895,6 +963,7 @@
       ['Review changes file by file', () => { pendingReview = c.sha; select(c.sha, true); }],
       ['Compare with working tree', () => compare(c.sha, UNC)],
       ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
+      ['Save as archive (zip, tar.gz)…', { ...base, action: 'archive' }],
       ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
       null,
       ['Copy hash', { ...base, action: 'copyHash' }],
@@ -1071,8 +1140,10 @@
     const curL = cur ? `“${cur}”` : 'HEAD';
     const r = { ref: name, refType: type, remote, sha: c.sha, subject: c.subject };
     if (type === 'tag') return [
+      ['Show tag details', () => select(c.sha, true)],
       ['Push tag…', { ...r, action: 'pushTag' }],
       ['Merge tag into ' + curL + '…', { ...r, action: 'merge' }],
+      ['Save as archive (zip, tar.gz)…', { ...r, action: 'archive' }],
       ['Delete tag…', { ...r, action: 'deleteTag' }, 'danger'],
       null,
       ['Copy tag name', { ...r, action: 'copyRef' }],
@@ -1083,6 +1154,7 @@
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }],
       ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
       ['Check out in new worktree…', { ...r, action: 'addWorktree' }],
+      ['Save as archive (zip, tar.gz)…', { ...r, action: 'archive' }],
       ...(data.web && remote === data.web.remote ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: webBranch(name.slice(remote.length + 1)) })], ['Create pull request on ' + data.web.name + '…', () => vscode.postMessage({ type: 'openPullRequest', ref: name, refType: 'remote', remote })]] : []),
       null,
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
@@ -1098,6 +1170,7 @@
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }, isCur ? 'disabled' : ''],
       ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
       ...(isCur || wt ? [] : [['Check out in new worktree…', { ...r, action: 'addWorktree' }]]),
+      ['Save as archive (zip, tar.gz)…', { ...r, action: 'archive' }],
       null,
       ['Push…', { ...r, action: 'pushBranch' }],
       ...(isCur ? [['Pull', { ...r, action: 'pull' }]] : []),

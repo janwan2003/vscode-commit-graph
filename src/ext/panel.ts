@@ -2,14 +2,15 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
 import { layout, LayoutState, newLayoutState } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
 import { readOperation, OpState } from '../core/progress';
-import { webRepo, commitUrl, issueUrl, branchUrl, pullRequestUrl, Forge } from '../core/remote';
+import { webRepo, commitUrl, issueUrl, branchUrl, pullRequestUrl, Forge, issueLinkRules } from '../core/remote';
+import { avatarMap } from '../core/misc';
 import { git } from '../core/gitlog';
 
 const FORGE_NAME: Record<Forge, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
@@ -90,7 +91,7 @@ export class GraphPanel implements vscode.Disposable {
     const media = (f: string) => w.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'media', f));
     const nonce = Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
     return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${w.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${w.cspSource} data:; font-src ${w.cspSource};">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${w.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${w.cspSource} data: https://avatars.githubusercontent.com https://www.gravatar.com; font-src ${w.cspSource};">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${media('graph.css')}"><title>Mergeline</title></head>
 <body><div id="app"></div><script nonce="${nonce}" src="${media('rows.js')}"></script><script nonce="${nonce}" src="${media('graph.js')}"></script></body></html>`;
@@ -134,7 +135,26 @@ export class GraphPanel implements vscode.Disposable {
 
   private settings() {
     const cfg = vscode.workspace.getConfiguration('mergeline');
-    return { dateFormat: cfg.get('dateFormat', 'relative'), commitOrder: cfg.get('commitOrder', 'date'), dimOtherCommits: cfg.get('dimOtherCommits', false), layout: this.ctx.globalState.get('mergeline.layout') ?? null };
+    const links = issueLinkRules(cfg.get('issueLinks', []));
+    const sig = links.problems.join('\n');
+    if (sig && sig !== this.linkProblems) vscode.window.showWarningMessage(`Mergeline: some mergeline.issueLinks entries were skipped: ${links.problems.join('; ')}`);
+    this.linkProblems = sig;
+    return {
+      dateFormat: cfg.get('dateFormat', 'relative'),
+      commitOrder: cfg.get('commitOrder', 'date'),
+      dimOtherCommits: cfg.get('dimOtherCommits', false),
+      showAvatars: this.avatarsOn(),
+      issueLinks: links.rules,
+      layout: this.ctx.globalState.get('mergeline.layout') ?? null,
+    };
+  }
+  private linkProblems = '';
+  private avatarsOn() {
+    return vscode.workspace.getConfiguration('mergeline').get<boolean>('showAvatars', false);
+  }
+  /** Avatar URLs for the authors of `commits`, only when the user turned avatars on. */
+  private avatars(commits: { email: string }[]) {
+    return this.avatarsOn() ? avatarMap(commits.map((c) => c.email)) : undefined;
   }
   private postSettings() {
     this.post({ type: 'settings', settings: this.settings() });
@@ -267,7 +287,7 @@ export class GraphPanel implements vscode.Disposable {
       const lay = layout(tail, st);
       this.lastData = { ...prev, commits, width: lay.width };
       this.lastSent = { kind: 'append', rows: tail.length };
-      this.post({ type: 'append', commits: tail, packed: lay.packed, width: lay.width, hasMore });
+      this.post({ type: 'append', commits: tail, packed: lay.packed, width: lay.width, hasMore, avatars: this.avatars(tail) });
       return;
     }
     this.lastBase = base;
@@ -294,6 +314,7 @@ export class GraphPanel implements vscode.Disposable {
       worktrees,
       op,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
+      avatars: this.avatars(commits),
     });
   }
 
@@ -470,9 +491,10 @@ export class GraphPanel implements vscode.Disposable {
         this.post({ type: 'details', sha, from: 'HEAD', to: null, files });
         return;
       }
-      const info = await readCommitInfo(root, sha);
+      const [info, tags] = await Promise.all([readCommitInfo(root, sha), readTags(root, sha).catch(() => [])]);
       const files = await readChanges(root, info.parents[0] ?? null, sha);
-      this.post({ type: 'details', sha, info, from: info.parents[0] ?? null, to: sha, files });
+      const avatars = this.avatars([{ email: info.email }]);
+      this.post({ type: 'details', sha, info, tags, from: info.parents[0] ?? null, to: sha, files, avatar: avatars?.[info.email] });
     } catch (e) {
       this.post({ type: 'details', sha, error: String((e as Error)?.message ?? e), files: [] });
     }
