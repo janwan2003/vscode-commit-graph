@@ -93,8 +93,8 @@
 
     <h2 id="vscode">A compact graph in VS Code</h2>
     <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.18 its toolbar has a <strong>Compact</strong> checkbox. With it on, every straight run of commits becomes one row, <strong>&hellip; 12 commits</strong>, with the dates it spans and its author, and the lines still connect. The toolbar says how much is folded (&ldquo;61 of 70 commits folded&rdquo;).</p>
-    <figure>
-      <img src="screenshot-compact.png" width="1280" height="800" alt="Mergeline with Compact on: 70 commits shown as 19 rows. Merges, tags, branch tips and fork points stay; runs of 3 to 13 commits are folded into rows such as '… 9 commits'.">
+    <figure class="shot">
+      <img src="screenshot-compact.png" width="1280" height="800" loading="lazy" alt="Mergeline with Compact on: 70 commits shown as 19 rows. Merges, tags, branch tips and fork points stay; runs of 3 to 13 commits are folded into rows such as '… 9 commits'.">
       <figcaption>70 commits, 19 rows: three merged-and-deleted branches still show as their own lines. <a href="screenshot-compact-before.png">The same history without Compact</a>.</figcaption>
     </figure>
     <ul>
@@ -104,6 +104,11 @@
       <li>It combines with <strong>First parent</strong>, the <strong>Branches</strong> checklist, hidden branches and both commit orders. It is off in file history and with the author filter, which already leave commits out.</li>
       <li>On a synthetic repository with 101,000 commits (1,000 merged branches) the first page took about 0.6&nbsp;s, against about 0.3&nbsp;s for the normal view, and the whole history folded into 3,002 rows.</li>
     </ul>
+    <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+      <a class="btn secondary" href="./">About Mergeline</a>
+    </div>
 
     <h2 id="rules">Which commits stay</h2>
     <p>A commit stays visible when something happens there:</p>

@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.17.0 is built, released on GitHub and documented; it is not in the stores yet**
+**Mergeline 0.18.0 is built, released on GitHub and documented; it is not in the stores yet**
 (store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 17).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.15.0
-  (`mergeline-0.15.0.vsix`, 85 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.18.0
+  (`mergeline-0.18.0.vsix`, 96 KB; corrected session 18, this line had said v0.15.0): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  37 SEO guides (session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  38 SEO guides (session 18: collapse commits / compact graph (`compact-git-graph-vscode.html`); session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (40 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (41 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -243,6 +243,18 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   emoji swatches, Custom colour… input with validation, Automatic = remove), written at the level that already sets the setting. Bad entries →
   one warning naming them. **Row colours**: `mergeline.rowColors` none|stripe|tint (header right-click menu writes it): stripe = inset
   box-shadow on the description cell, tint = 11% color-mix background placed before :hover/.sel/.cmp/.drop so those still win.
+  **0.18.0 added** (Git Graph #387 "Collapsible Graph", 14 👍, open since 2020-09-22; also #591's `--simplify-by-decoration` ask; the top
+  uncovered request by 👍 in `gh api search/issues ... sort=reactions`, read session 18): **compact graph** (toolbar **Compact**, setting
+  `mergeline.compactGraph`). `src/core/compact.ts` (no VS Code dep): `compactPlan` keeps refs/HEAD/stash bases (`keep`), merges (`merges` from
+  the unsliced parent list, so first-parent mode keeps them), roots, tips (0 children) and fork points (≥2 children); every other commit has
+  1 parent and 1 child, so hidden commits are straight chains, each one placeholder row `~<top sha>` (kind `collapsed`, `fold: {n, oldest, last}`)
+  placed at its top's position, parent = the kept commit below. A chain with any sha in `expand` is shown whole. `readCompactLog` in gitlog.ts:
+  `git rev-list --parents <order> [--first-parent] <revs>` for the plan, then `git log --no-walk=unsorted --stdin` for the shown page's commits
+  and each fold's ends only. Panel: `expand` set (message `expand` → reveal top; `collapse`; `loadTo` adds the history-search match so its run
+  opens; cleared on repo change / compact toggle); counts `{total, hidden, expanded}` → toolbar hint "N of M commits folded · fold all".
+  Webview: three-dot node, "⋯ N commits" + date span, click/Enter opens, menu (Show these N commits / Fold opened runs again / Turn off Compact),
+  no details/drag/compare on folded rows. Off in file history and with the author filter. Cost on a synthetic 101,000-commit repo (1,000
+  merged branches, `git fast-import`, git 2.53.0): first page 546–702 ms vs 255–293 ms for `readLog` (2 runs), whole history → 3,002 rows.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -487,6 +499,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 18): release downloads v0.1.0 to v0.17.0 2 each, v0.3.0 3 (read before the v0.18.0 release); 0 stars, 0 forks; traffic views 0,
+  clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows (2026-10-20 → 2026-11-20,
+  `searchAnalytics.query` by query); sitemap pending, never downloaded, 0 errors (`sitemaps.list`).
+
 - 2026-11-20 (session 17): release downloads v0.1.0 to v0.15.0 2 each, v0.3.0 3, v0.16.0 1, v0.17.0 0 (read right after the v0.17.0 release); 0 stars,
   0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by page
   (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors, resubmitted 2026-11-20T17:00Z (HTTP 204, `sitemaps.list`).
@@ -560,8 +576,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. #254 branch colours shipped in 0.17.0. Next: re-run `gh api search/issues` on mhutchie/vscode-git-graph sorted by 👍 and take the top request
-   not covered yet. Branch-colour follow-ups: colour a merged branch's line from the merge subject ("Merge branch 'feature/x'") when its ref is
+1a. #387 compact graph shipped in 0.18.0. Next uncovered Git Graph requests by 👍 (read session 18): #598 notebook diffs (17: check whether
+   `vscode.diff` on two `.ipynb` revisions already opens the notebook diff), #591 extra `git log` args (9), #781 graph view in the side panel (8),
+   #757 interactive rebase in a text editor (7), #184 delete several branches at once (6), #465 filter by tags (6), #777 list a commit's tags (6).
+   Compact follow-ups: "Fold this run" on commits of an opened run (today only "fold all"); a per-row author summary ("3 authors") needs all
+   chain members' metadata (only the ends are read); e2e for history search opening a folded run (unit-tested only through `expand`). Branch-colour follow-ups: colour a merged branch's line from the merge subject ("Merge branch 'feature/x'") when its ref is
    deleted (today only lines that start at a live ref get a colour); a colour swatch in the Branches checklist. #538 patches follow-ups: untracked files in "Save changes as a patch" (`git add -N` on a temp index via
    `GIT_INDEX_FILE`), `format-patch -o <folder>` (one file per commit) as a second save option, and drag-and-drop of a .patch file onto the graph.
    Author-filter follow-ups: a "me" quick button (`git config user.email`), `.mailmap` identities (`%aN <%aE>` + `--use-mailmap`), and cache the
@@ -743,3 +762,19 @@ on the graph). The graph itself stays free.
   After push: CI tag v0.17.0 (run 44779014394) and main (run 44779009037) success, main log shows unit 65/65 and e2e 50/50 incl. "branch colours";
   Pages run 44779008467 deployed; live index (v0.17 tagline, `mergeline-0.17.0.vsix`), the guide, both screenshots and sitemap (40 URLs) return 200;
   release asset byte-identical (sha256 97cc28cb…). Directories: none submitted (awesome-vscode needs a Marketplace link). Inbox: 0.17.0 line appended.
+- 2026-11-20 (session 18): **0.18.0 compact graph** (Git Graph #387, 14 👍, top uncovered request by 👍 per `gh api search/issues` this session). Done meant:
+  folded rows render and stay connected, open/fold work by real click, and the release, site and CI are live. Evidence: `pnpm typecheck` clean; unit
+  69/69 (new `test/compact.test.ts`: planner on 300 random histories — every commit shown or in exactly one straight-chain fold, kept commits in git's
+  order, lines only go down, opening a fold by a middle commit shows exactly it — plus real git: 12-commit repo → 6 rows `merge, [2], [3], m6, [4], m1`,
+  first-parent → 3 rows, a ref inside a run splits it, empty repo). e2e 51/51 three times locally (twice on the minified build, VS Code 1.147) incl.
+  "compact graph" (real click on a folded row opens it and selects its newest commit; "fold all" link; off restores; folded + shown = `git rev-list
+  --count`). Looked at Chromium shots dark + light (`scripts/shot/compact.ts`: 70 commits → 19 rows); fixed from looking: equal relative dates showed
+  "1 month ago – 1 month ago", footer said "19 commits". Cost on 101k synthetic commits: see Status. Guide `compact-git-graph-vscode.html`: git's
+  `--simplify-by-decoration` output on a 7-commit repo (drops the merged branch, fork point and root) and `--decorate-refs=refs/tags` checked with git
+  2.53.0; VS Code 1.147's `scm.graph.*` settings read from its bundled workbench JS (5 settings, no fold option); #387 date from `gh api`.
+  Corrected: Status said releases "v0.1.0 to v0.15.0"; vsce allows 30 keywords, so "format-patch" made room for "compact graph".
+  Not verified: history search opening a folded run (`loadTo` path) has no e2e; Ctrl-click from a selected folded row is guarded but untested.
+  After push: CI main (run 44781800840) and tag v0.18.0 (run 44781801375) success, main log unit 69/69 and e2e 51 ok incl. "compact graph"; Pages run
+  44781799461 deployed; live index (v0.18, `mergeline-0.18.0.vsix`), guide, both screenshots, sitemap (41 URLs) return 200; release asset byte-identical
+  (sha256 746df515…), installs as `plainbyte.mergeline@0.18.0` into a temp extensions dir. Directories: none (awesome-vscode needs a Marketplace
+  link). Inbox: 0.18.0 line appended.
