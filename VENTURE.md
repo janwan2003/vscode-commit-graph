@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.6.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 6).
+**Mergeline 0.7.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 7).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.6.0
-  (`mergeline-0.6.0.vsix`, 51 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.7.0
+  (`mergeline-0.7.0.vsix`, 56 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  14 SEO guides (session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  17 SEO guides (session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (17 URLs). Every page's footer links every guide (session 6).
+  404 and sitemap (20 URLs). Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -151,6 +151,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   commit, offers Undo (`git reset --keep <old HEAD>`) and, on conflict, Open Source Control / Abort rebase. The webview shows
   the items only on HEAD's first-parent line up to the first merge. Also: changed files as a folder tree (default) or flat list
   (`lay.files` in the saved layout), collapsible folders, single-child folders joined (`src/core/`).
+  **0.7.0 added:** an in-progress bar (`src/core/progress.ts`: rebase-merge/rebase-apply/MERGE_HEAD/CHERRY_PICK_HEAD/REVERT_HEAD, `am`) above
+  the graph with step, stopped commit and conflicted files, and Continue (`GIT_EDITOR=true`; refuses while unmerged, asks on leftover
+  conflict markers via `git diff --cached --check`), Skip, Abort, Source Control; it also shows operations started in a terminal. Move commit
+  up/down (swap in the todo). Edit commit message opens a subject + body editor in the webview (`getMessage` → `message` → `fullMessage`).
+  Move down / Squash into parent are greyed out when the parent is a merge (the planner refused it anyway; 0.6 showed them enabled).
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -231,6 +236,27 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
     re-read with `gh api`.
   - Not verified: the edit actions on Windows (the sequence editor is `cp '<path>'` run by Git's sh; paths use forward slashes) and
     clicking the Undo / Abort buttons in a real notification (the e2e calls the `undoRewrite` action directly).
+- Verified 2026-11-20 (session 7), on the minified packaged 0.7.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 23/23 (new `test/progress.test.ts`: move todo, move up/down with tree and older hashes kept,
+    refusals for newest-up and root-down, a conflicting move read back as rebase step 1 of 3 at the right commit with `f.txt` unmerged,
+    leftover markers detected after staging, continue → step 2, abort restores HEAD; merge/cherry-pick/revert states, merge `--continue`
+    keeps the prepared message, cherry-pick skip, revert abort). Also 23/23 with an empty `HOME` and `GIT_CONFIG_NOSYSTEM=1`; CI 23/23.
+  - `node scripts/e2e.mjs` in VS Code 1.147: 30/30 three times on a first packaged build and twice on the final one. New check: the
+    message editor opens in the webview with subject and body split (read back via ping); full-message reword of an older commit; move
+    down then up; a conflicting move shows "Rebasing main onto … step 1 of 3, stopped at … 1 conflicted file" in the bar (DOM text),
+    Continue refused while unmerged, continue → step 2, edit items hidden, Skip finishes; a terminal-started merge shows "Merging
+    move-side into main" without Skip, Abort restores HEAD.
+  - Headless Chromium (`OPBAR=1`, `DIALOG=1`, `DIALOG=2`, `EDITMENU=1` in `scripts/shot/shot.mjs`): looked at the bar in dark and light
+    themes and the dialog; `DIALOG=2` edits the subject, clicks Save and reads back the posted `reword` with the full message; backdrop
+    dims (pixel 24 → 13). The mock themes lacked `--vscode-button-background` etc., so the CSS got fallbacks and the mocks got
+    VS Code Dark/Light Modern values.
+  - `code --install-extension mergeline-0.7.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.7.0`.
+  - After push: CI (main and tag v0.7.0) and Pages green for 726bdfd; live index (v0.7, new card), 3 new guides, both screenshots and
+    sitemap (20 URLs) return 200; release asset byte-identical (sha256 8a79a44b…); sitemap resubmitted (HTTP 204, still pending).
+  - Guide facts were checked by the writing subagent in throwaway repos (git 2.53.0) and against VS Code 1.147's bundled git extension;
+    `cherry-pick --abort` undoing already-applied picks was re-checked by hand (it also fixed the wording of Mergeline's Abort dialog).
+  - Not verified: real clicks on the bar's buttons inside VS Code (the e2e sends the same `action` messages; the click handler was exercised
+    only in Chromium for the dialog), `git am` in progress (detection only, no test), and Windows.
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -239,6 +265,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 7): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2 (read before the v0.7.0 release);
+  0 stars, 0 forks; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
+  (2026-10-20 → 2026-11-20); sitemap still pending, never downloaded (`sitemaps.list`), resubmitted with 20 URLs.
 
 - 2026-11-20 (session 6): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 1, v0.5.0 0 (read before the v0.6.0 release); 0 stars,
   0 forks; traffic views 0 (`gh api .../releases`, `.../traffic/views`). Search Console: no rows (2026-10-20 → 2026-11-20); sitemap still
@@ -266,8 +296,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-2. Edit history, next pieces: a multi-line message editor for reword (today only the subject line changes), "Move commit up/down"
-   (reorder in the todo), and showing a stopped rebase in the graph (banner with Continue / Abort) instead of only the notification.
+2. Edit history, next pieces (0.7 shipped the message editor, move up/down and the in-progress bar): drag a commit row onto another
+   to reorder or squash (drag already exists for branch badges), "Edit (stop at) this commit" (`edit` in the todo; the bar then offers
+   Continue), "Create fixup commit for this" (`git commit --fixup` + autosquash), and a conflicted-files list in the bar's tooltip → click
+   to open the merge editor.
 3. Load-more still re-reads and re-sends every loaded commit; append only the new page (layout state is
    already resumable via `LayoutState`; stashes whose base is in the new page and the uncommitted row need care).
 4. Still missing that users ask for: avatars (opt-in; needs network, off by default), a commit search by changed path,
@@ -333,3 +365,9 @@ on the graph). The graph itself stays free.
   footer guide links on all pages, stale "0.2.0" on the alternative page fixed. Verified: 19/19 unit, 29/29 e2e ×2 on the packaged
   build, vsix install, headless renders. After push: first CI run failed (test fixture lacked a git identity; fixed), then CI + Pages
   green, live pages 200, release asset byte-identical, sitemap resubmitted.
+- 2026-11-20 builder (session 7): store tokens still absent. Built 0.7.0: an in-progress bar for stopped rebase/merge/cherry-pick/revert/am
+  (also when started in a terminal) with Continue/Skip/Abort/Source Control, Move commit up/down, a subject + body message editor, and
+  merge-parent greying in the edit menu. Three guides by a subagent (rebase conflicts, reorder commits, interactive rebase; git behaviour
+  checked in throwaway repos), older guides updated, new screenshot. Verified: 23/23 unit (also CI conditions), 30/30 e2e ×2 on the final
+  packaged build, Chromium renders and dialog submit, vsix install. After push: CI ×2 and Pages green, live pages 200, release asset
+  byte-identical, sitemap resubmitted.
