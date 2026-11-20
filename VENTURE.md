@@ -613,3 +613,15 @@ on the graph). The graph itself stays free.
   installs as plainbyte.mergeline@0.13.0. After push: CI main (run 44766177972: unit 44/44, e2e 46/46) and tag v0.13.0 (run 44766178314: same) green;
   Pages run 44766176481 deployed; live index (v0.13, `mergeline-0.13.0.vsix`), the guide, screenshot-bisect.png and sitemap (35 URLs) return 200; release
   asset byte-identical (sha256 359607f2…); sitemap resubmitted (HTTP 204). Inbox: 0.13.0 line appended.
+- 2026-11-20 builder (session 14): store tokens still absent. Picked the work from Git Graph's open issues sorted by 👍 (`gh api search/issues`): #207
+  "Persistent Branches get a dedicated column" (53 👍) is the most-upvoted one Mergeline did not cover (#70, 79 👍, is covered by file history / path
+  search). Built 0.14.0: pinned branches (`mergeline.pinnedBranches`, default main/master/develop; each pinned first-parent line in its own fixed column and
+  colour; Pin/Unpin on branch menus). The first screenshot showed the uncommitted row would be pushed into a side column above a pinned HEAD: fixed
+  (it starts HEAD's line). Guide "Git flow graph in VS Code" by a subagent (it corrected my brief: #207 is the second-most-upvoted open issue overall),
+  index card, before/after screenshots from a git-flow demo repo (`scripts/shot/gitflow.ts`). Verified: typecheck; unit 48/48 (new `test/pins.test.ts`:
+  connectivity of drawn lines over 300 random histories × 3 pin sets, whole and appended); e2e 47/47 on dev and on the packaged build. One packaged run
+  failed the bisect `bisect run` terminal wait (30 s). Two reruns of the identical build passed 47/47, so it is a flake under load; the wait is now 60 s.
+  Chromium renders of both layouts looked at; the guide was rendered at 420 px wide. vsix installs as plainbyte.mergeline@0.14.0 (VS Code 1.147.0). After
+  push: CI main (run 44768941490) and tag v0.14.0 (run 44768947877) both unit 48/48, e2e 47/47; Pages run 44768941102 deployed; live index (0.14 card,
+  `mergeline-0.14.0.vsix`), the guide, both screenshots and the sitemap (36 URLs) return 200; the release asset is byte-identical (sha256 b57b2b03…); the
+  sitemap was resubmitted (HTTP 204). Inbox: 0.14.0 line appended.
