@@ -260,3 +260,9 @@ button:disabled { opacity: .5; cursor: default; }
 .d-note { margin: 0 0 6px; border-left: 3px solid var(--vscode-editorWarning-foreground, #d29922); padding: 2px 8px; background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #d29922) 8%, transparent); font-size: 12px; }
 .d-note .d-note-h { font-weight: 600; }
 .d-note pre { margin: 3px 0 0; white-space: pre-wrap; font-family: inherit; }
+/* Compact graph: a folded run of commits */
+.row.k-collapsed { cursor: pointer; }
+.row.k-collapsed .fold { color: var(--vscode-textLink-foreground); margin-right: 8px; white-space: nowrap; }
+.row.k-collapsed:hover .fold { text-decoration: underline; }
+.row.k-collapsed .fold-span, .row.k-collapsed .c-date, .row.k-collapsed .c-author { color: var(--vscode-descriptionForeground); }
+#foldhint a { color: var(--vscode-textLink-foreground); }

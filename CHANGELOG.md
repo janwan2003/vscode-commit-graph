@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18.0 (2026-11-20)
+
+- **Compact graph.** Tick **Compact** in the toolbar (or set `mergeline.compactGraph`) to see only the shape of your history. Every straight run of commits is folded into one row, "⋯ 12 commits", with the dates it spans. What stays: commits with a branch, remote branch or tag on them, `HEAD`, merges, the commits where a branch split off, and first commits, so a merged branch that was deleted still shows as its own line, which `git log --simplify-by-decoration` loses. The toolbar counts what is folded ("61 of 70 commits folded").
+- Click a folded row, or select it and press Enter, to open it: its commits appear in place and the newest is selected. Right-click it for **Show these N commits** or **Turn off Compact graph**, and click **fold all** in the toolbar to fold everything again. **All history** in the find box opens the run that holds a match. Compact works with First parent, the Branches checklist, hidden branches and every commit order; it is off in file history and with the author filter. On a 101,000-commit test repository the first page takes about 0.6 s (0.3 s without Compact).
+
 ## 0.17.0 (2026-11-20)
 
 - **Branch colours.** Give a branch its own colour that stays the same however the graph is laid out: the new setting `mergeline.branchColors` takes branch names or patterns, for example `{"main": "blue", "develop": "purple", "release/*": "orange", "feature/*": "green", "hotfix/*": "#e5534b"}`. The line that starts at a coloured branch and the branch's badge use its colour; a pattern also covers remote branches (`origin/main`), and a pinned branch's column takes its colour. Palette names follow the light or dark theme, and `#hex`, `rgb()` and `hsl()` colours work too. Or right-click a branch → **Set branch colour…** (or **Set colour of all feature/… branches…**) and pick a colour; **Automatic** removes it. Branches without a colour keep cycling through the palette as before.

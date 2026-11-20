@@ -52,6 +52,7 @@
     <span class="tb">Authors <button id="authbtn" class="secondary drop" title="Show only commits by some authors" aria-haspopup="true" aria-expanded="false">All</button></span>
     <label class="tb chk" title="Show remote-tracking branches"><input type="checkbox" id="remotes"> Remote branches</label>
     <label class="tb chk" title="Follow only the first parent of merges (git log --first-parent): each branch's own line, merged commits hidden behind their merge"><input type="checkbox" id="firstparent"> First parent</label>
+    <label class="tb chk" title="Fold straight runs of commits into one row, so only branch tips, tags, merges and the points where branches split are shown. Click a folded row to open it."><input type="checkbox" id="compact"> Compact</label><span id="foldhint" class="hint" hidden></span>
     <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
     <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
     <span class="grow"></span>
@@ -98,6 +99,13 @@
   $('#repo').addEventListener('change', (e) => vscode.postMessage({ type: 'setRepo', repo: e.target.value }));
   $('#remotes').addEventListener('change', sendFilter);
   $('#firstparent').addEventListener('change', (e) => vscode.postMessage({ type: 'firstParent', on: e.target.checked }));
+  $('#compact').addEventListener('change', (e) => vscode.postMessage({ type: 'compact', on: e.target.checked }));
+  $('#foldhint').addEventListener('click', (e) => { if (e.target.closest('[data-q="collapse"]')) { e.preventDefault(); vscode.postMessage({ type: 'collapse' }); } });
+  // Compact graph: open a folded row (the extension reloads and selects its newest commit).
+  function expandFold(c) {
+    $('#count').textContent = `opening ${c.fold ? c.fold.n : ''} commits…`;
+    vscode.postMessage({ type: 'expand', sha: c.sha });
+  }
   $('#order').addEventListener('change', (e) => vscode.postMessage({ type: 'order', order: e.target.value }));
   $('#pathbar').addEventListener('click', (e) => {
     if (e.target.closest('#clearpath')) vscode.postMessage({ type: 'filter', branches: selBranches, remotes: $('#remotes').checked, path: '' });
@@ -287,7 +295,7 @@
       case 'menuPick': { const mi = [...menu.querySelectorAll('.mi')].find((x) => x.textContent === m.label); if (mi) mi.dispatchEvent(new MouseEvent('click', { bubbles: true })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rowsClass: rowsEl.className, nodeColors: [...rowsEl.querySelectorAll('.row')].map((r) => { const n = r.querySelector('.c-graph svg > :last-child'); return r.dataset.i + ' ' + (n ? n.getAttribute('fill') || n.getAttribute('stroke') : '') + ' ' + (r.style.getPropertyValue('--rc') || '-') + ' ' + getComputedStyle(r).backgroundColor + ' ' + getComputedStyle(r.querySelector('.c-desc')).boxShadow; }), badgeColors: [...rowsEl.querySelectorAll('.badge.bc')].map((b) => b.dataset.ref + ' ' + b.style.getPropertyValue('--bc') + ' ' + getComputedStyle(b).borderTopColor), menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rowsClass: rowsEl.className, nodeColors: [...rowsEl.querySelectorAll('.row')].map((r) => { const n = r.querySelector('.c-graph svg > :last-child'); return r.dataset.i + ' ' + (n ? n.getAttribute('fill') || n.getAttribute('stroke') : '') + ' ' + (r.style.getPropertyValue('--rc') || '-') + ' ' + getComputedStyle(r).backgroundColor + ' ' + getComputedStyle(r.querySelector('.c-desc')).boxShadow; }), badgeColors: [...rowsEl.querySelectorAll('.badge.bc')].map((b) => b.dataset.ref + ' ' + b.style.getPropertyValue('--bc') + ' ' + getComputedStyle(b).borderTopColor), menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, compact: $('#compact').checked, foldHint: $('#foldhint').hidden ? '' : $('#foldhint').textContent, folds: [...rowsEl.querySelectorAll('.row.k-collapsed .fold')].map((x) => x.textContent), trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -342,6 +350,17 @@
     $('#remotes').checked = m.filter.remotes;
     if (m.order) $('#order').value = m.order;
     $('#firstparent').checked = !!m.firstParent;
+    $('#compact').checked = !!m.compactOn;
+    const fh = $('#foldhint');
+    fh.hidden = !m.compactOn;
+    if (m.compact) {
+      const opened = foldOpened(m);
+      fh.innerHTML = `${m.compact.hidden.toLocaleString()} of ${m.compact.total.toLocaleString()} commits folded${opened ? ' · <a href="#" data-q="collapse" title="Fold the runs you opened again">fold all</a>' : ''}`;
+      fh.title = 'Compact graph: straight runs of commits are folded into one row each';
+    } else if (m.compactOn) {
+      fh.textContent = 'not in file history or with an author filter';
+      fh.title = 'Compact graph is off while the graph is already filtered';
+    }
     $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
     renderOpBar(m.op);
     renderBisectBar(m.bisect);
@@ -359,6 +378,8 @@
     render();
   }
 
+  // Whether any run was opened: the extension sends that as `expanded` in the compact counts.
+  function foldOpened(m) { return !!(m.compact && m.compact.expanded); }
   function countLabel(m) { return `${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}`; }
 
   function sizeList() {
@@ -366,7 +387,7 @@
     setGraphWidth();
     spacer.style.height = m.commits.length * ROW + 44 + 'px';
     moreEl.style.top = m.commits.length * ROW + 'px';
-    moreEl.innerHTML = m.hasMore ? `<button id="loadmore">Load more commits</button>` : m.commits.length ? `<span class="end">${m.commits.length} commits</span>` : '';
+    moreEl.innerHTML = m.hasMore ? `<button id="loadmore">Load more commits</button>` : m.commits.length ? `<span class="end">${m.compact ? `${m.commits.length} rows, ${m.compact.total.toLocaleString()} commits (${m.compact.hidden.toLocaleString()} folded)` : `${m.commits.length} commits`}</span>` : '';
     const lm = $('#loadmore');
     if (lm) lm.addEventListener('click', loadMore);
   }
@@ -536,12 +557,21 @@
     const clipped = row.col >= MAX_LANES_SHOWN;
     const cx = x(clipped ? MAX_LANES_SHOWN - 1 : row.col), cy = ROW / 2, col = color(row.color);
     let node;
-    if (c.kind === 'stash') node = `<rect x="${cx - 4}" y="${cy - 4}" width="8" height="8" rx="1.5" class="n-stash" stroke="${col}"/>`;
+    if (c.kind === 'collapsed') node = `<g class="n-fold" fill="${col}"><circle cx="${cx}" cy="${cy - 5}" r="1.6"/><circle cx="${cx}" cy="${cy}" r="1.6"/><circle cx="${cx}" cy="${cy + 5}" r="1.6"/></g>`;
+    else if (c.kind === 'stash') node = `<rect x="${cx - 4}" y="${cy - 4}" width="8" height="8" rx="1.5" class="n-stash" stroke="${col}"/>`;
     else if (c.kind === 'uncommitted') node = `<circle cx="${cx}" cy="${cy}" r="4" class="n-unc" stroke="${col}"/>`;
     else if (clipped) node = `<circle cx="${cx}" cy="${cy}" r="4" class="n-unc" stroke="${col}"><title>Lane ${row.col + 1} (off screen)</title></circle>`;
     else if (c.sha === data.head) node = `<circle cx="${cx}" cy="${cy}" r="5.5" class="n-head" stroke="${col}"/><circle cx="${cx}" cy="${cy}" r="2.5" fill="${col}"/>`;
     else node = `<circle cx="${cx}" cy="${cy}" r="4" fill="${col}" class="n"/>`;
     return `<svg width="${graphWidth()}" height="${ROW}" aria-hidden="true">${p}${node}</svg>`;
+  }
+
+  // A folded run in the compact graph: "⋯ 12 commits" and the dates it spans.
+  function foldHtml(c) {
+    const f = c.fold || { n: 0, oldest: c.date };
+    const a = f.oldest ? fmtDate(f.oldest) : '', b = fmtDate(c.date);
+    const span = a && a !== b ? `${a} – ${b}` : b;
+    return `<span class="fold" title="Show these ${f.n} commits">⋯ ${esc(c.subject)}</span><span class="fold-span">${esc(span)}</span>`;
   }
 
   function refBadges(c) {
@@ -633,10 +663,10 @@
       if (dim && c.kind === 'commit' && !dim.has(c.sha)) cls.push('dim');
       h += `<div class="${cls.join(' ')}" style="top:${i * ROW}px${rc ? ';--rc:' + color(row.color) : ''}" data-i="${i}">
         <div class="c-graph">${graphSvg(c, row)}</div>
-        <div class="c-desc">${refBadges(c)}${noteSet.has(c.sha) ? '<span class="nt" title="This commit has a git note (shown in its details)">note</span>' : ''}<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span></div>
+        <div class="c-desc">${c.kind === 'collapsed' ? foldHtml(c) : refBadges(c)}${noteSet.has(c.sha) ? '<span class="nt" title="This commit has a git note (shown in its details)">note</span>' : ''}${c.kind === 'collapsed' ? '' : `<span class="subj" title="${esc(c.subject)}">${esc(c.subject)}</span>`}</div>
         <div class="c-date" title="${c.kind === 'uncommitted' ? '' : esc(new Date(c.date * 1000).toString())}">${c.kind === 'uncommitted' ? '' : esc(fmtDate(c.date))}</div>
         <div class="c-author" title="${esc(c.email)}">${settings.showAvatars && c.kind !== 'uncommitted' ? avatarHtml(c.author, c.email, avatarBy[c.email]) : ''}${esc(c.author)}</div>
-        <div class="c-hash">${c.kind === 'uncommitted' ? '' : esc(short(c.sha))}</div></div>`;
+        <div class="c-hash">${c.kind === 'uncommitted' || c.kind === 'collapsed' ? '' : esc(short(c.sha))}</div></div>`;
     }
     rowsEl.innerHTML = h;
   }
@@ -647,7 +677,9 @@
     const r = e.target.closest('.row');
     if (!r) return;
     const c = data.commits[+r.dataset.i];
-    if ((e.ctrlKey || e.metaKey) && selected && selected !== c.sha) {
+    if (c.kind === 'collapsed') { expandFold(c); return; }
+    // (A selected folded row has nothing to compare: a plain click then.)
+    if ((e.ctrlKey || e.metaKey) && selected && selected !== c.sha && !selected.startsWith('~')) {
       compareSha = c.sha;
       vscode.postMessage({ type: 'details', sha: selected, compare: c.sha });
     } else if (selected === c.sha && !compareSha && !detailsEl.hidden) {
@@ -663,7 +695,10 @@
   function select(sha, scroll) {
     selected = sha;
     compareSha = null;
-    vscode.postMessage({ type: 'details', sha });
+    // A folded row has no details: it is selected (Enter opens it) and the pane closes.
+    const fc = indexBySha.has(sha) ? data.commits[indexBySha.get(sha)] : null;
+    if (fc && fc.kind === 'collapsed') { detailsEl.hidden = true; split.hidden = true; details = null; }
+    else vscode.postMessage({ type: 'details', sha });
     if (scroll) scrollTo(indexBySha.get(sha));
     render();
   }
@@ -1036,6 +1071,11 @@
       if (data && data.head && indexBySha.has(data.head)) select(data.head, true);
       return;
     }
+    if (e.key === 'Enter' && data && selected && indexBySha.has(selected) && data.commits[indexBySha.get(selected)].kind === 'collapsed') {
+      e.preventDefault();
+      expandFold(data.commits[indexBySha.get(selected)]);
+      return;
+    }
     const page = Math.max(1, Math.floor(scroller.clientHeight / ROW) - 1);
     const MOVE = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page };
     if ((e.key in MOVE || e.key === 'Home' || e.key === 'End') && data && data.commits.length) {
@@ -1069,6 +1109,12 @@
     const isHead = c.sha === data.head;
     const cur = data.branch ? `“${data.branch}”` : 'HEAD';
     const base = { sha: c.sha, subject: c.subject, parents: c.parents };
+    if (c.kind === 'collapsed') return [
+      [`Show these ${c.fold ? c.fold.n : ''} commits`, () => expandFold(c)],
+      ...(foldOpened(data) ? [['Fold opened runs again', () => vscode.postMessage({ type: 'collapse' })]] : []),
+      null,
+      ['Turn off Compact graph', () => vscode.postMessage({ type: 'compact', on: false })],
+    ];
     if (c.kind === 'uncommitted') return [
       ['Stash changes…', { action: 'stashSave' }],
       ['Open Source Control', { action: 'openScm' }],

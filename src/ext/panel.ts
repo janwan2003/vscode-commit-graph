@@ -2,7 +2,7 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, readNotedCommits, readNote, writeNote, readAuthors, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, readNotedCommits, readNote, writeNote, readAuthors, readCompactLog, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
 import { layout, LayoutState, newLayoutState, pinBranches, extendPins } from '../core/graph';
 import { pinnedTips } from '../core/pins';
@@ -39,6 +39,10 @@ export class GraphPanel implements vscode.Disposable {
   private layState: LayoutState | undefined;
   /** Rows sent by the last load (counted for the e2e: 'data' sends all, 'append' only new ones). */
   lastSent = { kind: '', rows: 0 };
+  /** Compact graph: commits whose folded run the user opened (a run with any of them is shown whole). Reset when compact is turned off or the repo changes. */
+  private expand = new Set<string>();
+  /** Compact graph counts from the last load: commits walked and hidden. */
+  private folded: { total: number; hidden: number } | null = null;
   private loading = false;
   private again = false;
   /** Last data posted to the webview (tests read it). */
@@ -240,6 +244,7 @@ export class GraphPanel implements vscode.Disposable {
     this.ctx.workspaceState.update('mergeline.repo', root);
     this.filter.branches = [];
     this.filter.path = null;
+    this.expand.clear();
     this.max = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
     this.postRepos();
     this.refresh(true);
@@ -306,8 +311,13 @@ export class GraphPanel implements vscode.Disposable {
     const showUnc = cfg.get<boolean>('showUncommitted', true) && !fileMode;
     const order = cfg.get<CommitOrder>('commitOrder', 'date');
     const opts = this.logOptions(order);
+    // Compact graph: not with file history or the author filter, which already leave commits out.
+    const compact = cfg.get<boolean>('compactGraph', false) && !fileMode && !opts.authors;
     let names: string[] = [];
     let raw = 0;
+    const stateP = readState(root);
+    const stashP: Promise<Commit[]> = showStash ? readStashes(root) : Promise.resolve([]);
+    this.folded = null;
     const [commits0, state, stashes, unc, wts, op, bisect, noted] = await Promise.all([
       fileMode
         ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
@@ -315,9 +325,18 @@ export class GraphPanel implements vscode.Disposable {
             raw = h.raw;
             return h.commits;
           })
-        : readLog(root, { ...opts, max: this.max + 1 }).then((c) => ((raw = c.length), c)),
-      readState(root),
-      showStash ? readStashes(root) : Promise.resolve([]),
+        : compact
+          ? Promise.all([stateP, stashP]).then(async ([st, ss]) => {
+              // Kept: every ref, HEAD and each stash's base commit, so their rows and lines still have a commit to sit on.
+              const keep = [...st.refs.map((r) => r.sha), ...(st.head ? [st.head] : []), ...ss.map((x) => x.parents[0]).filter(Boolean)];
+              const r = await readCompactLog(root, { ...opts, max: this.max + 1 }, keep, this.expand);
+              this.folded = { total: r.total, hidden: r.hidden };
+              raw = r.commits.length;
+              return r.commits;
+            })
+          : readLog(root, { ...opts, max: this.max + 1 }).then((c) => ((raw = c.length), c)),
+      stateP,
+      stashP,
       showUnc ? readStatusCount(root) : Promise.resolve(0),
       readWorktrees(root),
       readOperation(root).catch((): OpState | null => null),
@@ -344,7 +363,7 @@ export class GraphPanel implements vscode.Disposable {
     const pinSetting = cfg.get<unknown>('pinnedBranches', []);
     const colorSetting = cfg.get<unknown>('branchColors', {});
     const notes = commits.filter((c) => noted.has(c.sha)).map((c) => c.sha);
-    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, opts.exclude, worktrees, op, bisect, names, web, pinSetting, colorSetting, noted.size]);
+    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, compact, [...this.expand], opts.exclude, worktrees, op, bisect, names, web, pinSetting, colorSetting, noted.size]);
     const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha), notes]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
@@ -362,6 +381,8 @@ export class GraphPanel implements vscode.Disposable {
       return;
     }
     this.lastBase = base;
+    // Set inside the log promise above; the cast stops TypeScript narrowing it to the null assigned before.
+    const folded = this.folded as { total: number; hidden: number } | null;
     const st = newLayoutState();
     const uncRow = commits[0]?.sha === UNCOMMITTED ? { sha: UNCOMMITTED, parent: commits[0].parents[0] } : undefined;
     const pins = pinnedTips(pinSetting, state.refs, commits.map((c) => c.sha), uncRow);
@@ -391,6 +412,8 @@ export class GraphPanel implements vscode.Disposable {
       names,
       order,
       firstParent: opts.firstParent,
+      compact: folded ? { ...folded, expanded: this.expand.size > 0 } : null,
+      compactOn: cfg.get<boolean>('compactGraph', false),
       pinned: pins.names.filter((_, i) => kept.includes(pins.tips[i])),
       pinPatterns: Array.isArray(pinSetting) ? pinSetting.filter((x) => typeof x === 'string') : [],
       colors: rules.colors,
@@ -490,6 +513,12 @@ export class GraphPanel implements vscode.Disposable {
         // Load enough pages to include row `index` (a history search match), then reveal it.
         const page = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
         const want = Math.ceil((Number(m.index) + 1 + 50) / page) * page;
+        // Compact graph: the match may sit inside a folded run; open that run. (Its index in the full
+        // log is at least its compact row index, so `want` still covers it.)
+        if (typeof m.sha === 'string' && /^[0-9a-f]{40,64}$/.test(m.sha) && vscode.workspace.getConfiguration('mergeline').get<boolean>('compactGraph', false) && !this.lastData?.commits.some((c) => c.sha === m.sha)) {
+          this.expand.add(m.sha);
+          if (want <= this.max) await this.refresh(true);
+        }
         if (want > this.max) {
           this.max = want;
           await this.refresh(true);
@@ -543,6 +572,27 @@ export class GraphPanel implements vscode.Disposable {
       case 'order':
         // Saved as a user setting; the configuration listener refreshes the graph.
         if (['date', 'topo', 'author-date'].includes(m.order)) await vscode.workspace.getConfiguration('mergeline').update('commitOrder', m.order, vscode.ConfigurationTarget.Global);
+        break;
+      case 'compact':
+        // Saved as a user setting, like First parent; the configuration listener refreshes the graph.
+        this.expand.clear();
+        await vscode.workspace.getConfiguration('mergeline').update('compactGraph', !!m.on, vscode.ConfigurationTarget.Global);
+        break;
+      case 'expand':
+        // Open a folded run (placeholder id "~<sha>" or any sha in it) and select its newest commit.
+        if (typeof m.sha === 'string' && /^~?[0-9a-f]{4,64}$/i.test(m.sha)) {
+          const sha = m.sha.replace(/^~/, '');
+          this.expand.add(sha);
+          await this.refresh(true);
+          this.post({ type: 'reveal', sha });
+        }
+        break;
+      case 'collapse':
+        // Fold every opened run again.
+        if (this.expand.size) {
+          this.expand.clear();
+          await this.refresh(true);
+        }
         break;
       case 'firstParent':
         // Saved as a user setting, like the order; the configuration listener refreshes the graph.

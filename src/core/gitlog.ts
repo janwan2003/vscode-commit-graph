@@ -1,5 +1,6 @@
 // Run git and parse its output. No VS Code dependency.
 import { execFile } from 'node:child_process';
+import { compactPlan, parseRevList } from './compact';
 
 export interface Commit {
   sha: string;
@@ -8,8 +9,10 @@ export interface Commit {
   email: string;
   date: number; // author time, unix seconds
   subject: string;
-  kind?: 'commit' | 'stash' | 'uncommitted';
+  kind?: 'commit' | 'stash' | 'uncommitted' | 'collapsed';
   stashRef?: string; // stash@{0}
+  /** Compact graph placeholder: how many commits it stands for, and the oldest one's date and sha. */
+  fold?: { n: number; oldest: number; last: string };
 }
 
 export type RefType = 'head' | 'remote' | 'tag' | 'stash';
@@ -170,6 +173,59 @@ export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
     if (e instanceof GitError && EMPTY_REPO.test(e.message)) return [];
     throw e;
   }
+}
+
+/**
+ * Compact graph: the log with straight runs of commits folded into placeholder rows
+ * (`compactPlan` in compact.ts). `keep` are commits that must stay (refs, HEAD, stash bases);
+ * `expand` are commits whose run is shown whole. Only the shown page's metadata is read.
+ */
+export async function readCompactLog(cwd: string, o: LogOptions, keep: Iterable<string>, expand: Iterable<string> = []): Promise<{ commits: Commit[]; total: number; hidden: number }> {
+  const order = o.order === 'topo' ? '--topo-order' : o.order === 'author-date' ? '--author-date-order' : '--date-order';
+  let out: string;
+  try {
+    out = await git(cwd, ['rev-list', '--parents', order, ...(o.firstParent ? ['--first-parent'] : []), ...revArgs(o), '--']);
+  } catch (e) {
+    if (e instanceof GitError && EMPTY_REPO.test(e.message)) return { commits: [], total: 0, hidden: 0 };
+    throw e;
+  }
+  const g = parseRevList(out, !!o.firstParent);
+  const plan = compactPlan(g.order, g.parents, new Set(keep), new Set(expand), g.merges);
+  const page = plan.ids.slice(0, o.max);
+  const need = new Set<string>();
+  for (const id of page) {
+    const f = plan.folds.get(id);
+    if (f) need.add(f.shas[0]).add(f.shas[f.shas.length - 1]);
+    else need.add(id);
+  }
+  const meta = new Map<string, Commit>();
+  if (need.size) {
+    const log = await git(cwd, ['-c', 'log.showSignature=false', 'log', '--no-walk=unsorted', '--stdin', '--no-color', `--format=${LOG_FORMAT}`], { input: [...need].join('\n') + '\n' });
+    for (const c of parseLog(log)) meta.set(c.sha, c);
+  }
+  const commits: Commit[] = [];
+  for (const id of page) {
+    const f = plan.folds.get(id);
+    const parents = plan.parents.get(id) ?? [];
+    if (f) {
+      const top = meta.get(f.shas[0]), last = meta.get(f.shas[f.shas.length - 1]);
+      const n = f.shas.length;
+      commits.push({
+        sha: id,
+        parents,
+        author: top && last && top.author !== last.author ? `${top.author}, …` : top?.author ?? '',
+        email: '',
+        date: top?.date ?? 0,
+        subject: `${n} commit${n === 1 ? '' : 's'}`,
+        kind: 'collapsed',
+        fold: { n, oldest: last?.date ?? 0, last: f.shas[n - 1] },
+      });
+    } else {
+      const c = meta.get(id);
+      if (c) commits.push({ ...c, parents });
+    }
+  }
+  return { commits, total: plan.total, hidden: plan.hidden };
 }
 
 /** "Name <email>", the identity the author filter matches. */

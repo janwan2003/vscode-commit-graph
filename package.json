@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "Visualization",
     "Other"
   ],
-  "keywords": ["git graph", "branch colors", "git patch", "format-patch", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
+  "keywords": ["git graph", "compact graph", "branch colors", "git patch", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
@@ -163,6 +163,11 @@
           "type": "boolean",
           "default": false,
           "description": "Follow only the first parent of merge commits (git log --first-parent): each branch shows its own line, and a merged branch's commits are hidden behind the merge. The toolbar's First parent checkbox changes this setting."
+        },
+        "mergeline.compactGraph": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compact graph: fold straight runs of commits into one \"N commits\" row, so only branch tips, tags, merges and the points where branches split are shown. Click a folded row to open it. Not applied in file history or with the author filter. The toolbar's Compact checkbox changes this setting."
         },
         "mergeline.pinnedBranches": {
       "type": "array",

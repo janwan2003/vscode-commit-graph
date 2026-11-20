@@ -225,6 +225,37 @@ exports.run = async function run() {
     await until(() => vscode.workspace.getConfiguration('mergeline').get('firstParentOnly') === false && panel.lastData.commits.length === before && panel.lastData.commits.some((c) => c.parents.length > 1), 10000, 'first parent off');
   });
 
+  await check('compact graph: toolbar setting folds straight runs, a real click opens one, fold all, off restores', async () => {
+    const before = panel.lastData.commits.length;
+    const click = (selector) => panel.testPost({ type: 'click', selector });
+    await panel.testMessage({ type: 'compact', on: true });
+    assert.equal(vscode.workspace.getConfiguration('mergeline').get('compactGraph'), true);
+    const d = await until(() => panel.lastData.commits.some((c) => c.kind === 'collapsed') && panel.lastData, 10000, 'compact data');
+    const ids = new Set(d.commits.map((c) => c.sha));
+    // Every drawn line ends at a row that exists; folded rows stand for 1+ commits, all shown commits plus folded ones add up.
+    for (const c of d.commits) for (const p of c.parents) assert.ok(ids.has(p), `parent ${p} of ${c.sha} is loaded`);
+    const folds = d.commits.filter((c) => c.kind === 'collapsed');
+    const real = d.commits.filter((c) => c.kind === 'commit').length;
+    assert.equal(real + folds.reduce((a, c) => a + c.fold.n, 0), Number(git('rev-list', '--count', '--branches', '--tags', '--remotes', 'HEAD')));
+    // Refs and HEAD are never folded.
+    for (const r of d.state.refs.filter((x) => x.type !== 'stash')) assert.ok(ids.has(r.sha), `ref ${r.name} is shown`);
+    const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.compact && panel.lastPong.folds.length && panel.lastPong; }, 10000, 'checkbox ticked and folded rows drawn');
+    assert.match(pong.foldHint, /^\d+ of \d+ commits folded$/);
+    assert.match(pong.folds[0], /^⋯ \d+ commits?$/);
+    // A real click on the first folded row opens it: its commits appear and the newest is selected.
+    const first = folds[0];
+    await click(`.row[data-i="${d.commits.indexOf(first)}"]`);
+    const o = await until(() => !panel.lastData.commits.some((c) => c.sha === first.sha) && panel.lastData, 10000, 'fold opened');
+    assert.equal(o.commits.length, d.commits.length - 1 + first.fold.n);
+    assert.ok(o.commits.some((c) => c.sha === first.fold.last));
+    const p2 = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === first.sha.slice(1) && panel.lastPong; }, 10000, 'newest commit of the opened run selected');
+    assert.match(p2.foldHint, /fold all$/);
+    await click('#foldhint [data-q="collapse"]');
+    await until(() => panel.lastData.commits.length === d.commits.length, 10000, 'folded again');
+    await panel.testMessage({ type: 'compact', on: false });
+    await until(() => vscode.workspace.getConfiguration('mergeline').get('compactGraph') === false && panel.lastData.commits.length === before && !panel.lastData.commits.some((c) => c.kind === 'collapsed'), 10000, 'compact off');
+  });
+
   await check('pinned branches: default pins main (working tree row on top of it); a pinned hotfix line keeps column 0; pin message edits the setting', async () => {
     const cfg = () => vscode.workspace.getConfiguration('mergeline');
     assert.deepEqual(cfg().get('pinnedBranches'), ['main', 'master', 'develop']);

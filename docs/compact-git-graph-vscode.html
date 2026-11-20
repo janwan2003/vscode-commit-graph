@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collapse commits in a git graph: show only the branch structure | Mergeline</title>
+<meta name="description" content="Fold straight runs of commits so a git graph shows only branches, merges and tags; why --simplify-by-decoration loses branches; a compact view in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/compact-git-graph-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Collapse commits in a git graph: show only the branch structure">
+<meta property="og:description" content="What git log --simplify-by-decoration keeps and drops, why it hides merged branches, and a compact git graph in VS Code that folds straight runs into one row.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/compact-git-graph-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Collapse commits in a git graph</h1>
+    <p>On a busy repository the branch structure is buried. A feature branch with 9 commits takes 9 rows, the main line between two merges takes 40 more, and the place where a branch split off is two screens below its merge. This page shows how to see only the shape of the history: with git in a terminal, and with a compact graph in VS Code that folds every straight run of commits into one row you can open again.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#decoration"><code>git log --simplify-by-decoration</code></a></li>
+        <li><a href="#lost">What it leaves out</a></li>
+        <li><a href="#other">Other git options</a></li>
+        <li><a href="#vscode">A compact graph in VS Code</a></li>
+        <li><a href="#rules">Which commits stay</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Use</th></tr></thead>
+        <tbody>
+          <tr><td>See only commits that have a branch or tag on them</td><td><code>git log --graph --oneline --all --simplify-by-decoration</code></td></tr>
+          <tr><td>See one line per merged pull request</td><td><code>git log --first-parent --oneline main</code></td></tr>
+          <tr><td>See only merge commits</td><td><code>git log --merges --oneline</code></td></tr>
+          <tr><td>Fold straight runs but keep every branch, merge and fork point</td><td>Mergeline: tick <strong>Compact</strong> in the toolbar (setting <code>mergeline.compactGraph</code>)</td></tr>
+          <tr><td>Open one folded run</td><td>Mergeline: click its <strong>&hellip; 12 commits</strong> row, or select it and press <kbd>Enter</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="decoration"><code>git log --simplify-by-decoration</code></h2>
+    <p>git has one built-in way to hide the commits in between. <code>--simplify-by-decoration</code> keeps only commits that a branch, a tag or <code>HEAD</code> points at (git calls the ref names next to a commit its <em>decorations</em>), and with <code>--graph</code> it joins each one to the nearest kept ancestor:</p>
+<pre>git log --graph --oneline --all --simplify-by-decoration</pre>
+    <p>It is useful for a quick list of where every branch and release tag is, and how they relate. Add <code>--decorate-refs=refs/tags</code> to keep only tagged commits, which gives a release timeline.</p>
+
+    <h2 id="lost">What it leaves out</h2>
+    <p>Here is a small repository: a branch <code>f</code> with two commits was merged into <code>master</code> and then deleted, and <code>m2</code> has a tag. The full graph (git 2.53):</p>
+<pre>*   merge  (HEAD -&gt; master)
+|\
+| * f2
+| * f1
+* | m4
+|/
+* m3
+* m2  (tag: v1)
+* m1</pre>
+    <p>The same history with <code>--simplify-by-decoration</code>:</p>
+<pre>* merge  (HEAD -&gt; master)
+* m2  (tag: v1)</pre>
+    <p>The merged branch is gone, and so is the commit where it split off (<code>m3</code>) and the first commit. Branches are deleted after they are merged in most teams, so on a real repository this view shows almost none of the structure you wanted to see. It also gives no hint of how many commits each line stands for.</p>
+
+    <h2 id="other">Other git options</h2>
+    <ul>
+      <li><code>--first-parent</code> follows only the first parent of each merge, so the main branch reads as one line of merges and direct commits. Good for &ldquo;what landed on main&rdquo;, but it hides every merged branch. See <a href="git-log-first-parent.html">git log --first-parent explained</a>.</li>
+      <li><code>--merges</code> lists only merge commits, without the lines between them.</li>
+      <li><code>--simplify-merges</code> and <code>--ancestry-path</code> change which commits are shown when you also give a path or a range; they do not fold straight runs.</li>
+      <li><code>--max-count</code> or <code>--since</code> only shorten the list.</li>
+    </ul>
+    <p>None of them keeps the branches and fork points while hiding the runs in between. VS Code&rsquo;s own Source Control Graph has no option for it either: in VS Code 1.147 its settings are <code>scm.graph.badges</code>, <code>pageOnScroll</code>, <code>pageSize</code>, <code>showIncomingChanges</code> and <code>showOutgoingChanges</code>. The Git Graph extension has had this as an open request since 2020 (<a href="https://github.com/mhutchie/vscode-git-graph/issues/387">issue #387, &ldquo;Collapsible Graph&rdquo;</a>).</p>
+
+    <h2 id="vscode">A compact graph in VS Code</h2>
+    <p>Mergeline is a free, MIT-licensed git graph for VS Code, Cursor and VSCodium. From version 0.18 its toolbar has a <strong>Compact</strong> checkbox. With it on, every straight run of commits becomes one row, <strong>&hellip; 12 commits</strong>, with the dates it spans and its author, and the lines still connect. The toolbar says how much is folded (&ldquo;61 of 70 commits folded&rdquo;).</p>
+    <figure>
+      <img src="screenshot-compact.png" width="1280" height="800" alt="Mergeline with Compact on: 70 commits shown as 19 rows. Merges, tags, branch tips and fork points stay; runs of 3 to 13 commits are folded into rows such as '… 9 commits'.">
+      <figcaption>70 commits, 19 rows: three merged-and-deleted branches still show as their own lines. <a href="screenshot-compact-before.png">The same history without Compact</a>.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>Open a run:</strong> click its row, or select it with the arrow keys and press <kbd>Enter</kbd>. Its commits appear in place and the newest one is selected. Right-click it for <strong>Show these N commits</strong> or <strong>Turn off Compact graph</strong>.</li>
+      <li><strong>Fold them again:</strong> click <strong>fold all</strong> next to the count in the toolbar.</li>
+      <li><strong>Find still works:</strong> <strong>All history</strong> in the find box searches every commit; when a match is inside a folded run, that run opens and the match is selected.</li>
+      <li>It combines with <strong>First parent</strong>, the <strong>Branches</strong> checklist, hidden branches and both commit orders. It is off in file history and with the author filter, which already leave commits out.</li>
+      <li>On a synthetic repository with 101,000 commits (1,000 merged branches) the first page took about 0.6&nbsp;s, against about 0.3&nbsp;s for the normal view, and the whole history folded into 3,002 rows.</li>
+    </ul>
+
+    <h2 id="rules">Which commits stay</h2>
+    <p>A commit stays visible when something happens there:</p>
+    <ul>
+      <li>a branch, remote branch or tag points at it, or it is <code>HEAD</code>, or a stash was made on it;</li>
+      <li>it is a merge (two or more parents);</li>
+      <li>it is a fork point: two or more commits have it as their parent, so a branch split off there;</li>
+      <li>it is a first commit (no parent) or the tip of what is shown.</li>
+    </ul>
+    <p>Every other commit has exactly one parent and one child, so the hidden commits always form straight chains, and each chain becomes one row. That is why a deleted branch keeps its own line: its fork point and its merge both stay, and the commits between them fold into one row on the side line.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Does Compact change my repository?</summary>
+      <p>No. It only changes what the graph shows. It is a VS Code setting, <code>mergeline.compactGraph</code>.</p>
+    </details>
+    <details>
+      <summary>Can I run an action on a folded row?</summary>
+      <p>No: open it first. Merge, rebase, cherry-pick and the other actions work on single commits, and a folded row stands for several.</p>
+    </details>
+    <details>
+      <summary>Why is a commit with no branch on it still shown?</summary>
+      <p>It is a merge, or a branch split off there. Folding it would hide where two lines meet.</p>
+    </details>
+    <p>Related: <a href="git-log-graph.html"><code>git log --graph</code> reference</a>, <a href="git-log-first-parent.html">git log --first-parent</a>, <a href="visualize-git-branches-vscode.html">visualize git branches in VS Code</a> and <a href="filter-git-graph-by-branch.html">filter the graph by branch</a>.</p>
+  </div>
+</main>
+
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html">Git patches</a>
+      <a href="git-graph-branch-colors-vscode.html">Branch colors</a>
+      <a href="compact-git-graph-vscode.html" aria-current="page">Compact graph</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
