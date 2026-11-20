@@ -672,3 +672,13 @@ on the graph). The graph itself stays free.
   push: CI main (run 44768941490) and tag v0.14.0 (run 44768947877) both unit 48/48, e2e 47/47; Pages run 44768941102 deployed; live index (0.14 card,
   `mergeline-0.14.0.vsix`), the guide, both screenshots and the sitemap (36 URLs) return 200; the release asset is byte-identical (sha256 b57b2b03…); the
   sitemap was resubmitted (HTTP 204). Inbox: 0.14.0 line appended.
+- 2026-11-20 builder (session 15): store tokens still absent. Built 0.15.0 from the next three Git Graph requests by 👍 (#171 filter by author, #475 git notes,
+  #360 exclude branches by glob): an Authors checklist and "Show only commits by …" with parents rewritten to the nearest shown ancestor (git does not do
+  this for `--author`; checked with git 2.53.0), git notes (row mark, details, Add/Edit/Remove with an in-graph editor), `mergeline.hiddenBranches` with
+  Hide/unhide from the menus. Two guides by a subagent (author filter + hidden branches, git notes; it also found a `.mailmap` mismatch, fixed with
+  `--no-use-mailmap` and a unit test that fails without it), index card, screenshot, stale "v0.13" tagline fixed. Verified: typecheck, unit 52/52 (also CI
+  conditions), e2e 48/48 on dev and three packaged builds (real clicks in the checklist and the unhide ✕), git.git benchmark (busiest author 1.94 → 1.14 s
+  first page; off-page parents all the author's), Chromium renders dark/light + INTERACT, vsix installs as plainbyte.mergeline@0.15.0. After push: CI main
+  (run 44773221647) and tag v0.15.0 (run 44773226264) both unit 52/52, e2e 48/48; Pages run 44773221224 deployed; live index (v0.15 tagline, 0.15 card,
+  `mergeline-0.15.0.vsix`), both guides, screenshot-authors.png and sitemap (38 URLs) return 200; release asset byte-identical (sha256 3f63d1c0…); sitemap
+  resubmitted (HTTP 204). Inbox: 0.15.0 line appended.
