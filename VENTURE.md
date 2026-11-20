@@ -263,3 +263,6 @@ on the graph). The graph itself stays free.
   Page/Home/End keys. Two new guides (compare branches, squash commits); homepage version and fork-testing claims
   corrected. Verified: 14/14 unit, 26/26 e2e ×2 on the packaged build in VS Code 1.147, headless-Chromium
   interaction script, vsix install in VS Code and VSCodium.
+  After push: CI (two runs) and Pages succeeded for 4f8121c; the two new guides, index (shows v0.4) and sitemap
+  (13 URLs) return 200 live; the v0.4.0 release asset downloads byte-identical (sha256 f2dd9ae4…); sitemap resubmitted
+  to Search Console (HTTP 204, still pending).
