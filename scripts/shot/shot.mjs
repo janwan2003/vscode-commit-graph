@@ -36,6 +36,7 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
     window.postMessage({ type: 'repos', repos: [{ root: '/work/acme-app', name: 'acme-app' }], repo: '/work/acme-app' }, '*');
     // OPBAR=1: pretend a rebase stopped on a conflict (the bar above the graph).
     if (${process.env.REVIEW === '1'}) P.details = P.review;
+    if (${!!process.env.PATCHMENU}) P.details = null;
     if (${process.env.OPBAR === '1'}) {
       const c = P.data.commits.filter((x) => x.kind === 'commit');
       const onto = (P.data.refs.find((r) => r.type === 'head' && r.name !== P.data.branch) || {}).sha || c[6].sha;
@@ -70,6 +71,20 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
         ev(document, 'mousemove', d.left + 8, d.top + 8);
         ev(document.elementFromPoint(d.left + 8, d.top + 8), 'mouseup', d.left + 8, d.top + 8);
       }, 140);
+      // PATCHMENU=1: the toolbar's Patch menu open (apply from a file or the clipboard, save uncommitted changes).
+      if (${process.env.PATCHMENU === '1'}) setTimeout(() => document.querySelector('#patchbtn').click(), 140);
+      // PATCHMENU=2: a commit's right-click menu, with Ctrl/Cmd-click selection of an older commit (Save commits a…b as patches…).
+      if (${process.env.PATCHMENU === '2'}) setTimeout(() => {
+        // HEAD and its parent: one line of history.
+        const ix = (sha) => P.data.commits.findIndex((c) => c.sha === sha);
+        const a = ix(P.data.head), b = ix(P.data.commits[a].parents[0]);
+        const row = (i) => document.querySelector('.row[data-i="' + i + '"]');
+        row(a).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        setTimeout(() => {
+          row(b).dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+          setTimeout(() => { const r = row(a).getBoundingClientRect(); row(a).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 360, clientY: r.top + 10 })); }, 60);
+        }, 60);
+      }, 140);
       // AUTHORS=1: the author checklist open (run with AUTHOR="Grace Hopper <grace@example.com>" for a filtered graph).
       if (${process.env.AUTHORS === '1'}) setTimeout(() => document.querySelector('#authbtn').click(), 140);
       // BRANCHES=1: the branch checklist open with two branches ticked, commits off HEAD dimmed.
@@ -100,4 +115,4 @@ console.log('screenshot:', out, '|', title);
 rmSync(tmp, { recursive: true, force: true });
 if (INTERACT) { if (!title.startsWith('INTERACT ') || title.includes('"error"')) { console.error('interaction check failed'); process.exit(1); } process.exit(0); }
 const m = /rows=(\d+) badges=(\d+) files=(\d+) paths=(\d+)/.exec(title);
-if (!m || +m[1] < (process.env.AUTHOR ? 2 : 15) || (!process.env.PAYLOAD && (+m[2] < (process.env.AUTHOR ? 1 : 5) || (+m[3] < 1 && process.env.BISECT !== '1'))) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }
+if (!m || +m[1] < (process.env.AUTHOR ? 2 : 15) || (!process.env.PAYLOAD && (+m[2] < (process.env.AUTHOR ? 1 : 5) || (+m[3] < 1 && process.env.BISECT !== '1' && !process.env.PATCHMENU))) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }

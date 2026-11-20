@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "Visualization",
     "Other"
   ],
-  "keywords": ["git graph", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "filter branches", "code review", "fixup commit", "git remote", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
+  "keywords": ["git graph", "git patch", "format-patch", "git notes", "git log author", "file history", "git file history", "git history", "commit graph", "git diff", "compare branches", "branch graph", "git log", "git bisect", "git worktree", "edit commit message", "squash commits", "reorder commits", "interactive rebase", "git flow", "pull request", "create pull request", "code review", "fixup commit", "merge conflict", "git", "merge", "rebase", "cherry-pick", "stash"],
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
@@ -52,6 +52,12 @@
         "title": "Manage Remotes",
         "category": "Mergeline",
         "icon": "$(repo)"
+      },
+      {
+        "command": "mergeline.applyPatch",
+        "title": "Apply Patch…",
+        "category": "Mergeline",
+        "icon": "$(diff)"
       },
       {
         "command": "mergeline.fileHistory",

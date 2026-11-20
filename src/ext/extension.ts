@@ -7,6 +7,20 @@ import { runAction } from './actions';
 
 export async function activate(ctx: vscode.ExtensionContext) {
   const repos = new Repos();
+  async function repoAction(action: string) {
+    await ready;
+    const list = repos.list();
+    let repo = list.find((r) => r.root === GraphPanel.current?.repoRoot) ?? (list.length === 1 ? list[0] : undefined);
+    if (!repo && list.length) {
+      const pick = await vscode.window.showQuickPick(list.map((r) => ({ label: r.name, description: r.root, r })), { placeHolder: 'Repository' });
+      repo = pick?.r;
+    }
+    if (!repo) {
+      if (!list.length) vscode.window.showInformationMessage('Mergeline: no git repository found in this workspace.');
+      return;
+    }
+    if (await runAction({ root: repo.root, api: repo.api }, { action })) await GraphPanel.current?.refresh(true);
+  }
   ctx.subscriptions.push(repos, vscode.workspace.registerTextDocumentContentProvider(SCHEME, new GitContentProvider()));
   const ready = repos.init();
 
@@ -18,21 +32,9 @@ export async function activate(ctx: vscode.ExtensionContext) {
       return GraphPanel.show(ctx, repos, root);
     }),
     vscode.commands.registerCommand('mergeline.refresh', () => GraphPanel.current?.refresh(true)),
-    // Remotes of the repository shown in the graph (or the only / a picked repository).
-    vscode.commands.registerCommand('mergeline.manageRemotes', async () => {
-      await ready;
-      const list = repos.list();
-      let repo = list.find((r) => r.root === GraphPanel.current?.repoRoot) ?? (list.length === 1 ? list[0] : undefined);
-      if (!repo && list.length) {
-        const pick = await vscode.window.showQuickPick(list.map((r) => ({ label: r.name, description: r.root, r })), { placeHolder: 'Repository' });
-        repo = pick?.r;
-      }
-      if (!repo) {
-        if (!list.length) vscode.window.showInformationMessage('Mergeline: no git repository found in this workspace.');
-        return;
-      }
-      if (await runAction({ root: repo.root, api: repo.api }, { action: 'manageRemotes' })) await GraphPanel.current?.refresh(true);
-    }),
+    // Remotes / patches of the repository shown in the graph (or the only / a picked repository).
+    vscode.commands.registerCommand('mergeline.manageRemotes', () => repoAction('manageRemotes')),
+    vscode.commands.registerCommand('mergeline.applyPatch', () => repoAction('applyPatch')),
     // From the Explorer or an editor tab VS Code passes the file's URI; from the
     // Command Palette we use the active editor.
     vscode.commands.registerCommand('mergeline.fileHistory', async (uri?: vscode.Uri) => {

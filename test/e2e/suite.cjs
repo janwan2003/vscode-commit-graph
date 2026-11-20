@@ -1031,6 +1031,111 @@ exports.run = async function run() {
       if (stashed) git('stash', 'pop', '-q');
     }
   });
+  await check('patches: save a commit / a Ctrl-click series / a branch / a diff, copy, and apply them back (git am, git apply, from the clipboard, real clicks)', async () => {
+    const pong = async (pred, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && pred(panel.lastPong) && panel.lastPong; }, 15000, what);
+    const click = (selector, ctrl) => panel.testPost({ type: 'click', selector, ctrl });
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'mergeline-patch-'));
+    const stashed = git('status', '--porcelain') !== '';
+    if (stashed) git('stash', 'push', '-q', '-u', '-m', 'e2e-patch');
+    const start = git('rev-parse', 'HEAD');
+    const prevSave = w.showSaveDialog;
+    const read = (f) => fs.readFileSync(path.join(out, f), 'utf8');
+    try {
+      assert.ok((await vscode.commands.getCommands(true)).includes('mergeline.applyPatch'), 'command registered');
+      // Two commits on a side branch; main stays where it is.
+      git('checkout', '-q', '-b', 'patch-src');
+      fs.writeFileSync(root + '/patch-a.txt', 'one\n'); git('add', '-A'); git('commit', '-q', '-m', 'Patch source one');
+      fs.writeFileSync(root + '/patch-a.txt', 'one\ntwo\n'); fs.writeFileSync(root + '/patch-b.txt', 'b\n'); git('add', '-A'); git('commit', '-q', '-m', 'Patch source two');
+      const [p1, p2] = [git('rev-parse', 'HEAD~1'), git('rev-parse', 'HEAD')];
+      git('checkout', '-q', 'main');
+      await panel.refresh(true);
+      await until(() => panel.lastData.commits.some((c) => c.sha === p2), 10000, 'side branch loaded');
+
+      // Commit menu items; with a Ctrl-click selection, the series item too (real clicks on the rows).
+      await panel.testPost({ type: 'reveal', sha: p2 });
+      let p = await pong((x) => x.selected === p2 && x.commitMenu.length, 'commit menu');
+      assert.ok(p.commitMenu.includes('Save as a patch…') && p.commitMenu.includes('Copy as a patch'), p.commitMenu.join(' | '));
+      const i1 = panel.lastData.commits.findIndex((c) => c.sha === p1);
+      await click(`.row[data-i="${i1}"]`, true);
+      p = await pong((x) => /Save this diff as a patch…/.test(x.detailsText), 'compare header');
+      assert.ok(p.commitMenu.includes(`Save commits ${p1.slice(0, 7)}…${p2.slice(0, 7)} as patches…`), p.commitMenu.join(' | '));
+      // "Save this diff" link (real click) → the same bytes as git diff --binary.
+      w.showSaveDialog = async () => vscode.Uri.file(path.join(out, 'cmp.diff'));
+      await click('[data-patch="diff"]');
+      await until(() => fs.existsSync(path.join(out, 'cmp.diff')), 10000, 'diff saved');
+      assert.equal(read('cmp.diff'), execFileSync('git', ['diff', '--binary', p1, p2], { cwd: root, encoding: 'utf8' }));
+
+      // One commit, the series, the branch: format-patch output.
+      w.showSaveDialog = async (o) => vscode.Uri.file(path.join(out, path.basename(o.defaultUri.fsPath)));
+      await act({ action: 'savePatch', patch: 'commit', sha: p2, subject: 'Patch source two', parents: [p1] });
+      assert.equal(read('0001-Patch-source-two.patch'), execFileSync('git', ['format-patch', '-1', '--stdout', p2], { cwd: root, encoding: 'utf8' }));
+      await act({ action: 'savePatch', patch: 'series', sha: p2, target: p1 });
+      const series = read(`${path.basename(root).replace(/[^\w.-]+/g, '-')}-${p1.slice(0, 8)}-${p2.slice(0, 8)}.patch`);
+      assert.equal((series.match(/^From [0-9a-f]{40} /gm) || []).length, 2);
+      await act({ action: 'savePatch', patch: 'branch', ref: 'patch-src', sha: p2 });
+      assert.equal(read('patch-src.patch'), series);
+      // Copy to the clipboard.
+      await act({ action: 'savePatch', patch: 'commit', sha: p1, subject: 'Patch source one', parents: [start], copy: true });
+      assert.equal(await vscode.env.clipboard.readText(), execFileSync('git', ['format-patch', '-1', '--stdout', p1], { cwd: root, encoding: 'utf8' }));
+
+      // Apply the branch's patches onto main with git am: two new commits, same tree as patch-src.
+      await act({ action: 'applyPatch', files: [path.join(out, 'patch-src.patch')], mode: 'am' });
+      assert.equal(git('rev-list', '--count', `${start}..HEAD`), '2');
+      assert.equal(git('rev-parse', 'HEAD^{tree}'), git('rev-parse', 'patch-src^{tree}'));
+      assert.equal(git('log', '-1', '--format=%s'), 'Patch source two');
+      git('reset', '-q', '--hard', start);
+      // A staged change: git am is not run (it would leave an am session behind); declining changes nothing.
+      fs.writeFileSync(root + '/staged.txt', 's\n'); git('add', 'staged.txt');
+      let warned = '';
+      w.showWarningMessage = async (msg) => { warned = msg; return undefined; };
+      await act({ action: 'applyPatch', files: [path.join(out, 'patch-src.patch')], mode: 'am' });
+      w.showWarningMessage = orig.warn;
+      assert.match(warned, /git am needs a clean index/);
+      assert.ok(!fs.existsSync(path.join(root, '.git', 'rebase-apply')), 'no am session left');
+      assert.equal(git('rev-parse', 'HEAD'), start);
+      git('rm', '-q', '--cached', 'staged.txt'); fs.rmSync(root + '/staged.txt');
+
+      // Toolbar Patch menu (real clicks): Apply patch from the clipboard → "Apply the changes only" → staged, no commit.
+      await vscode.env.clipboard.writeText(series.replace(/\n$/, '')); // pasted without the final newline
+      await panel.refresh(true);
+      await click('#patchbtn');
+      p = await pong((x) => /Apply patch from the clipboard/.test(x.menuText), 'patch menu');
+      assert.match(p.menuText, /Save uncommitted changes as a patch… \(disabled\)/);
+      let picked = null;
+      w.showQuickPick = async (items, o) => { const arr = await items; picked = { labels: arr.map((i) => i.label), placeHolder: o && o.placeHolder }; return arr.find((i) => i.v === 'apply'); };
+      await click('#menu .mi[data-k="1"]');
+      await until(() => git('status', '--porcelain').includes('patch-b.txt'), 10000, 'clipboard patch applied');
+      assert.deepEqual(picked.labels, ['Create the 2 commits on “main”', 'Apply the changes only, no commit', 'Reverse it (undo these changes)']);
+      assert.match(picked.placeHolder, /Patch source one and 1 more \(2 files changed, \+3 −0\)/);
+      assert.equal(git('rev-parse', 'HEAD'), start);
+      assert.equal(fs.readFileSync(root + '/patch-a.txt', 'utf8'), 'one\ntwo\n');
+      assert.match(git('status', '--porcelain'), /^A {2}patch-a\.txt$/m);
+
+      // Uncommitted changes → patch → reverse it → clean again.
+      await panel.refresh(true);
+      await act({ action: 'savePatch', patch: 'working', copy: true });
+      const work = await vscode.env.clipboard.readText();
+      assert.match(work, /^diff --git a\/patch-a\.txt b\/patch-a\.txt$/m);
+      await act({ action: 'applyPatch', from: 'clipboard', mode: 'reverse' });
+      assert.equal(git('status', '--porcelain'), '');
+      // Not a patch: an error, nothing changes.
+      await vscode.env.clipboard.writeText('just some text');
+      await act({ action: 'applyPatch', from: 'clipboard', mode: 'apply' });
+      assert.equal(git('status', '--porcelain'), '');
+    } finally {
+      w.showSaveDialog = prevSave;
+      w.showQuickPick = orig.pick;
+      w.showWarningMessage = orig.warn;
+      try { git('am', '--abort'); } catch {}
+      git('reset', '-q', '--hard', start);
+      git('checkout', '-q', 'main');
+      try { git('branch', '-q', '-D', 'patch-src'); } catch {}
+      for (const f of ['patch-a.txt', 'patch-b.txt']) fs.rmSync(root + '/' + f, { force: true });
+      if (stashed) git('stash', 'pop', '-q');
+      fs.rmSync(out, { recursive: true, force: true });
+      await panel.refresh(true);
+    }
+  });
   Object.assign(w, { showInputBox: orig.input, showQuickPick: orig.pick, showWarningMessage: orig.warn });
 
   fs.writeFileSync(process.env.MERGELINE_E2E_REPORT, results.join('\n') + '\n');

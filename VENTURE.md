@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.15.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 15).
+**Mergeline 0.16.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 16).
 
 - Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.15.0
   (`mergeline-0.15.0.vsix`, 85 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  35 SEO guides (session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  36 SEO guides (session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (38 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (39 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -222,6 +222,17 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   note, the webview message dialog in a note mode (`dialogMode`). **Hidden branches**: setting `mergeline.hiddenBranches` → `revArgs` puts
   `--exclude=<g>` before `--branches` and `--exclude=*/<g> --exclude=<g>` before `--remotes`; branch menus "Hide this branch" / "Hide all
   <prefix>/… branches" (message `hide` → `setListSetting`, shared with pins); the Branches checklist lists hidden globs with ✕ to unhide.
+  **0.16.0 added** (Git Graph issue #538 create/apply patches, 17 👍, next by 👍 not covered): **patches** (`src/core/patch.ts`, no VS Code dep).
+  Save/copy: `patchArgs` → commit `format-patch -1 --stdout` (a merge: `git diff --binary <sha>^1 <sha>`), Ctrl/Cmd-click series `format-patch
+  <oldest>^..<newest>` (`--root` from the root; offered only when the older end is reachable from the newer among loaded commits, `reaches()` in
+  `media/graph.js`, and re-checked with `merge-base --is-ancestor`), branch `format-patch <current>..<branch>`, working tree `diff --binary HEAD`
+  (tracked files only), stash `stash show -p --binary`, comparison pane `diff --binary a b`. Apply (`applyPatch` in `src/ext/actions.ts`; toolbar
+  **Patch** button, uncommitted-row menu, command `mergeline.applyPatch`): from files (sorted by name) or the clipboard; `inspectPatch` tells a
+  format-patch mailbox (counts commits, unfolds subjects, strips `[PATCH n/m]`) from a plain diff from other text; `normalizePatch` adds a lost
+  final newline; summary from `git apply --numstat` per distinct path (`--stat` counts a file once per patch: found by the e2e); picks: `git am
+  --3way` (mailbox only), `git apply --3way` with fallback to plain `git apply` on "does not match index", `git apply -R`. am needs a clean index
+  (git 2.53: "Dirty index"), then offers changes-only; a stopped am shows in the existing in-progress bar. Also fixed: "Squash N commits" counted
+  a stash row between the two selected commits.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -466,6 +477,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 16): release downloads v0.1.0 to v0.14.0 2 each, v0.3.0 3, v0.15.0 1 (read before the v0.16.0 release); 0 stars, 0 forks,
+  0 issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by page
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors, last submitted 2026-11-20T16:26Z (`sitemaps.list`).
+
 - 2026-11-20 (session 15): release downloads v0.1.0 to v0.14.0 2 each, v0.3.0 3 (read before the v0.15.0 release); 0 stars, 0 forks, 0 issues;
   traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by page
   (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`).
@@ -531,8 +546,9 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. Next Git Graph request by 👍 not covered: #538 create/apply patches (17 👍: commit/range → "Save as patch…" via `git format-patch`/`git diff`,
-   "Apply patch…" via `git apply --3way` or `git am` for mbox files). Then #254 branch colours (22 👍; a colour per pinned branch).
+1a. Next Git Graph request by 👍 not covered: #254 branch colours (22 👍; a colour per pinned branch, or a `mergeline.branchColours` map of
+   glob → colour). #538 patches shipped in 0.16.0; follow-ups: untracked files in "Save changes as a patch" (`git add -N` on a temp index via
+   `GIT_INDEX_FILE`), `format-patch -o <folder>` (one file per commit) as a second save option, and drag-and-drop of a .patch file onto the graph.
    Author-filter follow-ups: a "me" quick button (`git config user.email`), `.mailmap` identities (`%aN <%aE>` + `--use-mailmap`), and cache the
    `rev-list --parents` map between Load more pages (each page re-walks all history today). Notes: show `notes.displayRef` refs too.
 1b. Bisect follow-ups: count candidates with the bisect's paths and `--first-parent` (read `BISECT_NAMES` and `BISECT_FIRST_PARENT`) so "N left" matches
@@ -682,3 +698,12 @@ on the graph). The graph itself stays free.
   (run 44773221647) and tag v0.15.0 (run 44773226264) both unit 52/52, e2e 48/48; Pages run 44773221224 deployed; live index (v0.15 tagline, 0.15 card,
   `mergeline-0.15.0.vsix`), both guides, screenshot-authors.png and sitemap (38 URLs) return 200; release asset byte-identical (sha256 3f63d1c0…); sitemap
   resubmitted (HTTP 204). Inbox: 0.15.0 line appended.
+- 2026-11-20 builder (session 16): store tokens still absent. Built 0.16.0 from Git Graph #538 (create/apply patches, 17 👍): save/copy a commit,
+  a Ctrl-click series, a branch's commits, a diff, uncommitted changes or a stash as a patch; apply from file(s) or the clipboard with git am --3way /
+  git apply --3way (fallback to plain apply) / reverse; toolbar Patch button and command `mergeline.applyPatch`. Found while testing: `git apply --stat`
+  counts a file once per patch (switched to `--numstat` per path, e2e caught it), the "Squash N commits" label counted a stash row (screenshot caught it),
+  and, from the guide subagent's git runs, `git am` on a dirty index leaves an am session behind (now checked before running; e2e asserts no
+  `rebase-apply`) and `stash show -p` dropped `-u` untracked files (now `--include-untracked`). Guide `git-patch-vscode.html` by a subagent (every
+  command run in a scratch repo), footer link on all 40 pages, index card, screenshot-patch.png. Verified: typecheck, unit 59/59, e2e 49/49 on the dev
+  build and on the final minified package (real clicks: Ctrl-click row, compare-pane link, toolbar Patch menu item), Chromium renders dark/light,
+  vsix installs as plainbyte.mergeline@0.16.0 (sha256 89d86940…).

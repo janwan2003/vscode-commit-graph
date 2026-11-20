@@ -57,6 +57,7 @@
     <span class="grow"></span>
     <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref, path:…)" title="Find in loaded commits. Type path:src/auth or path:*.md and press Enter to find commits that changed matching files anywhere in history." spellcheck="false" aria-label="Find">
       <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span><button id="findall" title="Search the whole history (message, author, hash, ref, or path:… for changed files), not just the loaded commits" hidden>All history</button></span>
+    <button id="patchbtn" class="secondary drop" title="Apply a patch from a file or the clipboard, or save uncommitted changes as a patch" aria-haspopup="true">Patch</button>
     <button id="remotesbtn" class="secondary" title="Manage remotes: add, fetch, prune, change URL, rename, remove">Remotes…</button>
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
     <button id="refresh" title="Refresh">Refresh</button>
@@ -110,6 +111,18 @@
   $('#refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
   $('#fetch').addEventListener('click', () => vscode.postMessage({ type: 'action', action: 'fetch' }));
   $('#remotesbtn').addEventListener('click', () => action({ action: 'manageRemotes' }));
+  $('#patchbtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    const dirty = data && data.commits.length && data.commits[0].kind === 'uncommitted' ? '' : 'disabled';
+    showMenu([
+      ['Apply patch from a file…', { action: 'applyPatch', from: 'file' }],
+      ['Apply patch from the clipboard…', { action: 'applyPatch', from: 'clipboard' }],
+      null,
+      ['Save uncommitted changes as a patch…', { action: 'savePatch', patch: 'working' }, dirty],
+      ['Copy uncommitted changes as a patch', { action: 'savePatch', patch: 'working', copy: true }, dirty],
+    ], r.left, r.bottom + 2);
+  });
   $('#find').addEventListener('input', () => runFind(true));
   $('#find').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -271,7 +284,7 @@
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', menuText: menu.hidden ? '' : [...menu.querySelectorAll('.mi')].map((x) => x.textContent + (x.classList.contains('disabled') ? ' (disabled)' : '')).join(' | '), authBtn: $('#authbtn').textContent, authorRows: [...$('#alist').querySelectorAll('input')].map((i) => (i.checked ? '[x] ' : '[ ] ') + i.value), noteMarks: [...rowsEl.querySelectorAll('.nt')].map((x) => x.closest('.row').dataset.i), hiddenText: $('#bhidden').hidden ? '' : $('#bhidden').textContent, firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -722,10 +735,10 @@
     if (m.compare && m.base) {
       const la = cmpInfo && cmpInfo.a ? cmpInfo.a : short(m.sha), lb = cmpInfo && cmpInfo.b ? cmpInfo.b : short(m.compare);
       head = `<div class="d-title">Changes on ${esc(la)} since it split from ${esc(lb)}</div>
-        <div class="d-meta">${m.mergeBase ? `<span>Merge base <code class="link" data-goto="${esc(m.mergeBase)}">${esc(short(m.mergeBase))}</code></span>` : ''}<span>What merging ${esc(la)} into ${esc(lb)} would bring in (git diff ${esc(lb)}...${esc(la)})</span></div>`;
+        <div class="d-meta">${m.mergeBase ? `<span>Merge base <code class="link" data-goto="${esc(m.mergeBase)}">${esc(short(m.mergeBase))}</code></span>` : ''}<span>What merging ${esc(la)} into ${esc(lb)} would bring in (git diff ${esc(lb)}...${esc(la)})</span><span><span class="link" data-patch="branch" title="git format-patch ${esc(lb)}..${esc(la)}: one patch per commit, merges skipped">Save these commits as patches…</span></span></div>`;
     } else if (m.compare) {
       const rng = squashRange();
-      head = `<div class="d-title">Comparing ${esc(m.from === UNC ? 'working tree' : short(m.from))} → ${esc(m.to ? short(m.to) : 'working tree')}</div>${rng ? `<div class="d-meta"><span><span class="link" data-squash="1" title="Squash ${short(rng.from)}…${short(rng.to)} on the current branch into one commit">Squash these ${rng.n} commits into one…</span></span></div>` : ''}`;
+      head = `<div class="d-title">Comparing ${esc(m.from === UNC ? 'working tree' : short(m.from))} → ${esc(m.to ? short(m.to) : 'working tree')}</div><div class="d-meta">${rng ? `<span><span class="link" data-squash="1" title="Squash ${short(rng.from)}…${short(rng.to)} on the current branch into one commit">Squash these ${rng.n} commits into one…</span></span>` : ''}${m.from && m.from !== UNC ? `<span><span class="link" data-patch="diff" title="git diff --binary: the changes shown below as one patch">Save this diff as a patch…</span> · <span class="link" data-patch="diff-copy" title="Copy the changes shown below as one patch">Copy</span></span>` : ''}</div>`;
     } else if (m.info) {
       const i = m.info;
       const body = i.message.split('\n').slice(1).join('\n').trim();
@@ -888,6 +901,12 @@
     if (g) { if (indexBySha.has(g.dataset.goto)) select(g.dataset.goto, true); return; }
     const cp = e.target.closest('[data-copy]');
     if (cp) return action({ action: 'copyHash', sha: cp.dataset.copy });
+    const pt = e.target.closest('[data-patch]');
+    if (pt && details) {
+      const k = pt.dataset.patch;
+      if (k === 'branch') return action({ action: 'savePatch', patch: 'branch', ref: cmpInfo && cmpInfo.a ? cmpInfo.a : undefined, sha: details.sha, target: details.compare });
+      return action({ action: 'savePatch', patch: 'diff', sha: details.from, target: details.to || null, copy: k === 'diff-copy' });
+    }
     if (e.target.closest('[data-squash]')) { const rng = squashRange(); if (rng) action({ action: 'squashRange', sha: rng.from, target: rng.to }); return; }
     const u = e.target.closest('[data-url]');
     if (u) return vscode.postMessage({ type: 'openUrl', url: u.dataset.url });
@@ -1042,6 +1061,10 @@
       ['Stash changes…', { action: 'stashSave' }],
       ['Open Source Control', { action: 'openScm' }],
       null,
+      ['Save changes as a patch…', { action: 'savePatch', patch: 'working' }],
+      ['Copy changes as a patch', { action: 'savePatch', patch: 'working', copy: true }],
+      ['Apply a patch…', { action: 'applyPatch' }],
+      null,
       ['Discard all changes…', { action: 'discardAll' }, 'danger'],
     ];
     if (c.kind === 'stash') {
@@ -1050,6 +1073,7 @@
         ['Apply stash', { ...s, action: 'stashApply' }],
         ['Pop stash', { ...s, action: 'stashPop' }],
         ['Create branch from stash…', { ...s, action: 'stashBranch' }],
+        ['Save stash as a patch…', { ...s, action: 'savePatch', patch: 'stash' }],
         null,
         ['Drop stash…', { ...s, action: 'stashDrop' }, 'danger'],
         null,
@@ -1075,6 +1099,7 @@
       ['Compare with working tree', () => compare(c.sha, UNC)],
       ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
       ['Save as archive (zip, tar.gz)…', { ...base, action: 'archive' }],
+      ...patchItems(c, base),
       ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
       null,
       [noteSet.has(c.sha) ? 'Edit note…' : 'Add note…', () => vscode.postMessage({ type: 'getNote', sha: c.sha })],
@@ -1086,6 +1111,34 @@
       ['Copy hash', { ...base, action: 'copyHash' }],
       ['Copy subject', { ...base, action: 'copySubject' }],
     ];
+  }
+
+  /** Save/copy a commit as a patch; with a Ctrl/Cmd-click selection ending here, the whole series. */
+  function patchItems(c, base) {
+    const merge = c.parents.length > 1;
+    const items = [
+      [merge ? 'Save as a patch (diff against first parent)…' : 'Save as a patch…', { ...base, action: 'savePatch', patch: 'commit' }],
+      ['Copy as a patch', { ...base, action: 'savePatch', patch: 'commit', copy: true }],
+    ];
+    const other = selected === c.sha ? compareSha : compareSha === c.sha ? selected : null;
+    if (other && other !== UNC && indexBySha.has(other) && data.commits[indexBySha.get(other)].kind === 'commit') {
+      const [a, b] = indexBySha.get(other) > indexBySha.get(c.sha) ? [other, c.sha] : [c.sha, other];
+      if (reaches(b, a)) items.push(['Save commits ' + short(a) + '…' + short(b) + ' as patches…', { action: 'savePatch', patch: 'series', sha: a, target: b }]);
+    }
+    return items;
+  }
+
+  /** True when `to` is in the history of `from`, walking loaded commits only. */
+  function reaches(from, to) {
+    const seen = new Set(), stack = [from];
+    while (stack.length) {
+      const sha = stack.pop();
+      if (sha === to) return true;
+      if (seen.has(sha) || !indexBySha.has(sha)) continue;
+      seen.add(sha);
+      for (const p of data.commits[indexBySha.get(sha)].parents) stack.push(p);
+    }
+    return false;
   }
 
   /** Loaded commits reachable from HEAD (its history). Used to dim the rest and to offer cherry-pick on drop. */
@@ -1128,7 +1181,10 @@
     const set = editableSet();
     if (!set.has(selected) || !set.has(compareSha)) return null;
     const a = indexBySha.get(selected), b = indexBySha.get(compareSha);
-    return a > b ? { from: selected, to: compareSha, n: a - b + 1 } : { from: compareSha, to: selected, n: b - a + 1 };
+    // Count the commits, not the rows: a stash row can sit between two commits.
+    let n = 0;
+    for (let k = Math.min(a, b); k <= Math.max(a, b); k++) if (set.has(data.commits[k].sha)) n++;
+    return a > b ? { from: selected, to: compareSha, n } : { from: compareSha, to: selected, n };
   }
   function editItems(c, base) {
     if (data.op || data.bisect) return []; // finish or abort what is in progress first (see the bar)
@@ -1365,6 +1421,7 @@
       ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
       ['Check out in new worktree…', { ...r, action: 'addWorktree' }],
       ['Save as archive (zip, tar.gz)…', { ...r, action: 'archive' }],
+      ['Save commits not on ' + curL + ' as patches…', { ...r, action: 'savePatch', patch: 'branch' }],
       ...(data.web && remote === data.web.remote ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: webBranch(name.slice(remote.length + 1)) })], ['Create pull request on ' + data.web.name + '…', () => vscode.postMessage({ type: 'openPullRequest', ref: name, refType: 'remote', remote })]] : []),
       null,
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
@@ -1384,6 +1441,7 @@
       ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
       ...(isCur || wt ? [] : [['Check out in new worktree…', { ...r, action: 'addWorktree' }]]),
       ['Save as archive (zip, tar.gz)…', { ...r, action: 'archive' }],
+      ...(isCur ? [] : [['Save commits not on ' + curL + ' as patches…', { ...r, action: 'savePatch', patch: 'branch' }]]),
       null,
       ['Push…', { ...r, action: 'pushBranch' }],
       ...(isCur ? [['Pull', { ...r, action: 'pull' }]] : []),

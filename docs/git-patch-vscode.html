@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create and apply git patches in VS Code (format-patch, apply, am) | Mergeline</title>
+<meta name="description" content="Create a patch from a git commit with format-patch or git diff, apply it with git apply or git am, fix &ldquo;patch does not apply&rdquo;, and do it in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-patch-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Create and apply git patches in VS Code (format-patch, apply, am)">
+<meta property="og:description" content="git format-patch for commits, git diff for uncommitted changes, git apply --check and --3way, git am with --continue, --skip and --abort, and saving and applying patches from a VS Code graph.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-patch-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Create and apply git patches (format-patch, apply, am)</h1>
+    <p>A patch is a change written down as text, which someone else can apply to their copy of the repository without a shared remote: attach it to an issue, paste it in a chat, email it. Git has two ways to make one and two ways to apply one, and the wrong pair is the usual reason a patch &ldquo;does not apply&rdquo; or arrives without its commit message.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#format-patch">Patches from commits: <code>git format-patch</code></a></li>
+        <li><a href="#diff">Uncommitted changes: <code>git diff</code></a></li>
+        <li><a href="#which">format-patch or diff?</a></li>
+        <li><a href="#apply">Apply a diff: <code>git apply</code></a></li>
+        <li><a href="#am">Apply commits: <code>git am</code></a></li>
+        <li><a href="#mergeline">Save and apply patches in Mergeline</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Make a patch of one commit</td><td><code>git format-patch -1 &lt;commit&gt;</code></td></tr>
+          <tr><td>One file per commit on <code>feature</code> that is not on <code>main</code></td><td><code>git format-patch main..feature -o patches/</code></td></tr>
+          <tr><td>All of them in one file</td><td><code>git format-patch main..feature --stdout &gt; feature.patch</code></td></tr>
+          <tr><td>Patch my uncommitted changes, staged and unstaged</td><td><code>git diff --binary HEAD &gt; changes.diff</code></td></tr>
+          <tr><td>Check that a patch applies, changing nothing</td><td><code>git apply --check changes.diff</code></td></tr>
+          <tr><td>Apply a diff</td><td><code>git apply --3way changes.diff</code></td></tr>
+          <tr><td>Undo a diff I applied</td><td><code>git apply -R changes.diff</code></td></tr>
+          <tr><td>Recreate the commits from <code>format-patch</code> files</td><td><code>git am --3way patches/*.patch</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in throwaway repositories and quote the output we saw.</p>
+
+    <h2 id="format-patch">Patches from commits: <code>git format-patch</code></h2>
+    <p><code>git format-patch</code> writes each commit as an email-style file, a <strong>mailbox</strong>, with the author, date and full message alongside the diff.</p>
+<pre><span class="k">git format-patch -1</span> HEAD
+<span class="o">0001-Add-greeting.patch</span>
+<span class="k">git format-patch</span> main..feature <span class="k">-o</span> patches/
+<span class="o">patches/0001-Fix-the-parser.patch
+patches/0002-Add-greeting.patch</span>
+<span class="k">git format-patch</span> main..feature <span class="k">--stdout</span> &gt; feature.patch</pre>
+    <p><code>main..feature</code> is the commits on <code>feature</code> that are not on <code>main</code>; <code>--stdout</code> puts the series in one file. Each patch starts with <code>From &lt;hash&gt;</code>, <code>From: Ann Lee &lt;ann@example.com&gt;</code>, <code>Date:</code> and <code>Subject: [PATCH 1/2] Fix the parser</code>.</p>
+    <p><strong>Merge commits are skipped</strong>, without an error. <code>git format-patch -1 &lt;merge&gt;</code> quietly wrote the newest non-merge commit behind the merge instead, and a range across a merge includes the merged branch&rsquo;s commits one by one. For what a merge brought in, use <code>git diff --binary &lt;merge&gt;^1 &lt;merge&gt;</code>.</p>
+
+    <h2 id="diff">Uncommitted changes: <code>git diff</code></h2>
+    <ul>
+      <li><strong><code>git diff &gt; changes.diff</code></strong> has only <em>unstaged</em> changes; anything you <code>git add</code>-ed is missing.</li>
+      <li><strong><code>git diff --binary HEAD &gt; changes.diff</code></strong> has staged and unstaged changes, against the last commit.</li>
+      <li><strong>Without <code>--binary</code></strong>, a binary file becomes <code>Binary files /dev/null and b/logo.bin differ</code>, which fails to apply: <code>cannot apply binary patch to 'logo.bin' without full index line</code>.</li>
+      <li><strong>Untracked files are not included.</strong> Run <code>git add -N &lt;file&gt;</code> (record the file as intended to be added, without staging its content) or <code>git add</code> first.</li>
+    </ul>
+
+    <h2 id="which">format-patch or diff?</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col"><code>git format-patch</code></th><th scope="col"><code>git diff</code></th></tr></thead>
+        <tbody>
+          <tr><td>Made from</td><td>Commits</td><td>Commits, the index or the working tree</td></tr>
+          <tr><td>Keeps author, date, message</td><td class="yes">Yes</td><td class="no">No</td></tr>
+          <tr><td>Merge commits</td><td class="no">Skipped</td><td class="yes">Diff against a parent</td></tr>
+          <tr><td>Applied with</td><td><code>git am</code> (commits) or <code>git apply</code></td><td><code>git apply</code> only</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Commits the other person should keep as commits: <code>format-patch</code>. Work in progress, or a change they will commit themselves: <code>git diff</code>.</p>
+
+    <h2 id="apply">Apply a diff: <code>git apply</code></h2>
+    <p>Dry-run first. <code>git apply --check</code> prints nothing when the patch fits, otherwise <code>error: patch failed: app.txt:1</code> and <code>error: app.txt: patch does not apply</code>. <code>git apply</code> is all or nothing: if one file fails, none changes.</p>
+    <ul>
+      <li><strong><code>git apply</code></strong> edits the working tree and stages nothing; new files show up untracked.</li>
+      <li><strong><code>git apply --3way</code></strong> stages the result. Where your lines differ, it merges, and on a real clash leaves conflict markers and says <code>Applied patch to 'app.txt' with conflicts.</code> It <strong>refuses when a file it touches has unstaged changes</strong>: <code>error: big.txt: does not match index</code>, and nothing is applied, even though it then prints <code>Falling back to direct application...</code>. Plain <code>git apply</code> worked in the same state.</li>
+      <li><strong><code>git apply -R</code></strong> applies the patch in reverse, undoing it.</li>
+    </ul>
+
+    <h2 id="am">Apply commits: <code>git am</code></h2>
+    <p><code>git am</code> (&ldquo;apply mailbox&rdquo;) makes one commit per <code>format-patch</code> file, keeping the author, author date and message; you become the committer.</p>
+<pre><span class="k">git am --3way</span> patches/*.patch
+<span class="o">Applying: Fix the parser
+Applying: Add greeting</span></pre>
+    <ul>
+      <li><strong>Staged changes stop it:</strong> <code>fatal: Dirty index: cannot apply patches (dirty: app.txt)</code>. Git still leaves an am session behind, and the next <code>git am</code> fails with <code>previous rebase directory .git/rebase-apply still exists</code>. <code>git am --abort</code> cleared it and kept our staged change.</li>
+      <li><strong>A plain diff</strong> fails with <code>Patch format detection failed.</code> It has no message to commit with; use <code>git apply</code>.</li>
+      <li><strong>On a conflict</strong> (<code>Patch failed at 0001 Fix the parser</code>), resolve the file, <code>git add</code> it and run <code>git am --continue</code>; <code>git am --skip</code> drops that patch; <code>git am --abort</code> puts the branch back. Without <code>--3way</code>, <code>git am</code> does not merge and the patch just fails.</li>
+    </ul>
+    <p>VS Code&rsquo;s built-in Git extension (1.147) has no command to create or apply a patch: its <code>package.json</code> and <code>package.nls.json</code> do not mention one. Use the terminal, or the graph below.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Save and apply patches in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.16 it saves and applies patches from the graph and picks the right git command for you.</p>
+      <ul>
+        <li><strong>A commit:</strong> right-click &rarr; <strong>Save as a patch&hellip;</strong> or <strong>Copy as a patch</strong> (<code>git format-patch -1</code>). On a merge it reads <strong>Save as a patch (diff against first parent)&hellip;</strong>.</li>
+        <li><strong>A series:</strong> select one commit, <kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd> on macOS) another, right-click &rarr; <strong>Save commits &lt;a&gt;&hellip;&lt;b&gt; as patches&hellip;</strong>: both ends included, one mailbox file, only when they are on one line of history. The comparison pane offers <strong>Save this diff as a patch&hellip;</strong> &middot; <strong>Copy</strong> (<code>git diff --binary</code> between them).</li>
+        <li><strong>A branch</strong> other than the current one, local or remote: <strong>Save commits not on &ldquo;main&rdquo; as patches&hellip;</strong> (<code>git format-patch main..branch</code>). The <strong>Changes since it split</strong> pane has <strong>Save these commits as patches&hellip;</strong>.</li>
+        <li><strong>Uncommitted changes</strong> row: <strong>Save changes as a patch&hellip;</strong>, <strong>Copy changes as a patch</strong>, <strong>Apply a patch&hellip;</strong>. A stash: <strong>Save stash as a patch&hellip;</strong>.</li>
+      </ul>
+      <figure class="shot"><img src="screenshot-patch.png" width="1280" height="800" loading="lazy" alt="Mergeline's commit graph with two commits selected (6bb127d and fbf9918) and the context menu open on one of them. Near the bottom of the menu are Save as a patch&hellip;, Copy as a patch and Save commits 6bb127d&hellip;fbf9918 as patches&hellip;. The toolbar above the graph has a Patch button next to Remotes&hellip;, Fetch and Refresh."><figcaption>The commit menu with a second commit Ctrl-clicked: one commit or the whole series as patches.</figcaption></figure>
+      <ol class="steps">
+        <li><strong>Open a patch.</strong> The toolbar&rsquo;s <strong>Patch</strong> button has <strong>Apply patch from a file&hellip;</strong> and <strong>Apply patch from the clipboard&hellip;</strong> (plus <strong>Save</strong> and <strong>Copy uncommitted changes as a patch</strong>); the Command Palette has <strong>Mergeline: Apply Patch&hellip;</strong>. Several <code>.patch</code> files picked together apply in name order (<code>0001-</code>, <code>0002-</code>&hellip;).</li>
+        <li><strong>Choose.</strong> The picker shows the first subject and &ldquo;N files changed, +X &minus;Y&rdquo;, then <strong>Create the N commits on &ldquo;main&rdquo;</strong> (<code>git am --3way</code>, for <code>format-patch</code> mailboxes), <strong>Apply the changes only, no commit</strong> (<code>git apply --3way</code>, falling back to plain <code>git apply</code> when a touched file has unstaged changes) or <strong>Reverse it (undo these changes)</strong> (<code>git apply -R</code>).</li>
+        <li><strong>If <code>git am</code> stops on a conflict,</strong> the bar above the graph shows it with the conflicted files and <strong>Continue</strong>, <strong>Skip</strong>, <strong>Abort</strong>.</li>
+      </ol>
+      <p>A pasted patch that lost its final newline, which git rejects as <code>corrupt patch at line N</code>, is fixed before applying.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>What is the difference between a .patch and a .diff file?</summary>
+      <p>Only the name. A file from <code>git format-patch</code> starts with <code>From &lt;hash&gt;</code> and mail headers and can become a commit with <code>git am</code>; one from <code>git diff</code> starts with <code>diff --git</code> and needs <code>git apply</code>.</p>
+    </details>
+    <details>
+      <summary>Why does git say &ldquo;patch does not apply&rdquo;?</summary>
+      <p>The lines around a change are not what your file has, because your copy is older or newer than the patch&rsquo;s. Try <code>git apply --3way</code>, which merges and leaves conflict markers instead. <code>corrupt patch at line N</code> is different: the file is damaged, often a missing last newline or a line wrapped by an email client.</p>
+    </details>
+    <details>
+      <summary>How do I include new, untracked files?</summary>
+      <p><code>git add -N &lt;file&gt;</code> (or <code>git add</code>), then <code>git diff --binary HEAD</code>; or commit and use <code>git format-patch</code>.</p>
+    </details>
+    <details>
+      <summary>How do I send commits to someone without a shared remote?</summary>
+      <p><code>git format-patch main..feature --stdout &gt; feature.patch</code>, send the file, and they run <code>git am --3way feature.patch</code>. Messages, authors and author dates survive; the hashes differ, because they are the committer.</p>
+    </details>
+    <p>Related: <a href="compare-branches-commits-vscode.html">compare branches and commits</a>, <a href="cherry-pick-commit-vscode.html">cherry-pick a commit</a>, <a href="rebase-conflict-continue-abort-vscode.html">rebase or merge stopped with conflicts</a> and <a href="git-stash-guide.html">git stash</a>.</p>
+  </div>
+</main>
+
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html">Git flow: pinned branches</a>
+      <a href="git-log-author-filter-vscode.html">Filter by author</a>
+      <a href="git-notes-vscode.html">Git notes</a>
+      <a href="git-patch-vscode.html" aria-current="page">Git patches</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

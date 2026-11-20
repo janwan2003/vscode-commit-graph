@@ -10,6 +10,9 @@ import { readRemotes, remoteNameProblem, remoteUsage, Remote } from '../core/rem
 import { webRepo } from '../core/remote';
 import { archiveFormat } from '../core/misc';
 import { readBisect, markArgs, bisectRunLine, BisectMark } from '../core/bisect';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import { patchArgs, patchFileName, safeName, inspectPatch, normalizePatch, applyCommands, retryWithoutIndex, conflictedFromApply, numstatSummary, isMailboxSource, PatchSource, ApplyMode } from '../core/patch';
 
 export interface ActionMsg {
   action: string;
@@ -34,6 +37,11 @@ export interface ActionMsg {
   upstream?: string; // updateBranch: shown in messages
   mark?: BisectMark; // bisectStart / bisectMark
   command?: string; // bisectRun: the test command (skips the input box)
+  patch?: 'commit' | 'series' | 'branch' | 'working' | 'stash' | 'diff'; // savePatch: what to save
+  copy?: boolean; // savePatch: to the clipboard instead of a file
+  from?: 'file' | 'clipboard'; // applyPatch: where the patch comes from
+  files?: string[]; // applyPatch: patch files (skips the open dialog)
+  mode?: ApplyMode; // applyPatch: am | apply | reverse (skips the pick)
 }
 
 export interface ActionCtx {
@@ -161,6 +169,10 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       }
       return false;
     }
+    case 'savePatch':
+      return savePatch(ctx, m);
+    case 'applyPatch':
+      return applyPatch(ctx, m);
     case 'cherryPick': {
       const args = ['cherry-pick'];
       if ((m.parents?.length ?? 0) > 1) {
@@ -809,4 +821,180 @@ async function goOn(ctx: ActionCtx, what: 'continue' | 'skip' | 'abort', force =
     else vscode.window.showErrorMessage(`${verb} ${name} failed: ${msg.split('\n').slice(0, 6).join(' ')}`);
   }
   return true;
+}
+
+// ---- patches ----
+
+const isAncestor = (root: string, a: string, b: string) =>
+  git(root, ['merge-base', '--is-ancestor', a, b]).then(
+    () => true,
+    () => false,
+  );
+
+/** Works out what `m` asks for: the patch source, a default file name and a label. Null after telling the user why not. */
+async function patchSource(ctx: ActionCtx, m: ActionMsg): Promise<{ src: PatchSource; name: string; label: string } | null> {
+  const sha = m.sha ?? '';
+  const repo = safeName(path.basename(ctx.root));
+  switch (m.patch) {
+    case 'commit': {
+      const merge = (m.parents?.length ?? 0) > 1;
+      return { src: { kind: 'commit', sha, merge }, name: merge ? `${short(sha)}-merge.diff` : patchFileName(m.subject ?? short(sha)), label: merge ? `merge ${short(sha)} (diff against its first parent)` : `commit ${short(sha)}` };
+    }
+    case 'series': {
+      // Ctrl/Cmd-click selection: both ends included, older end first.
+      let [oldest, newest] = [sha, m.target ?? ''];
+      if (!(await isAncestor(ctx.root, oldest, newest))) [oldest, newest] = [newest, oldest];
+      if (!(await isAncestor(ctx.root, oldest, newest))) {
+        vscode.window.showWarningMessage('Mergeline: these two commits are not on one line of history, so there is no series of commits between them. Use "Save this diff as a patch" to save the difference instead.');
+        return null;
+      }
+      const root = !(await git(ctx.root, ['rev-list', '--parents', '-n', '1', oldest])).trim().includes(' ');
+      return { src: { kind: 'series', oldest, newest, root }, name: `${repo}-${short(oldest)}-${short(newest)}.patch`, label: `commits ${short(oldest)}…${short(newest)}` };
+    }
+    case 'branch': {
+      // From a branch menu: the current branch is the base. From "Changes since it split": `target` is.
+      const base = m.target ?? m.current ?? 'HEAD';
+      const tip = sha || m.ref || 'HEAD';
+      return { src: { kind: 'branch', branch: tip, base }, name: `${safeName(m.ref ?? short(tip))}.patch`, label: `commits on ${m.ref ?? short(tip)} that are not on ${m.target ? short(m.target) : base}` };
+    }
+    case 'working':
+      return { src: { kind: 'working' }, name: `${repo}-uncommitted.diff`, label: 'uncommitted changes' };
+    case 'stash':
+      return { src: { kind: 'stash', ref: m.stashRef ?? 'stash@{0}' }, name: `${repo}-${safeName(m.stashRef ?? 'stash')}.diff`, label: m.stashRef ?? 'stash' };
+    case 'diff':
+      return { src: { kind: 'diff', from: sha, to: m.target ?? null }, name: `${repo}-${short(sha)}-${m.target ? short(m.target) : 'working'}.diff`, label: `changes ${short(sha)} → ${m.target ? short(m.target) : 'working tree'}` };
+  }
+  return null;
+}
+
+async function savePatch(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  const p = await patchSource(ctx, m);
+  if (!p) return false;
+  let text: string;
+  try {
+    // `stash show --include-untracked` needs git 2.32; older git gets the tracked files.
+    text = await git(ctx.root, patchArgs(p.src)).catch((e) => (p.src.kind === 'stash' ? git(ctx.root, patchArgs(p.src).filter((a) => a !== '--include-untracked')) : Promise.reject(e)));
+  } catch (e) {
+    await reportError(e, 'Create patch');
+    return false;
+  }
+  const info = inspectPatch(text);
+  if (!text.trim()) {
+    vscode.window.showInformationMessage(`Mergeline: ${p.label}: nothing to save${p.src.kind === 'branch' || p.src.kind === 'series' ? ' (no commits, or only merges, which format-patch skips)' : ''}.`);
+    return false;
+  }
+  const what = isMailboxSource(p.src) ? `${info.commits} commit${info.commits === 1 ? '' : 's'}` : `${text.split('\n').length - 1} lines`;
+  const untracked = p.src.kind === 'working' ? ' Untracked files are not included.' : '';
+  if (m.copy) {
+    await vscode.env.clipboard.writeText(text);
+    vscode.window.showInformationMessage(`Mergeline: copied ${p.label} as a patch (${what}).${untracked}`);
+    return false;
+  }
+  const uri = await vscode.window.showSaveDialog({
+    title: `Save ${p.label} as a patch`,
+    defaultUri: vscode.Uri.file(path.join(path.dirname(ctx.root), p.name)),
+    filters: { Patch: ['patch', 'diff'], 'All files': ['*'] },
+  });
+  if (!uri) return false;
+  await fs.writeFile(uri.fsPath, text);
+  vscode.window.showInformationMessage(`Mergeline: saved ${path.basename(uri.fsPath)} (${what}).${untracked}`, 'Open', 'Reveal in file manager').then((pick) => {
+    if (pick === 'Open') vscode.window.showTextDocument(uri);
+    else if (pick) vscode.commands.executeCommand('revealFileInOS', uri);
+  });
+  return false;
+}
+
+async function applyPatch(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  const op = await readOperation(ctx.root).catch(() => null);
+  if (op) {
+    vscode.window.showWarningMessage(`Mergeline: a ${opNames[op.kind]} is in progress. Continue or abort it first (see the bar above the graph).`);
+    return false;
+  }
+  let from = m.from;
+  if (!from && !m.files) {
+    const pick = await vscode.window.showQuickPick(
+      [
+        { label: 'From a file…', description: '.patch, .diff or a mailbox from git format-patch', v: 'file' as const },
+        { label: 'From the clipboard', description: 'a patch you copied from a chat, a review or an email', v: 'clipboard' as const },
+      ],
+      { placeHolder: 'Apply a patch' },
+    );
+    if (!pick) return false;
+    from = pick.v;
+  }
+  let text = '';
+  let source = 'the clipboard';
+  if (from === 'clipboard' && !m.files) text = await vscode.env.clipboard.readText();
+  else {
+    let files = m.files;
+    if (!files) {
+      const uris = await vscode.window.showOpenDialog({ title: 'Apply patch', canSelectMany: true, defaultUri: vscode.Uri.file(path.dirname(ctx.root)), filters: { Patches: ['patch', 'diff', 'mbox', 'eml', 'txt'], 'All files': ['*'] } });
+      if (!uris?.length) return false;
+      files = uris.map((u) => u.fsPath);
+    }
+    // Several files from `git format-patch -o` apply in name order (0001-…, 0002-…).
+    files = [...files].sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+    const parts = await Promise.all(files.map((f) => fs.readFile(f, 'utf8')));
+    text = parts.map(normalizePatch).join('');
+    source = files.length === 1 ? path.basename(files[0]) : `${files.length} files`;
+  }
+  const info = inspectPatch(text);
+  if (info.kind === 'none') {
+    vscode.window.showErrorMessage(`Mergeline: ${source} does not contain a patch (no "diff --git" or "---/+++" lines with hunks).`);
+    return false;
+  }
+  text = normalizePatch(text);
+  const stat = numstatSummary(await git(ctx.root, ['apply', '--numstat'], { input: text }).catch(() => ''));
+  let mode = m.mode;
+  if (!mode) {
+    const cur = m.current ? `“${m.current}”` : 'HEAD';
+    const n = info.commits;
+    const items = [
+      ...(info.kind === 'mbox' ? [{ label: `Create ${n === 1 ? 'the commit' : `the ${n} commits`} on ${cur}`, description: 'git am --3way: keeps author, date and message', v: 'am' as ApplyMode }] : []),
+      { label: info.kind === 'mbox' ? 'Apply the changes only, no commit' : 'Apply the changes', description: 'git apply --3way: stages them; conflicts get markers', v: 'apply' as ApplyMode },
+      { label: 'Reverse it (undo these changes)', description: 'git apply -R', v: 'reverse' as ApplyMode },
+    ];
+    const subj = info.subjects.length ? `: ${info.subjects[0].slice(0, 50)}${n > 1 ? ` and ${n - 1} more` : ''}` : '';
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: `Patch from ${source}${subj}${stat ? ` (${stat})` : ''}` });
+    if (!pick) return false;
+    mode = pick.v;
+  }
+  if (mode === 'am' && info.kind !== 'mbox') mode = 'apply';
+  // git am refuses a dirty index ("Dirty index: cannot apply patches") but still leaves an am session
+  // behind (git 2.53), so check first instead of running it.
+  if (mode === 'am' && !(await git(ctx.root, ['diff', '--cached', '--quiet']).then(() => true, () => false))) {
+    const pick = await vscode.window.showWarningMessage('Mergeline: git am needs a clean index. Commit or stash your staged changes first, or apply the changes without committing.', 'Apply changes only');
+    if (pick !== 'Apply changes only') return false;
+    mode = 'apply';
+  }
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mergeline-patch-'));
+  const file = path.join(dir, 'patch');
+  try {
+    await fs.writeFile(file, text);
+    const title = mode === 'am' ? `Apply ${info.commits} commit${info.commits === 1 ? '' : 's'} (git am)` : mode === 'reverse' ? 'Reverse patch' : 'Apply patch';
+    const cmds = applyCommands(mode, file);
+    for (let i = 0; i < cmds.length; i++) {
+      try {
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${title}` }, () => git(ctx.root, cmds[i]));
+        const staged = cmds[i].includes('--3way') && mode !== 'am';
+        vscode.window.showInformationMessage(`Mergeline: ${mode === 'am' ? `applied ${info.commits} commit${info.commits === 1 ? '' : 's'}` : mode === 'reverse' ? 'reversed the patch' : 'applied the patch'}${staged ? '; the changes are staged' : ''}${stat ? ` (${stat})` : ''}.`);
+        return true;
+      } catch (e) {
+        const err = e instanceof GitError ? e.stderr || e.message : String(e);
+        const conflicts = conflictedFromApply(err);
+        if (conflicts.length) {
+          const pick = await vscode.window.showWarningMessage(`Mergeline: applied with conflicts in ${conflicts.slice(0, 3).join(', ')}${conflicts.length > 3 ? ` and ${conflicts.length - 3} more` : ''}. Resolve them, then stage the files.`, 'Open Source Control');
+          if (pick) vscode.commands.executeCommand('workbench.view.scm');
+          return true;
+        }
+        if (i + 1 < cmds.length && retryWithoutIndex(err)) continue;
+        await reportError(e, title);
+        return mode === 'am'; // a stopped `git am` shows in the in-progress bar
+      }
+    }
+    return false;
+  } finally {
+    // `git am` keeps its own copy of the patches in the git dir, so ours can go.
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 }

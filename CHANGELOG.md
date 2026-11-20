@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.0 (2026-11-20)
+
+- **Save commits as patches.** Right-click a commit → **Save as a patch…** writes it the way `git format-patch` does (`0001-Fix-the-parser.patch`, with author, date and message), and **Copy as a patch** puts the same text on the clipboard, ready to paste into a chat or an issue. A merge commit is saved as its diff against the first parent. Select a commit and Ctrl/Cmd-click another on the same line → **Save commits a…b as patches…** saves the whole series (both ends included) in one file. Right-click a branch → **Save commits not on “main” as patches…**, or use the link in the **Changes since it split** pane.
+- **Save a diff.** The comparison pane (Ctrl/Cmd-click two commits) has **Save this diff as a patch…** and **Copy**. The uncommitted-changes row has **Save changes as a patch…** and **Copy changes as a patch** (staged and unstaged changes to tracked files), and a stash has **Save stash as a patch…**.
+- **Apply a patch** from the new **Patch** button in the toolbar, the uncommitted-changes row, or **Mergeline: Apply Patch…** in the Command Palette, from a file (several `0001-…`, `0002-…` files are applied in order) or straight from the clipboard. Mergeline reads it first and shows the first subject and how many files it changes, then offers **Create the commits** (`git am --3way`: author, date and message kept), **Apply the changes only, no commit** (`git apply --3way`: the result is staged, and a conflict leaves markers in the file; when a file it touches has unstaged changes it applies to the working tree instead) or **Reverse it**. A patch pasted without its final newline still applies. If `git am` stops on a conflict, the bar above the graph shows it with **Continue**, **Skip** and **Abort**.
+- Fixed: with a stash row between two Ctrl/Cmd-clicked commits, the menu offered to “Squash 3 commits into one” for two commits (it counted the stash row). Only the label was wrong; the squash itself used the right commits.
+
 ## 0.15.0 (2026-11-20)
 
 - **Filter by author.** A new **Authors** button in the toolbar opens a checklist of everyone in the branches shown, with their commit counts and a filter box. Tick one or more people to see only their commits. Each commit is joined to its nearest shown ancestor, so the graph stays connected (plain `git log --author` does not do this). Or right-click a commit → **Show only commits by <name>**, and **Show commits by all authors** to go back. Works with the Branches checklist, First parent and Find → All history. The filter is off in file history.
