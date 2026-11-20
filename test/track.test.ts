@@ -43,7 +43,7 @@ test('parseRefs reads upstream, ahead/behind and gone; old 3-field lines still p
   assert.equal(refs[5].upstream, undefined);
 });
 
-test('readState: ahead/behind against a real remote, and gone after the remote branch is deleted', () => {
+test('readState: ahead/behind against a real remote, and gone after the remote branch is deleted', async () => {
   const base = mkdtempSync(join(tmpdir(), 'mergeline-track-'));
   try {
     const bare = join(base, 'bare.git');
@@ -66,7 +66,8 @@ test('readState: ahead/behind against a real remote, and gone after the remote b
     sh(b, 'push', '-q', 'origin', 'main');
     commit(a, 'mine');
     sh(a, 'fetch', '-q');
-    return readState(a).then(async (st) => {
+    {
+      const st = await readState(a);
       const main = st.refs.find((r) => r.full === 'refs/heads/main')!;
       assert.deepEqual([main.upstream, main.ahead, main.behind], ['origin/main', 1, 2]);
       const feat = st.refs.find((r) => r.full === 'refs/heads/feat')!;
@@ -75,9 +76,9 @@ test('readState: ahead/behind against a real remote, and gone after the remote b
       sh(a, 'fetch', '-q', '--prune');
       const st2 = await readState(a);
       assert.equal(st2.refs.find((r) => r.full === 'refs/heads/feat')!.gone, true);
-    });
+    }
   } finally {
-    setTimeout(() => rmSync(base, { recursive: true, force: true }), 2000).unref();
+    rmSync(base, { recursive: true, force: true });
   }
 });
 
