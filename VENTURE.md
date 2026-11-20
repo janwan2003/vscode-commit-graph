@@ -105,49 +105,67 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.1.0 is built, released on GitHub and documented; it is not in the stores yet.**
+**Mergeline 0.2.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`, checked 2026-11-20).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Release v0.1.0 with
-  `mergeline-0.1.0.vsix` (32.5 KB): https://github.com/janwan2003/vscode-commit-graph/releases/tag/v0.1.0
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 and v0.2.0
+  (`mergeline-0.2.0.vsix`, 34.7 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  5 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
-  merge, undo with reset/revert/cherry-pick, stash guide), 404 and sitemap.
+  6 SEO guides (Git Graph alternative, visualising branches in VS Code, rebase vs
+  merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code), 404 and sitemap.
 - Features: graph with lanes, merges, branches, remotes, tags, stashes and an
   uncommitted row; virtualised table with a pinned header; details pane with diffs;
   Ctrl/Cmd-click compare; find; branch filter; remotes toggle; fetch; auto-refresh; multi-repo.
+  **0.2.0 added:** file history (right-click a file → "Show File History in Mergeline"; graph
+  limited to that path with `git log --parents -- <path>` so it stays connected), a commit-order
+  menu (date / topology / author date, setting `mergeline.commitOrder`), lane collapsing (two lanes
+  waiting for the same commit merge, as in `git log --graph`), clipped-lane nodes pinned to the edge,
+  and a hint to try topology order when a date-ordered graph is wider than 20 lanes.
   Right-click actions on commits, branches, remote branches, tags, stashes and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
-- Verified 2026-11-20:
-  - `pnpm test`: 7/7 unit tests pass (real fixture repos; lane continuity, load-more paging, renames, root commit, empty repo).
-  - `node scripts/e2e.mjs`: 15/15 checks pass in real VS Code 1.147 (headless). They cover activation, the graph data, webview rows rendered, details, compare, diff editor content, stash pop, checkout, cherry-pick, revert, copy, create branch, `--no-ff` merge, hard reset, delete branch and delete tag. The run was against the minified packaged build.
-  - The `.vsix` installs with `code --install-extension` (`plainbyte.mergeline@0.1.0` listed).
-  - `node scripts/shot/shot.mjs` renders the real webview in headless Chromium with real data → `docs/screenshot*.png`, plus a DOM smoke check.
-  - Benchmark (`scripts/bench.ts` on a synthetic 100K-commit linear repo built with `git fast-import`): first page of 500 commits in 349 ms git + 1 ms layout; all 100K in 691 ms git + 74 ms layout, 25.8 MB payload.
-- Not verified: Cursor, VSCodium and Windsurf (not installed here); remote/SSH/WSL;
-  push, pull and fetch against a real remote (the e2e fixture has no remote); a real
-  large repo with many lanes (the synthetic one is linear); the light theme of the webview.
+- Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
+  - `pnpm typecheck` clean; `pnpm test`: 10/10 unit tests (new: path-limited log with rewritten parents, topo order, lane collapse).
+  - `node scripts/e2e.mjs`: 20/20 checks in real VS Code 1.147 (headless). New: file-history command
+    (3 commits for `src.txt`, every parent present, clearing restores 8), order switch saved as a setting,
+    and a **real remote** (local bare repo): push branch with upstream, push tag, fetch a commit pushed
+    from another clone, pull fast-forward, delete remote branch.
+  - `code --install-extension mergeline-0.2.0.vsix` into a temp extensions dir lists `plainbyte.mergeline@0.2.0`.
+  - Webview rendered in headless Chromium (`scripts/shot/shot.mjs`): demo repo in dark and **light** theme
+    (`THEME=light`, looked at the PNG: lanes, badges, find highlight and details are legible), file-history
+    banner, and real git.git data (`PAYLOAD=...`).
+  - Wide-graph measurements on a commits-only clone of git/git (86,366 commits, `--filter=tree:0`, in /tmp,
+    deleted after), first 500 commits, from `scripts/bench.ts` and a width script: all branches, date order:
+    146 → 117 lanes after lane collapsing; master only: 108 → 71 (date) and 29 (topology).
+    Layout of all 86,366 commits takes 2.8 s and the payload would be 174 MB; the first page of 500
+    is 1.2 MB, 5,000 is 8.0 MB.
+- Not verified: Cursor, VSCodium and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
+  editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
+  contributions are declarative and `vsce package` accepted them); rename following in file history
+  (not implemented).
 
 ## Metrics
 
-- 2026-11-20: not in any store yet, so there are no installs to read. GitHub release
+- 2026-11-20 (session 1): not in any store yet, so there are no installs to read. GitHub release
   download count starts at 0 (`gh api repos/janwan2003/vscode-commit-graph/releases`).
+- 2026-11-20 (session 2): `mergeline-0.1.0.vsix` 2 downloads (`gh api .../releases`; possibly our own
+  checks); repo 0 stars, 0 forks; traffic views 0 (`gh api .../traffic/views`). Still no store listing.
 
 ## Next steps
 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish with the commands in `store/LISTING.md`. This is
    the validation channel; nothing else counts until it is done.
-2. Test in VSCodium or Cursor (Open VSX users are the core audience) and in the light theme.
-3. Real-remote test: push, pull, fetch and delete remote branch against a local bare repo in the e2e suite.
-4. Wide-graph quality: try a repo with many parallel branches (e.g. a shallow
-   `--filter=blob:none` clone of a busy OSS repo, outside the venture dir, deleted after)
-   and tune lane reuse and colours.
-5. Features users ask for that are still missing: drag-and-drop branch to merge or
-   rebase, avatars (opt-in; it would need network access, so off by default), a
-   commit-message search in all history (not just loaded commits), file-history
-   view ("show this file's history in the graph"), worktree badges, pinned columns resizable.
-6. After store launch: record installs and ratings weekly in `## Metrics`; add
-   Search Console for the site (operator).
+2. **Payload size on wide graphs:** rows carry every pass-through lane segment, so git.git's
+   first 5,000 commits are 8 MB per refresh. Send only lane changes (or a compact string
+   encoding) and let the webview rebuild straight segments. This matters for big monorepos.
+3. File history: follow renames (run `git log --follow --format=%H -- path` for the sha set and
+   the older path, then show both paths' commits).
+4. Search all history (not just loaded commits): `git log --grep/--author/-S` from the find box.
+5. Test in VSCodium or Cursor (Open VSX users are the core audience).
+6. Features users ask for that are still missing: drag-and-drop branch to merge or
+   rebase, avatars (opt-in; needs network, off by default), worktree badges, resizable columns.
+7. After store launch: record installs and ratings weekly in `## Metrics`; submit to
+   awesome-vscode style lists (they require a Marketplace link); add Search Console for the site (operator).
 
 ## Monetization plan
 
@@ -170,3 +188,8 @@ on the graph). The graph itself stays free.
   in VS Code 1.147, vsix install, headless-Chromium render, 100K-commit benchmark.
   Published repo, Pages site (with 5 guides) and release v0.1.0. Set stage launched.
   Store publishing is blocked on the operator (inbox).
+- 2026-11-20 builder (session 2): store tokens still absent, so worked on the product. Lane
+  collapsing (git.git 500 commits: 146 → 117 lanes; master 108 → 71), commit-order menu (topology:
+  master 29 lanes), file history from Explorer/editor menus, clipped-lane nodes, light-theme check,
+  real-remote e2e. Released v0.2.0, added a file-history guide page. Verified: typecheck, 10/10 unit,
+  20/20 e2e on the packaged build, vsix install, headless-Chromium renders (dark, light, git.git).

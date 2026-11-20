@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { Repos } from './repos';
 import { GraphPanel } from './panel';
 import { GitContentProvider, SCHEME } from './content';
@@ -16,6 +17,28 @@ export async function activate(ctx: vscode.ExtensionContext) {
       return GraphPanel.show(ctx, repos, root);
     }),
     vscode.commands.registerCommand('mergeline.refresh', () => GraphPanel.current?.refresh(true)),
+    // From the Explorer or an editor tab VS Code passes the file's URI; from the
+    // Command Palette we use the active editor.
+    vscode.commands.registerCommand('mergeline.fileHistory', async (uri?: vscode.Uri) => {
+      await ready;
+      const target = uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document.uri;
+      if (!target || target.scheme !== 'file') {
+        vscode.window.showInformationMessage('Mergeline: open or select a file to see its history.');
+        return;
+      }
+      const file = target.fsPath;
+      const repo = repos
+        .list()
+        .filter((r) => file === r.root || file.startsWith(r.root + path.sep))
+        .sort((a, b) => b.root.length - a.root.length)[0];
+      if (!repo) {
+        vscode.window.showInformationMessage(`Mergeline: ${path.basename(file)} is not inside a git repository in this workspace.`);
+        return;
+      }
+      const panel = GraphPanel.show(ctx, repos, repo.root);
+      await panel.showFileHistory(repo.root, path.relative(repo.root, file));
+      return panel;
+    }),
   );
 
   const sb = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);

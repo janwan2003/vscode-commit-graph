@@ -87,10 +87,20 @@ export interface LogOptions {
   branches?: string[]; // empty/undefined = all
   remotes?: boolean;
   extraRevs?: string[];
+  /** Commit order: date (default), topo (keeps each branch's commits together) or author-date. */
+  order?: CommitOrder;
+  /** Only commits that touch these paths (file history). Parents are rewritten to the nearest touching ancestor. */
+  paths?: string[];
 }
 
+export type CommitOrder = 'date' | 'topo' | 'author-date';
+
 export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
-  const args = ['-c', 'log.showSignature=false', 'log', '--date-order', '--no-color', `--max-count=${o.max}`, `--format=${LOG_FORMAT}`];
+  const order = o.order === 'topo' ? '--topo-order' : o.order === 'author-date' ? '--author-date-order' : '--date-order';
+  const args = ['-c', 'log.showSignature=false', 'log', order, '--no-color', `--max-count=${o.max}`, `--format=${LOG_FORMAT}`];
+  // With a pathspec, --parents turns on parent rewriting so %P names the nearest
+  // ancestor that touched the path and the graph stays connected.
+  if (o.paths && o.paths.length) args.push('--parents');
   if (o.branches && o.branches.length) args.push(...o.branches);
   else {
     args.push('--branches', '--tags');
@@ -99,6 +109,7 @@ export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
   }
   if (o.extraRevs) args.push(...o.extraRevs);
   args.push('--');
+  if (o.paths) args.push(...o.paths.map((p) => ':(literal)' + p));
   try {
     return parseLog(await git(cwd, args));
   } catch (e) {

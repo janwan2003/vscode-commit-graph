@@ -21,7 +21,9 @@ account, has no paid tier and sends no telemetry.
 - **Details**: click a commit to see its full message, author, committer, parents and changed files with +/− counts and renames. Click a file to open it in VS Code's diff editor.
 - **Compare**: Ctrl/Cmd-click a second commit to see every file that changed between the two. This works with the working tree too.
 - **Find**: Ctrl/Cmd+F searches subjects, authors, emails, hashes and ref names. Press Enter or Shift+Enter to step through matches.
+- **File history**: right-click a file (Explorer, editor tab or editor) → **Show File History in Mergeline** to see only the commits that touched it, still drawn as a connected graph. Renames are not followed yet.
 - **Filter**: show one branch, or hide remote branches.
+- **Order**: date, topology or author date. Topology keeps each branch's commits together, which makes busy histories much narrower.
 - **Keyboard**: ↑/↓ move between commits, Esc closes the details pane.
 
 ### Right-click actions
@@ -47,6 +49,7 @@ Push, pull and fetch go through VS Code's built-in Git, so your usual credential
 | `mergeline.showRemoteBranches` | true | Show remote-tracking branches. |
 | `mergeline.showStashes` | true | Show stashes as graph nodes. |
 | `mergeline.showUncommitted` | true | Show the uncommitted-changes row. |
+| `mergeline.commitOrder` | date | `date`, `topo` or `author-date`. Also in the toolbar. |
 | `mergeline.statusBarButton` | true | Show the status-bar button. |
 | `mergeline.dateFormat` | relative | `relative`, `iso` or `locale`. |
 

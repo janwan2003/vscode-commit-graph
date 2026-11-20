@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git file history in VS Code: see who changed a file and when | Mergeline</title>
+<meta name="description" content="How to see the git history of one file in VS Code: a file-history graph in Mergeline, git log -- path, --follow for renames, git blame, the pickaxe -S search, and VS Code's Timeline view.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-file-history-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git file history in VS Code: see who changed a file and when">
+<meta property="og:description" content="A file's commits as a graph, git log for one file, --follow, blame, pickaxe search and the Timeline view.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-file-history-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Git file history in VS Code: who changed this file, and when</h1>
+    <p>Sooner or later you open a file and wonder how it got this way. Which commit added this function? Who changed the timeout last month? Git records the answer for every file, and you can get at it from VS Code in a few ways. This guide covers a file-history graph in Mergeline, the equivalent git commands, and VS Code&rsquo;s own Timeline view.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#mergeline">File history in Mergeline</a></li>
+        <li><a href="#log">git log for one file</a></li>
+        <li><a href="#follow">Following renames</a></li>
+        <li><a href="#lines">Blame and pickaxe</a></li>
+        <li><a href="#old">An old version of a file</a></li>
+        <li><a href="#timeline">VS Code&rsquo;s Timeline view</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <section class="in-app" id="mergeline">
+      <h2>See a file&rsquo;s history in Mergeline</h2>
+      <p>File history is new in Mergeline 0.2.0. It turns the commit graph into a graph of one file.</p>
+      <ol class="steps">
+        <li><strong>Pick the file.</strong> Right-click it in the Explorer, on its editor tab, or anywhere inside the editor, and choose <strong>Show File History in Mergeline</strong>. You can also run <strong>Show File History in Mergeline</strong> from the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS) for the file in the active editor.</li>
+        <li><strong>Read the graph.</strong> The graph now lists only the commits that touched that file. A banner at the top reads <em>History of &lt;path&gt;</em> with a commit count. The lanes stay connected: Mergeline asks git to rewrite each commit&rsquo;s parents to the nearest earlier commit that also touched the file (the same thing <code>git log --parents -- &lt;path&gt;</code> does), so you still see which branch each change was made on and where it was merged.</li>
+        <li><strong>Inspect a change.</strong> Click a commit to open its details. The file you are tracking is highlighted in the list of changed files; click it to open the change in VS Code&rsquo;s diff editor. The commit&rsquo;s other files are listed too.</li>
+        <li><strong>Go back.</strong> Click <strong>Show all commits</strong> in the banner to return to the full graph.</li>
+      </ol>
+      <p>Stashes and the uncommitted-changes row are hidden in this mode, because they cannot be filtered by path. The branch filter and the remotes toggle still apply.</p>
+      <p class="note warn"><strong>Limitation:</strong> renames are not followed yet. If the file was renamed or moved, its history stops at the commit that did it. To see what came before, run the command on the old path (if a file still exists there), or use <code>git log --follow</code> in a terminal, described below.</p>
+    </section>
+
+    <h2 id="log"><code>git log</code> for one file</h2>
+    <p>Every <code>git log</code> option works with a path. Put the path after <code>--</code>:</p>
+<pre><span class="k">git log --</span> src/search.ts
+<span class="k">git log --oneline --graph --</span> src/search.ts</pre>
+    <p>The <code>--</code> tells git that what follows is a path, not a branch name. You can sometimes leave it out, but it is required for a file that no longer exists in your working tree. A directory works as well as a file: <code>git log -- src/</code> lists every commit that touched anything under <code>src</code>.</p>
+    <p>By default this shows the history of the current branch. Add <code>--all</code> to include every branch and tag, or name a branch: <code>git log main -- src/search.ts</code>.</p>
+    <p><code>--graph</code> turns on what git calls <em>parent rewriting</em>: each commit shown is drawn as if its parent were the nearest earlier commit that touched the path, so the graph stays joined up instead of falling apart into dots. <code>--parents</code> does the same without drawing.</p>
+    <p>To see the changes themselves, add <code>-p</code>; the diff is limited to the paths you gave:</p>
+<pre><span class="k">git log -p --</span> src/search.ts          <span class="c"># each commit with its diff, limited to this file</span>
+<span class="k">git log --stat --</span> src/search.ts      <span class="c"># line counts instead of the full diff</span></pre>
+
+    <h2 id="follow">Following renames: <code>--follow</code></h2>
+<pre><span class="k">git log --follow --</span> src/search.ts</pre>
+    <p>Git does not store renames. It stores snapshots, and works out afterwards that a deleted file and an added file with similar content are probably the same file. A plain <code>git log -- path</code> looks only at that exact path, so it stops at the commit that created the file under its current name. <code>--follow</code> watches for that point, detects the rename, and carries on with the old name.</p>
+    <p>It only works for a single file. <code>--follow</code> tracks one path through history and swaps in the old name when it finds a rename, so it cannot track several paths at once: give it two and git stops with <code>--follow requires exactly one pathspec</code>. Renames are detected file by file, so point it at a file rather than a directory. Because rename detection is a similarity guess, a file that was renamed and heavily rewritten in the same commit may not be followed; doing the rename in a commit of its own avoids that.</p>
+
+    <h2 id="lines">Who changed this line: blame and pickaxe</h2>
+<pre><span class="k">git blame</span> src/search.ts
+<span class="k">git blame -L</span> 40,60 src/search.ts      <span class="c"># only lines 40 to 60</span></pre>
+    <p><code>git blame</code> prints every line of the file with the commit, author and date that last changed it. Add <code>-w</code> to ignore whitespace-only changes, and <code>-C</code> to look through code that was moved or copied from other files. Keep in mind that blame shows the <em>last</em> change to a line: if someone reformatted the file, blame points at the reformat. Run <code>git blame &lt;commit&gt;^ -- src/search.ts</code> to look past that commit, or use the pickaxe.</p>
+<pre><span class="k">git log -S</span>'retryTimeout' <span class="k">--</span> src/search.ts
+<span class="k">git log -G</span>'retry(Timeout|Count)' <span class="k">--</span> src/search.ts</pre>
+    <p><code>-S</code>, the &ldquo;pickaxe&rdquo;, finds commits that changed the number of times a string appears in the file: the commit that added <code>retryTimeout</code>, and the one that removed it. A commit that only moved the string around does not count. <code>-G</code> takes a regular expression and matches any commit whose diff adds or removes a line containing it, so it also catches edits to lines that still contain the text. Both combine with <code>-p</code>.</p>
+    <p>To follow a function or a range of lines through history, <code>git log -L 40,60:src/search.ts</code> shows every commit that changed those lines, with the diff of just that range.</p>
+
+    <h2 id="old">Seeing an old version of a file</h2>
+<pre><span class="k">git show</span> 4e7d0c2:src/search.ts                  <span class="c"># the whole file as it was in that commit</span>
+<span class="k">git show</span> 4e7d0c2:src/search.ts &gt; /tmp/old.ts   <span class="c"># save it to compare</span>
+<span class="k">git restore --source=</span>4e7d0c2 -- src/search.ts   <span class="c"># put that version back in your working tree</span></pre>
+    <p>In <code>&lt;commit&gt;:&lt;path&gt;</code> the path is relative to the top of the repository, not your current directory. Start it with <code>./</code> to make it relative to where you are. The <code>git restore</code> line overwrites your copy of the file, so commit or stash any changes first.</p>
+
+    <h2 id="timeline">VS Code&rsquo;s built-in Timeline view</h2>
+    <p>VS Code has its own per-file history, with nothing to install. Open a file, then expand <strong>Timeline</strong> at the bottom of the Explorer. It lists the git commits that changed the file, mixed with Local History entries that VS Code records when you save. Clicking an entry opens a diff against the previous version, and the filter button lets you hide either source.</p>
+    <p>It is quick, and Local History can save you when you never committed at all. It is a flat list, though: it does not show which branch a change was made on or where it was merged. Use the Timeline for a glance, and a graph when the branch structure matters.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Why does the history skip merge commits?</summary>
+      <p>That is git&rsquo;s default history simplification. When you limit the log to a path, a merge commit is hidden if the file ended up identical to the file in one of its parents, because the merge itself did not change it, and git follows only that parent. You will see a merge only when it actually changed the file, for example while resolving a conflict. If a side branch changed the file but the merge discarded those changes, the side branch is pruned too. Add <code>--full-history</code> to see every commit that touched the path, including those, along with the merges that brought them in.</p>
+    </details>
+    <details>
+      <summary>Can I see the history of a deleted file?</summary>
+      <p>In a terminal, yes: <code>git log --all -- path/to/old-file.ts</code>. The <code>--</code> matters here, since the path does not exist any more. Mergeline&rsquo;s command needs a file you can right-click or open, so for a deleted file use the terminal.</p>
+    </details>
+    <details>
+      <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
+      <p>Yes. They are built on VS Code and install the same <code>.vsix</code>. Download it from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>). Listings on the VS Code Marketplace and Open VSX are coming soon.</p>
+    </details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-file-history-vscode.html" aria-current="page">File history</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

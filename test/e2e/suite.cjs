@@ -79,6 +79,26 @@ exports.run = async function run() {
     assert.deepEqual(texts, ['Add search index\n', 'Search: rank by recency\n']);
   });
 
+  await check('file history: command filters the graph to one file, parents rewritten', async () => {
+    const p2 = await vscode.commands.executeCommand('mergeline.fileHistory', vscode.Uri.file(root + '/src.txt'));
+    assert.ok(p2 === panel, 'same panel');
+    const d = await until(() => panel.lastData.commits.every((c) => c.kind === 'commit') && panel.lastData.commits.length < 8 && panel.lastData, 10000, 'file history data');
+    assert.deepEqual(d.commits.map((c) => c.subject), ['Rename src.txt to parser.txt', 'Parser: handle empty input', 'Add parser skeleton']);
+    const shas = new Set(d.commits.map((c) => c.sha));
+    for (const c of d.commits) for (const p of c.parents) assert.ok(shas.has(p), 'parent of ' + c.subject + ' is in the list');
+    await panel.testMessage({ type: 'filter', branch: '', remotes: true, path: '' });
+    assert.equal(panel.lastData.commits.filter((c) => c.kind === 'commit').length, 8, 'clearing the path shows everything again');
+  });
+
+  await check('commit order: topology keeps a branch together, saved as a setting', async () => {
+    await panel.testMessage({ type: 'order', order: 'topo' });
+    assert.equal(vscode.workspace.getConfiguration('mergeline').get('commitOrder'), 'topo');
+    const d = await until(() => { const s = panel.lastData.commits.map((c) => c.subject); return s.indexOf('Search: rank by recency') === s.indexOf("Merge branch 'feature/search'") + 1 && panel.lastData; }, 10000, 'topo order');
+    assert.ok(d);
+    await panel.testMessage({ type: 'order', order: 'date' });
+    await until(() => vscode.workspace.getConfiguration('mergeline').get('commitOrder') === 'date', 5000, 'order reset');
+  });
+
   const act = async (m) => { await panel.testMessage({ type: 'action', ...m }); };
 
   await check('stash pop applies the stash and removes it', async () => {
@@ -150,6 +170,43 @@ exports.run = async function run() {
       await act({ action: 'deleteTag', ref: 'v0.1.0' });
       assert.equal(git('tag', '--list', 'v0.1.0'), '');
     });
+
+    // Real remote: a bare repository next to the workspace.
+    const bare = root + '-remote.git';
+    const lsRemote = (ref) => (git('ls-remote', 'origin', ref).split('\t')[0] || '');
+    await check('remote: push branch sets upstream, push tag', async () => {
+      execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+      git('remote', 'add', 'origin', bare);
+      await act({ action: 'pushBranch', ref: 'main', refType: 'head' });
+      assert.equal(lsRemote('refs/heads/main'), git('rev-parse', 'HEAD'));
+      assert.equal(git('rev-parse', '--abbrev-ref', 'main@{upstream}'), 'origin/main');
+      await act({ action: 'pushTag', ref: 'v1.0.0' });
+      assert.ok(lsRemote('refs/tags/v1.0.0'), 'tag on remote');
+    });
+    await check('remote: fetch shows a new remote commit, pull fast-forwards', async () => {
+      const other = root + '-other';
+      execFileSync('git', ['clone', '-q', '-b', 'main', bare, other]);
+      const og = (...a) => execFileSync('git', a, { cwd: other, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'Grace', GIT_AUTHOR_EMAIL: 'g@example.com', GIT_COMMITTER_NAME: 'Grace', GIT_COMMITTER_EMAIL: 'g@example.com' } }).trim();
+      fs.writeFileSync(other + '/remote.txt', 'from elsewhere\n');
+      og('add', '-A');
+      og('commit', '-q', '-m', 'Commit pushed from another clone');
+      og('push', '-q', 'origin', 'main');
+      const theirs = og('rev-parse', 'HEAD');
+      await act({ action: 'fetch' });
+      await until(() => git('rev-parse', 'origin/main') === theirs, 10000, 'origin/main updated');
+      await until(() => panel.lastData.state.refs.some((r) => r.name === 'origin/main' && r.sha === theirs), 10000, 'graph shows fetched commit');
+      await act({ action: 'pull', ref: 'main', refType: 'head' });
+      await until(() => git('rev-parse', 'HEAD') === theirs, 10000, 'pull fast-forwarded');
+      fs.rmSync(other, { recursive: true, force: true });
+    });
+    await check('remote: delete remote branch (modal confirm)', async () => {
+      git('push', '-q', 'origin', 'feature/search');
+      git('fetch', '-q', 'origin');
+      assert.ok(lsRemote('refs/heads/feature/search'));
+      await act({ action: 'deleteRemoteBranch', ref: 'origin/feature/search', refType: 'remote', remote: 'origin' });
+      assert.equal(lsRemote('refs/heads/feature/search'), '');
+    });
+    fs.rmSync(bare, { recursive: true, force: true });
   }
   Object.assign(w, { showInputBox: orig.input, showQuickPick: orig.pick, showWarningMessage: orig.warn });
 

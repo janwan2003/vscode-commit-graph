@@ -181,3 +181,55 @@ test('layout handles 100k linear commits quickly', () => {
   assert.equal(lay.width, 1);
   assert.ok(Date.now() - t0 < 2000);
 });
+
+test('file history: path-limited log rewrites parents so the graph stays connected', async () => {
+  const d = makeFixture();
+  try {
+    const all = await readLog(d, { max: 100 });
+    const hist = await readLog(d, { max: 100, paths: ['a.txt'] });
+    assert.deepEqual(hist.map((c) => c.subject), ['second', 'initial']);
+    assert.deepEqual(hist[0].parents, [hist[1].sha]);
+    const b = await readLog(d, { max: 100, paths: ['b.txt'] });
+    assert.deepEqual(b.map((c) => c.subject), ['rename b to c', 'main three']);
+    const shas = new Set(b.map((c) => c.sha));
+    for (const c of b) for (const p of c.parents) assert.ok(shas.has(p), 'rewritten parent is listed');
+    const lay = layout(b);
+    checkContinuity(lay.rows);
+    assert.equal(lay.width, 1);
+    // A literal pathspec: glob characters are not expanded.
+    assert.deepEqual(await readLog(d, { max: 100, paths: ['*.txt'] }), []);
+    assert.equal(all.length, 8);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('topo order keeps a merged branch directly under its merge', async () => {
+  const d = makeFixture();
+  try {
+    const topo = (await readLog(d, { max: 100, order: 'topo' })).map((c) => c.subject);
+    assert.equal(topo.indexOf('feature two'), topo.indexOf('Merge feature') + 1);
+    assert.equal(topo.length, 8);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('layout: lanes waiting for the same commit collapse into one', () => {
+  // Three topic branches forked from the same base b, merged one after another.
+  const commits = [
+    { sha: 'm3', parents: ['m2', 't3'] },
+    { sha: 'm2', parents: ['m1', 't2'] },
+    { sha: 'm1', parents: ['b', 't1'] },
+    { sha: 't3', parents: ['b'] },
+    { sha: 't2', parents: ['b'] },
+    { sha: 't1', parents: ['b'] },
+    { sha: 'b', parents: [] },
+  ];
+  const lay = layout(commits);
+  checkContinuity(lay.rows);
+  // Each topic tip folds into the lane already waiting for b instead of keeping its
+  // own lane down to b, so the graph narrows row by row (it used to stay 4 wide).
+  assert.deepEqual(lay.rows.map((r) => r.top.length), [0, 2, 3, 4, 3, 2, 1]);
+  assert.equal(lay.rows[6].top.length, 1, 'only one line reaches the base');
+});

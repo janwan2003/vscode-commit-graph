@@ -2,7 +2,7 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, Commit, RepoState } from '../core/gitlog';
+import { readLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, Commit, RepoState, CommitOrder } from '../core/gitlog';
 import { layout } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
@@ -15,7 +15,8 @@ export class GraphPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel;
   private repo: string | undefined;
   private max: number;
-  private filter: { branch: string | null; remotes: boolean };
+  /** path: repo-relative, '/'-separated path for file history, or null for the whole repo. */
+  private filter: { branch: string | null; remotes: boolean; path: string | null };
   private subs: vscode.Disposable[] = [];
   private timer: NodeJS.Timeout | undefined;
   private lastSig = '';
@@ -39,7 +40,7 @@ export class GraphPanel implements vscode.Disposable {
   private constructor(private ctx: vscode.ExtensionContext, private repos: Repos, root?: string) {
     const cfg = vscode.workspace.getConfiguration('mergeline');
     this.max = cfg.get<number>('initialCommits', 500);
-    this.filter = { branch: null, remotes: cfg.get<boolean>('showRemoteBranches', true) };
+    this.filter = { branch: null, remotes: cfg.get<boolean>('showRemoteBranches', true), path: null };
     this.repo = root ?? ctx.workspaceState.get<string>('mergeline.repo');
     this.panel = vscode.window.createWebviewPanel('mergeline.graph', 'Mergeline', vscode.ViewColumn.Active, {
       enableScripts: true,
@@ -86,7 +87,7 @@ export class GraphPanel implements vscode.Disposable {
 
   private settings() {
     const cfg = vscode.workspace.getConfiguration('mergeline');
-    return { dateFormat: cfg.get('dateFormat', 'relative') };
+    return { dateFormat: cfg.get('dateFormat', 'relative'), commitOrder: cfg.get('commitOrder', 'date') };
   }
   private postSettings() {
     this.post({ type: 'settings', settings: this.settings() });
@@ -106,9 +107,23 @@ export class GraphPanel implements vscode.Disposable {
     this.repo = root;
     this.ctx.workspaceState.update('mergeline.repo', root);
     this.filter.branch = null;
+    this.filter.path = null;
     this.max = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
     this.postRepos();
     this.refresh(true);
+  }
+
+  /** Show only the commits that touched `rel` (repo-relative path) in repository `root`. */
+  showFileHistory(root: string, rel: string) {
+    if (root !== this.repo) {
+      this.repo = root;
+      this.ctx.workspaceState.update('mergeline.repo', root);
+      this.filter.branch = null;
+      this.postRepos();
+    }
+    this.filter.path = rel.split(path.sep).join('/');
+    this.max = vscode.workspace.getConfiguration('mergeline').get<number>('initialCommits', 500);
+    return this.refresh(true);
   }
 
   scheduleRefresh(ms = 400) {
@@ -145,10 +160,13 @@ export class GraphPanel implements vscode.Disposable {
       return;
     }
     const cfg = vscode.workspace.getConfiguration('mergeline');
-    const showStash = cfg.get<boolean>('showStashes', true);
-    const showUnc = cfg.get<boolean>('showUncommitted', true);
+    // File history shows commits only: stashes and the working tree are not path-filtered.
+    const fileMode = !!this.filter.path;
+    const showStash = cfg.get<boolean>('showStashes', true) && !fileMode;
+    const showUnc = cfg.get<boolean>('showUncommitted', true) && !fileMode;
+    const order = cfg.get<CommitOrder>('commitOrder', 'date');
     const [commits0, state, stashes, unc] = await Promise.all([
-      readLog(root, { max: this.max + 1, branches: this.filter.branch ? [this.filter.branch] : undefined, remotes: this.filter.remotes }),
+      readLog(root, { max: this.max + 1, branches: this.filter.branch ? [this.filter.branch] : undefined, remotes: this.filter.remotes, order, paths: fileMode ? [this.filter.path!] : undefined }),
       readState(root),
       showStash ? readStashes(root) : Promise.resolve([]),
       showUnc ? readStatusCount(root) : Promise.resolve(0),
@@ -159,7 +177,7 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const sig = JSON.stringify([root, state, unc, this.filter, this.max, commits.map((c) => c.sha)]);
+    const sig = JSON.stringify([root, state, unc, this.filter, order, this.max, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
     const lay = layout(commits);
@@ -175,6 +193,7 @@ export class GraphPanel implements vscode.Disposable {
       branch: state.branch,
       hasMore,
       filter: this.filter,
+      order,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
     });
   }
@@ -200,8 +219,12 @@ export class GraphPanel implements vscode.Disposable {
         await this.refresh(true);
         break;
       case 'filter':
-        this.filter = { branch: m.branch || null, remotes: !!m.remotes };
+        this.filter = { branch: m.branch || null, remotes: !!m.remotes, path: m.path === undefined ? this.filter.path : m.path || null };
         await this.refresh(true);
+        break;
+      case 'order':
+        // Saved as a user setting; the configuration listener refreshes the graph.
+        if (['date', 'topo', 'author-date'].includes(m.order)) await vscode.workspace.getConfiguration('mergeline').update('commitOrder', m.order, vscode.ConfigurationTarget.Global);
         break;
       case 'details':
         await this.details(m.sha, m.compare);

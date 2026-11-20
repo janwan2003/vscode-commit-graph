@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-11-20)
+
+- **File history.** Right-click a file in the Explorer, an editor tab or the editor, and choose **Show File History in Mergeline**. The graph then shows only the commits that touched that file, still connected as a graph, and the details pane highlights the file. **Show all commits** goes back.
+- **Commit order.** A new **Order** menu in the toolbar (setting `mergeline.commitOrder`) switches between date, topology and author-date order. Topology keeps each branch's commits together; on git.git's master branch it cuts the graph from 71 to 29 lanes in the first 500 commits.
+- **Narrower graphs on busy histories.** When two lanes wait for the same commit, they now merge into one, as `git log --graph` does. On git.git's first 500 commits (all branches) this cuts the width from 146 to 117 lanes, and on master alone from 108 to 71.
+- Commits in lanes beyond the 30 that are drawn now show as a hollow node at the right edge instead of disappearing. The graph column is never narrower than its header.
+- Tests: push, pull, fetch and delete-remote-branch now run against a real (local bare) remote in the end-to-end suite, which has 20 checks.
+
 ## 0.1.0 (2026-11-20)
 
 First release.

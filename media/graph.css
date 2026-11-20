@@ -104,3 +104,13 @@ i.minus { color: var(--vscode-gitDecoration-deletedResourceForeground, #e5534b);
 #menu .mi.disabled { opacity: .45; cursor: default; background: none; color: inherit; }
 #menu .sep { height: 1px; margin: 4px 0; background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884)); }
 .end { font-size: 12px; }
+
+#pathbar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--vscode-panel-border, #8883); background: color-mix(in srgb, var(--lane-0) 12%, transparent); font-size: 12px; }
+#pathbar[hidden] { display: none; }
+#pathbar code { font-family: var(--vscode-editor-font-family); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#pathbar .pb-n { color: var(--vscode-descriptionForeground); }
+#pathbar button { margin-left: auto; }
+.file.focus { background: color-mix(in srgb, var(--lane-0) 16%, transparent); }
+.file.focus .fp { font-weight: 600; }
+#orderhint { font-size: 11.5px; color: var(--vscode-descriptionForeground); font-style: italic; }
+#orderhint[hidden] { display: none; }

@@ -71,11 +71,26 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
         if (i !== col) lanes[i] = null; // merges into the node
       } else top.push([i, i, colors[i]]);
     }
-    const fresh = new Set<number>();
-    const joins = new Set<number>();
+    // Each sha is awaited by at most one lane (as in `git log --graph`): a parent
+    // that another lane already waits for joins that lane instead of opening a
+    // duplicate, which keeps busy topic-branch histories narrow.
+    const fresh = new Set<number>(); // new lanes opened by this node
+    const joins = new Set<number>(); // existing lanes this node connects into
+    let folded = -1; // a lane right of the node that folds into the node's lane
     const ps = c.parents;
-    lanes[col] = ps.length ? ps[0] : null;
+    lanes[col] = null;
+    if (ps.length) {
+      const j = lanes.indexOf(ps[0]);
+      if (j < 0) lanes[col] = ps[0];
+      else if (j < col) joins.add(j);
+      else {
+        lanes[col] = ps[0];
+        lanes[j] = null;
+        folded = j;
+      }
+    }
     for (let k = 1; k < ps.length; k++) {
+      if (ps.indexOf(ps[k]) < k) continue;
       const j = lanes.indexOf(ps[k]);
       if (j >= 0) {
         if (j !== col) joins.add(j);
@@ -83,13 +98,14 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
     }
     for (let i = 0; i < lanes.length; i++) {
       if (lanes[i] === null) continue;
-      if (i === col) bot.push([col, col, color]);
-      else if (fresh.has(i)) bot.push([col, i, colors[i]]);
+      if (fresh.has(i)) bot.push([col, i, colors[i]]);
+      else if (i === col) bot.push([col, col, color]);
       else {
         bot.push([i, i, colors[i]]);
         if (joins.has(i)) bot.push([col, i, colors[i]]);
       }
     }
+    if (folded >= 0) bot.push([folded, col, colors[folded]]);
     while (lanes.length && lanes[lanes.length - 1] === null) {
       lanes.pop();
       colors.pop();

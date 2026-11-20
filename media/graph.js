@@ -31,12 +31,15 @@
     <label class="tb">Repo <select id="repo" title="Repository"></select></label>
     <label class="tb">Branch <select id="branch" title="Show only this branch"></select></label>
     <label class="tb chk"><input type="checkbox" id="remotes"> Remotes</label>
+    <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
+    <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
     <span class="grow"></span>
     <span class="find"><input id="find" type="search" placeholder="Find (subject, author, hash, ref)" spellcheck="false" aria-label="Find">
       <button id="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">▲</button><button id="next" title="Next match (Enter)" aria-label="Next match">▼</button><span id="count"></span></span>
     <button id="fetch" title="Fetch from all remotes">Fetch</button>
     <button id="refresh" title="Refresh">Refresh</button>
   </div>
+  <div id="pathbar" hidden></div>
   <div id="main">
     <div id="header" class="row hdr"><div class="c-graph">Graph</div><div class="c-desc">Description</div><div class="c-date">Date</div><div class="c-author">Author</div><div class="c-hash">Commit</div></div>
     <div id="scroller" tabindex="0"><div id="spacer"></div><div id="rows"></div><div id="more"></div></div>
@@ -56,6 +59,10 @@
   $('#repo').addEventListener('change', (e) => vscode.postMessage({ type: 'setRepo', repo: e.target.value }));
   $('#branch').addEventListener('change', sendFilter);
   $('#remotes').addEventListener('change', sendFilter);
+  $('#order').addEventListener('change', (e) => vscode.postMessage({ type: 'order', order: e.target.value }));
+  $('#pathbar').addEventListener('click', (e) => {
+    if (e.target.closest('#clearpath')) vscode.postMessage({ type: 'filter', branch: $('#branch').value, remotes: $('#remotes').checked, path: '' });
+  });
   $('#refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
   $('#fetch').addEventListener('click', () => vscode.postMessage({ type: 'action', action: 'fetch' }));
   $('#find').addEventListener('input', () => runFind(true));
@@ -73,7 +80,7 @@
   window.addEventListener('message', (ev) => {
     const m = ev.data;
     switch (m.type) {
-      case 'settings': settings = m.settings; render(); break;
+      case 'settings': settings = m.settings; $('#order').value = settings.commitOrder || 'date'; render(); break;
       case 'repos': repos = m.repos; currentRepo = m.repo; fillRepos(); break;
       case 'data': setData(m); break;
       case 'details': showDetails(m); break;
@@ -114,6 +121,13 @@
     bsel.innerHTML = `<option value="">All branches</option>` + m.branches.map((b) => `<option>${esc(b)}</option>`).join('');
     bsel.value = m.filter.branch || '';
     $('#remotes').checked = m.filter.remotes;
+    if (m.order) $('#order').value = m.order;
+    $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
+    const pb = $('#pathbar');
+    if (m.filter.path) {
+      pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code><span class="pb-n">${m.commits.length}${m.hasMore ? '+' : ''} commit${m.commits.length === 1 ? '' : 's'}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
+      pb.hidden = false;
+    } else pb.hidden = true;
     if (repoChanged) { selected = null; compareSha = null; closeDetails(); scroller.scrollTop = 0; }
     else if (selected && !indexBySha.has(selected)) closeDetails();
     const gw = graphWidth();
@@ -123,13 +137,14 @@
     moreEl.innerHTML = m.hasMore ? `<button id="loadmore">Load more commits</button>` : m.commits.length ? `<span class="end">${m.commits.length} commits</span>` : '';
     const lm = $('#loadmore');
     if (lm) lm.addEventListener('click', loadMore);
-    if (!m.commits.length) showMsg('This repository has no commits yet.');
+    if (!m.commits.length) showMsg(m.filter.path ? 'No commits touch this file on the shown branches. It may be new or untracked.' : 'This repository has no commits yet.');
     runFind(false);
     render();
   }
 
   function graphWidth() {
-    return PAD * 2 + Math.max(1, Math.min(data ? data.width : 1, MAX_LANES_SHOWN)) * LANE - LANE + 8;
+    // At least wide enough for the "Graph" header; lanes past MAX_LANES_SHOWN are clipped.
+    return Math.max(52, PAD * 2 + Math.max(1, Math.min(data ? data.width : 1, MAX_LANES_SHOWN)) * LANE - LANE + 8);
   }
 
   function loadMore() {
@@ -161,10 +176,13 @@
     let p = '';
     for (const s of row.top) p += segPath(s, 0);
     for (const s of row.bot) p += segPath(s, ROW / 2);
-    const cx = x(row.col), cy = ROW / 2, col = color(row.color);
+    // A node in a clipped lane is pinned to the right edge, hollow, so it is never invisible.
+    const clipped = row.col >= MAX_LANES_SHOWN;
+    const cx = x(clipped ? MAX_LANES_SHOWN - 1 : row.col), cy = ROW / 2, col = color(row.color);
     let node;
     if (c.kind === 'stash') node = `<rect x="${cx - 4}" y="${cy - 4}" width="8" height="8" rx="1.5" class="n-stash" stroke="${col}"/>`;
     else if (c.kind === 'uncommitted') node = `<circle cx="${cx}" cy="${cy}" r="4" class="n-unc" stroke="${col}"/>`;
+    else if (clipped) node = `<circle cx="${cx}" cy="${cy}" r="4" class="n-unc" stroke="${col}"><title>Lane ${row.col + 1} (off screen)</title></circle>`;
     else if (c.sha === data.head) node = `<circle cx="${cx}" cy="${cy}" r="5.5" class="n-head" stroke="${col}"/><circle cx="${cx}" cy="${cy}" r="2.5" fill="${col}"/>`;
     else node = `<circle cx="${cx}" cy="${cy}" r="4" fill="${col}" class="n"/>`;
     return `<svg width="${graphWidth()}" height="${ROW}" aria-hidden="true">${p}${node}</svg>`;
@@ -289,7 +307,8 @@
     if (m.error) head += `<div class="d-err">${esc(m.error)}</div>`;
     const add = m.files.reduce((n, f) => n + (f.additions || 0), 0);
     const del = m.files.reduce((n, f) => n + (f.deletions || 0), 0);
-    const files = m.files.map((f, k) => `<li class="file" data-k="${k}" title="${esc(STATUS[f.status] || f.status)}: open diff">
+    const focus = data.filter && data.filter.path;
+    const files = m.files.map((f, k) => `<li class="file${focus && (f.path === focus || f.oldPath === focus) ? ' focus' : ''}" data-k="${k}" title="${esc(STATUS[f.status] || f.status)}: open diff">
         <span class="st st-${esc(f.status)}">${esc(f.status)}</span>
         <span class="fp">${f.oldPath ? esc(f.oldPath) + ' → ' : ''}${esc(f.path)}</span>
         <span class="ad">${f.additions == null ? (f.status === 'U' ? '' : 'bin') : `<i class="plus">+${f.additions}</i> <i class="minus">−${f.deletions}</i>`}</span></li>`).join('');
