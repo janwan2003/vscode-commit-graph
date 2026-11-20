@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.12.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 12).
+**Mergeline 0.13.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 13).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.12.0
-  (`mergeline-0.12.0.vsix`, 75 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.13.0
+  (`mergeline-0.13.0.vsix`, 79 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  31 SEO guides (session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  32 SEO guides (session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (34 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (35 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -195,6 +195,12 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   setting `mergeline.firstParentOnly` (`LogOptions.firstParent` → `--first-parent`, parents cut to the first by `firstParents`; also used by history
   search); **signature status** in details (`readSignature` in `src/core/gitlog.ts`: `%G?%GS%GK` with a 10 s timeout; git answers N for an SSH-signed commit
   when `gpg.ssh.allowedSignersFile` is unset, so a `gpgsig` header in `git cat-file commit` then gives 'unchecked'). `git()` gained a `timeout` option.
+  **0.13.0 added:** **git bisect from the graph** (`src/core/bisect.ts`: `readBisect` reads `BISECT_START`/`BISECT_TERMS` and `refs/bisect/*`, counts candidates with
+  `git rev-list <bad> --not <good>…` minus bad and skipped → `left`, `steps` = ceil(log2(left+1)), `firstBad` when one candidate is left, `onlySkipped` when all
+  remaining are skipped; custom terms respected). Actions `bisectStart`/`bisectMark`/`bisectReset`/`bisectRun` in `src/ext/actions.ts`; webview `#bisectbar`
+  (waiting / testing with Good, Bad, Skip, Run a test command…, Reset / first bad commit with Show), `bad`/`good`/`skip` badges, auto-select of the commit
+  under test, commit-menu items, edit-history items hidden while bisecting. **Run a test command** sends `git bisect run sh -c '<cmd>'` to a terminal
+  (`bisectRunLine`): git quotes the arguments of `bisect run`, so a plain quoted string with `&&` fails with "not found" (found by the unit test).
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -381,6 +387,26 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   - Not verified: GPG-signed commits (only SSH ones; the %G? mapping is shared and unit-tested per letter); a gpg that hangs (the 10 s timeout is untested);
     `updateBranch` on a branch checked out in another worktree (git refuses; the error is shown, not exercised); real right-clicks on the new menu items
     in VS Code (the e2e posts the actions; the menu items render in code paths covered only by reading).
+- Verified 2026-11-20 (session 13), on the minified packaged 0.13.0 build:
+  - `corepack pnpm typecheck` clean; unit tests 44/44, also with an empty `HOME` and `GIT_CONFIG_NOSYSTEM=1` (new `test/bisect.test.ts`, 4 tests: `markArgs`,
+    `shQuote`, `bisectRunLine`; a 10-commit repo with the bug planted at c7: none → waiting (start `main`) → bad only → 8 left / 4 steps → skip the commit
+    under test → 7 left → answering truthfully ends at c7 → reset back on `main`; custom terms `broken`/`fine` and "only skipped left" = 3; and
+    `bisectRunLine('test -f f.txt && ! grep -q bug f.txt')` run by sh finds c7). git 2.53.0.
+  - `node scripts/e2e.mjs` in VS Code 1.147: 46/46 on the dev build and 46/46 twice on the packaged build (`/tmp/ml-e2e13*.txt`). New check: commit menu
+    shows the two Start items; start bad at HEAD → bar "mark a good commit"; bisect menu with "mark as bad (disabled)" on the bad commit and no edit items;
+    mark the root good → bar "testing … N commits left, about K steps" and the webview selects HEAD; badges bad + good rendered; **a real click** on the bar's
+    Good/Bad button marks HEAD; finishing finds the planted commit and the bar says "First bad commit"; reset → back on main, bar and badges gone; then
+    **Run a test command** in a real VS Code terminal (`git bisect run sh -c 'if git merge-base --is-ancestor <culprit> HEAD; then exit 1; else exit 0; fi'`)
+    ends with `firstBad` = the culprit.
+  - Headless Chromium (`BISECT=1 node scripts/shot/shot.mjs`, dark and `THEME=light`; looked at both): bar, `bad`/`good`/`skip` badges and the detached HEAD
+    row are legible. Saved as `docs/screenshot-bisect.png`. `INTERACT=1` steps still pass (exit 0).
+  - `code --install-extension mergeline-0.13.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.13.0`. Package 78.6 KB, sha256 359607f2…; keyword
+    "git tree" replaced by "git bisect" (30 keywords).
+  - Guide (subagent): every git output line on the page reproduced with git 2.53.0 in throwaway repos (incl. exit codes 125/126/127/128, custom terms,
+    `--first-parent`); VS Code 1.146 and 1.147's bundled git extension contain no "bisect". Link check: 1,702 internal file links, 0 broken; sitemap 35 URLs.
+  - Not verified: bisect on Windows (`sh -c` with double quotes in PowerShell/cmd; Git for Windows runs the step with its own sh), a bisect with
+    `--first-parent` or with paths (`git bisect start -- <path>`: the candidate count ignores paths, so "N left" would be too high), and real right-clicks
+    on the new menu items (the e2e reads the item labels from the webview and posts the actions).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
   editor-tab context-menu entries were not clicked (the e2e suite runs the command directly; the menu
   contributions are declarative and `vsce package` accepted them); "Open on GitHub" actually opening a browser
@@ -389,6 +415,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   following was not implemented; 0.3.0 implemented it.)
 
 ## Metrics
+
+- 2026-11-20 (session 13): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 to v0.12.0 2 each, v0.13.0 0 (read right after the release; our own
+  check download had not been counted yet); 0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`,
+  `.../traffic/clones`). Search Console: no rows (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded,
+  0 errors, resubmitted 2026-11-20T15:45Z with 35 URLs (`sitemaps.list`).
 
 - 2026-11-20 (session 12): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 2, v0.5.0 2, v0.6.0 2, v0.7.0 2, v0.8.0 2, v0.9.0 2, v0.10.0 2,
   v0.11.0 0 (read before the v0.12.0 release); 0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`,
@@ -442,6 +473,9 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
+1b. Bisect follow-ups: count candidates with the bisect's paths and `--first-parent` (read `BISECT_NAMES` and `BISECT_FIRST_PARENT`) so "N left" matches
+   git's own count; a "Bisect log" item (copy `git bisect log`); offer to stash when the working tree is dirty (git refuses the checkout today and the
+   error is shown).
 2. Big repos: "jump to date/commit" that loads straight to it, and measure webview-side time per append on git.git (Chromium shot with a
    large payload). Path search on git.git: time `path:` queries (one `git log -- <3 pathspecs>` over all refs) and add a progress hint if slow.
 3. Review mode follow-ups: "Review changes since it split" on branch menus and a keyboard shortcut for Next unreviewed; a "Squash now"
@@ -556,3 +590,11 @@ on the graph). The graph itself stays free.
   plainbyte.mergeline@0.12.0, new guides rendered at 1280 and 420 px. After push: CI main (run 44764061593: unit 40/40, e2e 45/45) and tag v0.12.0
   (run 44764067141) green; Pages run 44764060214 deployed; live index (v0.12, `mergeline-0.12.0.vsix`), 4 guides, screenshot-sync.png and sitemap
   (34 URLs) return 200; release asset byte-identical (sha256 44b05dd3…); sitemap resubmitted (HTTP 204). Inbox: 0.12.0 line appended.
+- 2026-11-20 builder (session 13): store tokens still absent. Built 0.13.0: git bisect from the graph (start from the commit menu, Good/Bad/Skip/Reset bar
+  with commits left and steps, bad/good/skip badges, follows the commit under test, Run a test command → `git bisect run sh -c` in a terminal, terminal-started
+  bisects and custom terms shown). The new unit test found that `git bisect run '<cmd with &&>'` fails ("not found"), hence `sh -c`. Guide "git bisect in
+  VS Code" by a subagent (git 2.53 outputs reproduced), 0.13 card on the index, README/CHANGELOG. Verified: typecheck, unit 44/44 (also CI conditions), e2e
+  46/46 on dev and twice on the packaged build (incl. a real click on the bar and a real terminal `bisect run`), Chromium renders dark/light + INTERACT, vsix
+  installs as plainbyte.mergeline@0.13.0. After push: CI main (run 44766177972: unit 44/44, e2e 46/46) and tag v0.13.0 (run 44766178314: same) green;
+  Pages run 44766176481 deployed; live index (v0.13, `mergeline-0.13.0.vsix`), the guide, screenshot-bisect.png and sitemap (35 URLs) return 200; release
+  asset byte-identical (sha256 359607f2…); sitemap resubmitted (HTTP 204). Inbox: 0.13.0 line appended.
