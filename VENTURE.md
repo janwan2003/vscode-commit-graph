@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.13.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 13).
+**Mergeline 0.14.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 14).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.13.0
-  (`mergeline-0.13.0.vsix`, 79 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.14.0
+  (`mergeline-0.14.0.vsix`, 81 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  32 SEO guides (session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  33 SEO guides (session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (35 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (36 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -201,6 +201,14 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   (waiting / testing with Good, Bad, Skip, Run a test command…, Reset / first bad commit with Show), `bad`/`good`/`skip` badges, auto-select of the commit
   under test, commit-menu items, edit-history items hidden while bisecting. **Run a test command** sends `git bisect run sh -c '<cmd>'` to a terminal
   (`bisectRunLine`): git quotes the arguments of `bisect run`, so a plain quoted string with `&&` fails with "not found" (found by the unit test).
+  **0.14.0 added:** **pinned branches** (Git Graph issue #207, 53 👍, its most-upvoted open feature request not yet covered, read 2026-11-20 via
+  `gh api search/issues ... sort=reactions`): setting `mergeline.pinnedBranches` (default `["main","master","develop"]`, names or `*` globs, max 4 =
+  `MAX_PINNED`) gives each pinned branch's first-parent line its own fixed lane k on the left with colour k (`pinBranches`/`pinChains`/`extendPins` in
+  `src/core/graph.ts`: `LayoutState.tips/home/expect`; a parent goes into its pinned lane only when that line expects it next, a pinned lane never
+  carries another line, other lines cycle colours P..9). Tips resolved by `pinnedTips` in `src/core/pins.ts` (local + `<remote>/name` share a lane,
+  newest loaded ref starts it; the uncommitted row starts HEAD's line). Branch menus: Pin to its own column / Unpin (message `pin` → `setPinned` in
+  `src/ext/panel.ts`, writes the most specific level that already sets it, else user settings). Unit test `test/pins.test.ts` checks, over 300
+  random histories × 3 pin sets, laid out whole and with Load more, that every node's drawn lines reach exactly its loaded parents.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -416,6 +424,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 14): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 to v0.12.0 2 each, v0.13.0 1 (read before the v0.14.0 release);
+  0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows
+  by query or page (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors (`sitemaps.list`).
+
 - 2026-11-20 (session 13): release downloads v0.1.0 2, v0.2.0 2, v0.3.0 3, v0.4.0 to v0.12.0 2 each, v0.13.0 0 (read right after the release; our own
   check download had not been counted yet); 0 stars, 0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, `.../traffic/views`,
   `.../traffic/clones`). Search Console: no rows (2026-10-20 → 2026-11-20, `searchAnalytics.query` by query); sitemap still pending, never downloaded,
@@ -473,6 +485,9 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
+1a. Pinned-branch follow-ups: a colour picker per pinned branch (#254 "branch colours on all commits", 22 👍); measure `pinChains` +
+   layout on git.git with `main`/`master`/`next`/`seen` pinned (expected linear); light-theme check of pinned colours 0-3. Next highest Git Graph
+   requests not covered (same query): #171 filter by author (19 👍), #475 git notes (19), #538 create/apply patches (17), #360 exclude branches by glob (14).
 1b. Bisect follow-ups: count candidates with the bisect's paths and `--first-parent` (read `BISECT_NAMES` and `BISECT_FIRST_PARENT`) so "N left" matches
    git's own count; a "Bisect log" item (copy `git bisect log`); offer to stash when the working tree is dirty (git refuses the checkout today and the
    error is shown).

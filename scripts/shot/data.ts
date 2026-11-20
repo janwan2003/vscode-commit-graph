@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags, readSignature } from '../../src/core/gitlog';
 import { avatarMap } from '../../src/core/misc';
-import { layout } from '../../src/core/graph';
+import { layout, newLayoutState, pinBranches } from '../../src/core/graph';
+import { pinnedTips } from '../../src/core/pins';
 
 const d = mkdtempSync(join(tmpdir(), 'mergeline-demo-'));
 let t = Math.floor(Date.now() / 1000) - 86400 * 45;
@@ -76,13 +77,17 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   const worktrees = wts.map((w) => ({ ...w, path: w.path.replace(d, '/work/acme-app'), current: w.path === d }));
   let commits: any[] = insertStashes(log, stashes);
   commits = [{ sha: '*', parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
-  const lay = layout(commits);
+  // As the panel does with the default mergeline.pinnedBranches (PINS=none for the plain layout).
+  const st = newLayoutState();
+  const pins = process.env.PINS === 'none' ? { tips: [], names: [] } : pinnedTips(['main', 'master', 'develop'], state.refs, commits.map((x) => x.sha), { sha: '*', parent: state.head! });
+  pinBranches(st, commits, pins.tips);
+  const lay = layout(commits, st);
   const sel = log.find((x) => x.subject === "Merge branch 'feature/search'")!;
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
   const signature = await readSignature(d, sel.sha);
   const out = {
-    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
+    data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, pinned: pins.names, pinPatterns: process.env.PINS === 'none' ? [] : ['main', 'master', 'develop'], worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
     details: { type: 'details', sha: sel.sha, info, signature, from: info.parents[0], to: sel.sha, files },
     // TAGS=1 in shot.mjs: the commit tagged v1.0.0, with its tags.
     tagged: await (async () => {

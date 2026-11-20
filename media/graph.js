@@ -1258,6 +1258,7 @@
       ['Delete on remote…', { ...r, action: 'deleteRemoteBranch' }, 'danger'],
       null,
       ['Manage remote “' + remote + '”…', { action: 'manageRemotes', remote }],
+      pinItem(name.slice(remote.length + 1)),
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
     const isCur = name === cur;
@@ -1278,8 +1279,17 @@
       ['Rename…', { ...r, action: 'renameBranch' }],
       ['Delete…', { ...r, action: 'deleteBranch' }, isCur ? 'disabled' : 'danger'],
       null,
+      pinItem(name),
       ['Copy branch name', { ...r, action: 'copyRef' }],
     ];
+  }
+
+  // Setting mergeline.pinnedBranches: a pinned branch keeps its own straight column on the left.
+  function pinItem(n) {
+    const pats = data.pinPatterns || [];
+    if (pats.includes(n)) return ['Unpin (stop keeping it in its own column)', () => vscode.postMessage({ type: 'pin', name: n, on: false })];
+    if ((data.pinned || []).includes(n)) return ['Pinned by a pattern in mergeline.pinnedBranches', null, 'disabled'];
+    return ['Pin to its own column on the left', () => vscode.postMessage({ type: 'pin', name: n, on: true })];
   }
 
   function worktreeItems(p) {

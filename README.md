@@ -44,6 +44,7 @@ account, has no paid tier and sends no telemetry.
 - **Filter**: tick the branches you want in the **Branches** checklist (any number, local or remote) to see only their history, or pick **Current branch**. Hide remote branches with one click. The `mergeline.dimOtherCommits` setting fades commits that are not in your branch's history.
 ![The Branches checklist with main and release/1.1 ticked; a commit that is not in main's history is dimmed](docs/screenshot-branches.png)
 - **Order**: date, topology or author date. Topology keeps each branch's commits together, which makes busy histories much narrower.
+- **Pinned branches**: `main`, `master` and `develop` each keep their own straight column on the left with a fixed colour, so a git-flow history reads at a glance. Pin other branches or patterns (`release/*`) with `mergeline.pinnedBranches`, or right-click a branch → **Pin to its own column on the left**.
 - **First parent**: tick **First parent** in the toolbar to follow only the first parent of merges (`git log --first-parent`). Each branch shows its own line, and the commits a merge brought in are hidden behind it, so a mainline with hundreds of merged pull requests reads as one list.
 - **Remotes**: the **Remotes…** button (or **Mergeline: Manage Remotes**) lists your remotes with their URLs. Add one (and fetch it), or pick one to fetch, fetch and prune, change its URL, rename or remove it, copy its URL or open it on GitHub/GitLab/Bitbucket. Removing says first which remote-tracking branches go and which local branches lose their upstream.
 - **Pull requests**: right-click a branch → **Create pull request on GitHub** (or GitLab, Bitbucket) opens the forge's new pull request page for it. Not pushed yet? Mergeline offers to push it first.
@@ -81,6 +82,7 @@ Push, pull and fetch go through VS Code's built-in Git, so your usual credential
 | `mergeline.statusBarButton` | true | Show the status-bar button. |
 | `mergeline.dateFormat` | relative | `relative`, `iso` or `locale`. |
 | `mergeline.firstParentOnly` | false | Follow only the first parent of merges. Also in the toolbar. |
+| `mergeline.pinnedBranches` | `["main", "master", "develop"]` | Branches (names or `*` patterns) that keep their own straight column on the left, at most 4. `[]` turns it off. |
 | `mergeline.dimOtherCommits` | false | Dim commits that are not in the checked-out branch's history. |
 | `mergeline.issueLinks` | [] | Rules that turn issue keys in messages into links: `{ "pattern": "<regex>", "url": "https://…/$0" }` (`$1`… are groups). |
 | `mergeline.showAvatars` | false | Show author avatars. When on, VS Code loads them from `avatars.githubusercontent.com` (GitHub noreply emails) or `gravatar.com` (an MD5 hash of the email); otherwise nothing is requested. Authors without one show initials. |

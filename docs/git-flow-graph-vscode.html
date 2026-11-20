@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git flow graph in VS Code: keep main and develop in straight columns | Mergeline</title>
+<meta name="description" content="Keep main and develop as straight lines on the left of a git graph in VS Code: pinned columns for git flow, release/* patterns, and first-parent lines.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-flow-graph-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git flow graph in VS Code: keep main and develop in straight columns">
+<meta property="og:description" content="Why main and develop wander between columns in a git graph, how to pin them to their own straight columns on the left, how release and hotfix branches look, and which commits count as on a branch.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-flow-graph-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Git flow graph in VS Code: keep main and develop straight</h1>
+    <p>In a git-flow repository, <code>main</code> holds releases, <code>develop</code> collects finished features, and short-lived <code>feature/</code>, <code>release/</code> and <code>hotfix/</code> branches come and go around them. A commit graph should make the two long-lived branches easy to follow. In most graph views it does not: their lines move from column to column as other branches start and end. This guide explains why, how to give <code>main</code> and <code>develop</code> their own straight columns on the left in Mergeline, how the other git-flow branches look then, and which commits count as &ldquo;on&rdquo; a branch.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#problem">Why main and develop wander</a></li>
+        <li><a href="#mergeline">Pin branches in Mergeline</a></li>
+        <li><a href="#gitflow">How git-flow branches look pinned</a></li>
+        <li><a href="#first-parent">Which commits are on a pinned line</a></li>
+        <li><a href="#details">Details and limits</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Do</th></tr></thead>
+        <tbody>
+          <tr><td>Keep <code>main</code> and <code>develop</code> straight on the left</td><td>Nothing: the default of <code>mergeline.pinnedBranches</code> is <code>["main", "master", "develop"]</code> (Mergeline 0.14 and later)</td></tr>
+          <tr><td>Pin one more branch</td><td>Right-click its badge in the graph, then <strong>Pin to its own column on the left</strong></td></tr>
+          <tr><td>Pin every release branch</td><td>Add <code>"release/*"</code> to <code>mergeline.pinnedBranches</code></td></tr>
+          <tr><td>Stop pinning a branch</td><td>Right-click its badge, then <strong>Unpin (stop keeping it in its own column)</strong></td></tr>
+          <tr><td>Go back to the layout without pinned columns</td><td><code>"mergeline.pinnedBranches": []</code></td></tr>
+          <tr><td>List <code>main</code>&rsquo;s line in a terminal</td><td><code>git log --oneline --first-parent main</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">The screenshots on this page show a small git-flow test repository: <code>main</code>, <code>develop</code>, four merged feature branches, one release and one hotfix, all merged with <code>--no-ff</code>, and one open feature branch.</p>
+
+    <h2 id="problem">Why main and develop wander</h2>
+    <p>A commit graph draws each line of history in a <strong>column</strong> (also called a lane): one vertical track of the graph, left of the commit messages. Most graph views hand out columns while they draw from the newest commit down. A line takes the leftmost free column when it starts and gives it back when it ends. So which branch gets the first column depends on which commits happen to be newest, and that changes with every commit anyone makes.</p>
+    <p><img src="screenshot-pinned-before.png" alt="Git-flow repository laid out without pinned columns: feature/checkout and develop's merges in the first column, main's merges in the second column, main's first commit back in the first column" width="1280" height="800" loading="lazy" style="max-width:100%;height:auto"></p>
+    <p>Above, without pinning: <code>feature/checkout</code>, the newest branch, has the first column, and <code>develop</code>&rsquo;s merges share it further down. <code>main</code>&rsquo;s two release merges are in the second column, and its first commit is back in the first. To follow <code>main</code> you have to trace a line that changes column and colour. The more feature branches there are, the worse this gets.</p>
+    <p>In the Git Graph extension this is a long-standing request: <a href="https://github.com/mhutchie/vscode-git-graph/issues/207">issue #207, &ldquo;Persistent Branches get a dedicated column&rdquo;</a>, opened in November 2019. When we checked on 20 November 2026 it was still open, with 53 thumbs-up.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Pin branches in Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.14 it can <strong>pin</strong> branches: each pinned branch gets its own column on the left, with a fixed colour, and its first-parent line is drawn straight down that column. No other branch&rsquo;s line is drawn in a pinned column.</p>
+      <p><img src="screenshot-pinned.png" alt="The same git-flow repository with main and develop pinned: main is a straight blue line in the first column, develop a straight red line in the second, feature, release and hotfix branches to the right" width="1280" height="800" loading="lazy" style="max-width:100%;height:auto"></p>
+      <p>The same repository with the default setting. <code>main</code> is the blue line in the first column, from its tip at <code>v1.0.1</code> down to the initial commit. <code>develop</code> is the red line in the second column. Feature, release and hotfix branches are drawn to the right.</p>
+      <ol class="steps">
+        <li><strong>Check the defaults.</strong> The setting <code>mergeline.pinnedBranches</code> is a list of branch names. Its default, <code>["main", "master", "develop"]</code>, covers the usual names, so <code>main</code> (or <code>master</code>) and <code>develop</code> are pinned without any change.</li>
+        <li><strong>Pin or unpin from the graph.</strong> Right-click a branch badge, local or remote, and choose <strong>Pin to its own column on the left</strong> or <strong>Unpin (stop keeping it in its own column)</strong>. This edits <code>mergeline.pinnedBranches</code> in your user settings, or in the workspace or folder settings if the setting is already defined there. A branch that is pinned only because it matches a pattern shows <strong>Pinned by a pattern in mergeline.pinnedBranches</strong>, greyed out; edit the pattern in settings to change it.</li>
+        <li><strong>Or edit the list.</strong> Run <strong>Preferences: Open User Settings (JSON)</strong> and set the branches in the order you want their columns, left to right:
+<pre>"mergeline.pinnedBranches": ["main", "develop", "release/*", "hotfix/*"]</pre>
+          Each entry is an exact branch name or a pattern in which <code>*</code> matches any text, including <code>/</code>. Write branch names without the remote: <code>main</code> covers both <code>main</code> and <code>origin/main</code>.</li>
+        <li><strong>Turn it off</strong> with <code>"mergeline.pinnedBranches": []</code> to get the layout from before 0.14.</li>
+      </ol>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="gitflow">How git-flow branches look pinned</h2>
+    <p>With <code>["main", "develop", "release/*", "hotfix/*"]</code>:</p>
+    <ul>
+      <li><strong><code>main</code></strong> is the first column. Its line runs through the release and hotfix merges, so every tag you put on a merge sits in that column.</li>
+      <li><strong><code>develop</code></strong> is the second column. Its line runs through the feature merges and through each &ldquo;Merge branch &lsquo;main&rsquo; into develop&rdquo;. At the commit where <code>develop</code> was created from <code>main</code>, it joins <code>main</code>&rsquo;s column: a pinned line that reaches a commit already on an earlier pinned line ends there.</li>
+      <li><strong><code>release/*</code></strong> branches take the next column while they exist. A release branch&rsquo;s line runs from its tip down to the <code>develop</code> commit it was created from, and joins <code>develop</code>&rsquo;s column there. If several release branches match, the one with the newest tip goes furthest left.</li>
+      <li><strong><code>hotfix/*</code></strong> branches work the same way and join <code>main</code>&rsquo;s column, since hotfixes start from <code>main</code>.</li>
+      <li><strong>Feature branches</strong> are not pinned. They use the columns to the right and are laid out as before: a column while the branch is open, freed when it is merged.</li>
+    </ul>
+    <p>At most four columns are pinned, so the other branches keep enough distinct colours. The list above uses all four. Any branch beyond the fourth is laid out like an unpinned branch.</p>
+
+    <h2 id="first-parent">Which commits are on a pinned line</h2>
+    <p>A pinned column shows the branch&rsquo;s <strong>first-parent line</strong>: the commits you reach by starting at the branch tip and following each commit&rsquo;s first parent. A merge commit has two parents. The <strong>first parent</strong> is the commit the branch was at when you merged, and the second is the tip of the branch you merged in. So when <code>develop</code> merges <code>feature/search</code>, the merge and the previous <code>develop</code> commit are on <code>develop</code>&rsquo;s line, and the feature&rsquo;s own commits are drawn to the side, joining at the merge. <a href="git-log-first-parent.html">git log --first-parent explained</a> covers first parents in detail.</p>
+    <p>This is why the way you merge shows up in the graph:</p>
+    <ul>
+      <li><strong>Fast-forward merges</strong> leave no merge commit. The merged commits become part of the branch&rsquo;s first-parent line and are drawn in its pinned column. Merging with <code>--no-ff</code> keeps them to the side.</li>
+      <li><strong>A <code>git pull</code> that merges</strong> on a shared branch can swap the parents: your local commits become the first-parent line and the commits everyone else pushed move to the side. See <a href="git-log-first-parent.html#pitfalls">when first parent misleads</a>.</li>
+      <li><strong>Squash and rebase merges</strong> create no merge commits, so the branch&rsquo;s line is simply every commit on it.</li>
+    </ul>
+
+    <h2 id="details">Details and limits</h2>
+    <ul>
+      <li><strong>Local and remote share a column.</strong> <code>main</code> and <code>origin/main</code> are one pinned branch. Whichever tip is newer starts the line, so after a fetch that brought new commits, the line starts at <code>origin/main</code> and the <code>main</code> badge sits on it further down.</li>
+      <li><strong>The column stays empty above the tip.</strong> If other branches have newer commits than <code>main</code>, the first column is blank above <code>main</code>&rsquo;s tip rather than lending its space to them.</li>
+      <li><strong>Uncommitted changes.</strong> When the checked-out branch is pinned, the &ldquo;Uncommitted changes&rdquo; row sits at the top of that branch&rsquo;s column.</li>
+      <li><strong>A branch already on an earlier line gets no column.</strong> If <code>develop</code>&rsquo;s tip is a commit on <code>main</code>&rsquo;s line, for example right after creating it, it has nothing of its own to draw yet. It gets its column once it has its own commits.</li>
+      <li><strong>Merged branches you keep still match.</strong> A release branch that was merged with <code>--no-ff</code> but not deleted still matches <code>release/*</code> and still takes a column. Delete release and hotfix branches after finishing them, or pin by exact name instead of a pattern.</li>
+      <li><strong>Only loaded commits count.</strong> A pinned branch whose tip is not among the loaded commits, for example because a branch filter hides it, gets no column. When you load more commits, the pinned lines continue in the same columns.</li>
+    </ul>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>How do I keep the main branch always on the left of the git graph?</summary>
+      <p>Put it first in <code>mergeline.pinnedBranches</code>. The default list starts with <code>main</code> and <code>master</code>, so in most repositories it already is.</p>
+    </details>
+    <details>
+      <summary>Can I pin a branch with a different name, such as <code>trunk</code> or <code>production</code>?</summary>
+      <p>Yes. Right-click its badge and choose <strong>Pin to its own column on the left</strong>, or add the name to the list. The order of the list decides the order of the columns.</p>
+    </details>
+    <details>
+      <summary>Why does <code>develop</code>&rsquo;s line end in <code>main</code>&rsquo;s column?</summary>
+      <p>Because <code>develop</code> was created from a commit on <code>main</code>. From that commit down, the history belongs to <code>main</code>&rsquo;s line, so <code>develop</code>&rsquo;s line joins it there instead of repeating the same commits in a second column.</p>
+    </details>
+    <details>
+      <summary>Does pinning change my repository?</summary>
+      <p>No. It does not touch commits or branches; it only changes how the graph is drawn. Pinning and unpinning edit one VS Code setting.</p>
+    </details>
+    <details>
+      <summary>How do I get the old layout back?</summary>
+      <p>Set <code>"mergeline.pinnedBranches": []</code>. Every branch is then laid out the way it was before 0.14.</p>
+    </details>
+    <p>Related: <a href="git-log-first-parent.html">git log --first-parent</a>, <a href="visualize-git-branches-vscode.html">branch graph in VS Code</a> and <a href="filter-git-graph-by-branch.html">filter by branch</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html">Git bisect</a>
+      <a href="git-flow-graph-vscode.html" aria-current="page">Git flow: pinned branches</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

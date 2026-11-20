@@ -4,7 +4,8 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
-import { layout, LayoutState, newLayoutState } from '../core/graph';
+import { layout, LayoutState, newLayoutState, pinBranches, extendPins } from '../core/graph';
+import { pinnedTips } from '../core/pins';
 import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
@@ -132,6 +133,22 @@ export class GraphPanel implements vscode.Disposable {
     }
     if (m?.type === 'history') this.lastHistory = m;
     return this.panel.webview.postMessage(m);
+  }
+
+  /**
+   * Adds a branch name to mergeline.pinnedBranches, or removes it, at the most specific level that
+   * already sets it (folder, workspace), else in user settings, so a repository's .vscode/settings.json
+   * is only written when the user put the setting there.
+   */
+  private async setPinned(name: string, on: boolean) {
+    const cfg = vscode.workspace.getConfiguration('mergeline');
+    const i = cfg.inspect<unknown>('pinnedBranches');
+    const target = i?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : i?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    const cur = cfg.get<unknown>('pinnedBranches', []);
+    const list = (Array.isArray(cur) ? cur : []).filter((x): x is string => typeof x === 'string');
+    const next = on ? (list.includes(name) ? list : [...list, name]) : list.filter((x) => x !== name);
+    if (next.length === list.length && next.every((x, k) => x === list[k])) return;
+    await cfg.update('pinnedBranches', next, target);
   }
 
   private settings() {
@@ -276,7 +293,8 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, worktrees, op, bisect, names, web]);
+    const pinSetting = cfg.get<unknown>('pinnedBranches', []);
+    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, worktrees, op, bisect, names, web, pinSetting]);
     const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
@@ -286,6 +304,7 @@ export class GraphPanel implements vscode.Disposable {
     if (this.layState && prev && base === this.lastBase && prev.commits.length < commits.length && prev.commits.every((c, i) => c.sha === commits[i].sha)) {
       const tail = commits.slice(prev.commits.length);
       const st = this.layState;
+      extendPins(st, commits);
       const lay = layout(tail, st);
       this.lastData = { ...prev, commits, width: lay.width };
       this.lastSent = { kind: 'append', rows: tail.length };
@@ -294,6 +313,9 @@ export class GraphPanel implements vscode.Disposable {
     }
     this.lastBase = base;
     const st = newLayoutState();
+    const uncRow = commits[0]?.sha === UNCOMMITTED ? { sha: UNCOMMITTED, parent: commits[0].parents[0] } : undefined;
+    const pins = pinnedTips(pinSetting, state.refs, commits.map((c) => c.sha), uncRow);
+    const kept = pinBranches(st, commits, pins.tips);
     const lay = layout(commits, st);
     this.layState = st;
     this.lastSent = { kind: 'data', rows: commits.length };
@@ -313,6 +335,8 @@ export class GraphPanel implements vscode.Disposable {
       names,
       order,
       firstParent: opts.firstParent,
+      pinned: pins.names.filter((_, i) => kept.includes(pins.tips[i])),
+      pinPatterns: Array.isArray(pinSetting) ? pinSetting.filter((x) => typeof x === 'string') : [],
       web,
       worktrees,
       op,
@@ -456,6 +480,9 @@ export class GraphPanel implements vscode.Disposable {
         break;
       case 'openPullRequest':
         await this.openPullRequest(String(m.ref ?? ''), m.refType === 'remote' ? 'remote' : 'head', typeof m.remote === 'string' ? m.remote : undefined);
+        break;
+      case 'pin':
+        if (typeof m.name === 'string' && m.name) await this.setPinned(m.name, !!m.on);
         break;
       case 'action': {
         const info = this.info();

@@ -55,31 +55,102 @@ export interface LayoutState {
   colors: number[];
   nextColor: number;
   width: number;
+  /**
+   * Pinned branches (setting mergeline.pinnedBranches): the tip of each, in lane order. Lane k
+   * (k < tips.length) belongs to tip k's first-parent line and always has colour k; no other
+   * line is drawn in it. Set by `pinBranches`.
+   */
+  tips: string[];
+  /** sha → pinned lane, for every commit on a pinned first-parent line (plus the first unloaded one). */
+  home: Map<string, number>;
+  /** Per pinned lane, the sha its line expects next (null once the line has ended). */
+  expect: (string | null)[];
 }
 
 export function newLayoutState(): LayoutState {
-  return { lanes: [], colors: [], nextColor: 0, width: 0 };
+  return { lanes: [], colors: [], nextColor: 0, width: 0, tips: [], home: new Map(), expect: [] };
 }
 
 const PALETTE = 10;
+/** At most this many pinned lanes, so the other lines keep at least six colours. */
+export const MAX_PINNED = 4;
+
+/**
+ * Walks each pinned tip's first-parent line through `commits`, in priority order. A commit already
+ * claimed by an earlier tip ends the walk (the later line joins the earlier one there). The first
+ * parent that is not loaded is claimed too, so the line runs on to the bottom and a later Load more
+ * continues it in the same lane.
+ */
+export function pinChains(commits: LayoutInput[], tips: string[]): Map<string, number> {
+  const bySha = new Map<string, LayoutInput>();
+  for (const c of commits) bySha.set(c.sha, c);
+  const home = new Map<string, number>();
+  tips.forEach((t, k) => {
+    let s: string | undefined = t;
+    while (s && !home.has(s)) {
+      home.set(s, k);
+      const c = bySha.get(s);
+      if (!c) break;
+      s = c.parents[0];
+    }
+  });
+  return home;
+}
+
+/**
+ * Pins the given branch tips (ordered by priority) before the first `layout` call. Tips that are
+ * not among `commits`, repeated, or on an earlier tip's first-parent line are dropped. Returns the
+ * tips kept.
+ */
+export function pinBranches(st: LayoutState, commits: LayoutInput[], tips: string[]): string[] {
+  const loaded = new Set(commits.map((c) => c.sha));
+  const kept: string[] = [];
+  let home = new Map<string, number>();
+  for (const t of tips) {
+    if (kept.length >= MAX_PINNED || !loaded.has(t) || home.has(t)) continue;
+    kept.push(t);
+    home = pinChains(commits, kept);
+  }
+  st.tips = kept;
+  st.home = home;
+  st.expect = kept.slice();
+  return kept;
+}
+
+/** Before laying out appended commits: extends the pinned lines into them. */
+export function extendPins(st: LayoutState, allCommits: LayoutInput[]): void {
+  if (st.tips.length) st.home = pinChains(allCommits, st.tips);
+}
 
 export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState()): Layout {
   const rows: Row[] = [];
   const packed: PackedRow[] = [];
-  const { lanes, colors } = st;
+  const { lanes, colors, home, expect } = st;
+  const P = st.tips.length;
   const start = laneString(lanes, colors);
+  const grow = (n: number) => {
+    while (lanes.length < n) {
+      lanes.push(null);
+      colors.push(0);
+    }
+  };
+  // Pinned lanes 0..P-1 are never handed out to other lines.
   const free = (): number => {
-    const i = lanes.indexOf(null);
-    if (i >= 0) return i;
-    lanes.push(null);
-    colors.push(0);
+    for (let i = P; i < lanes.length; i++) if (lanes[i] === null) return i;
+    grow(Math.max(P, lanes.length) + 1);
     return lanes.length - 1;
   };
   const alloc = (sha: string): number => {
     const i = free();
     lanes[i] = sha;
-    colors[i] = st.nextColor++ % PALETTE;
+    colors[i] = P + (st.nextColor++ % (PALETTE - P));
     return i;
+  };
+  /** The pinned lane `sha` may go into now: its line's lane, when that line expects it next. */
+  const pinLane = (sha: string): number => {
+    const h = home.get(sha);
+    if (h === undefined || expect[h] !== sha) return -1;
+    return lanes[h] === null || lanes[h] === sha || h >= lanes.length ? h : -1;
   };
 
   for (const c of commits) {
@@ -88,8 +159,18 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
     const into: number[] = [];
     const diag: number[] = [];
     const before = lanes.slice();
-    let col = before.indexOf(c.sha);
-    if (col < 0) col = alloc(c.sha); // branch tip: nothing above it
+    const h0 = P ? home.get(c.sha) : undefined;
+    let col = h0 !== undefined && before[h0] === c.sha ? h0 : before.indexOf(c.sha);
+    if (col < 0) {
+      // branch tip: nothing above it
+      const h = P ? pinLane(c.sha) : -1;
+      if (h >= 0) {
+        grow(h + 1);
+        lanes[h] = c.sha;
+        colors[h] = h;
+        col = h;
+      } else col = alloc(c.sha);
+    }
     const color = colors[col];
     for (let i = 0; i < before.length; i++) {
       const l = before[i];
@@ -108,9 +189,28 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
     let folded = -1; // a lane right of the node that folds into the node's lane
     const ps = c.parents;
     lanes[col] = null;
-    if (ps.length) {
+    // This node continues a pinned line: the line now expects its first parent, if that is still on it.
+    if (h0 !== undefined && expect[h0] === c.sha) expect[h0] = ps.length && home.get(ps[0]) === h0 ? ps[0] : null;
+    /** Sends parent `p` into its pinned lane when its line expects it. False when it has none. */
+    const toPinned = (p: string): boolean => {
+      const h = P ? pinLane(p) : -1;
+      if (h < 0) return false;
+      grow(h + 1);
+      if (lanes[h] === p) joins.add(h);
+      else {
+        lanes[h] = p;
+        colors[h] = h;
+        if (h !== col) fresh.add(h);
+      }
+      return true;
+    };
+    if (ps.length && !toPinned(ps[0])) {
       const j = lanes.indexOf(ps[0]);
-      if (j < 0) lanes[col] = ps[0];
+      if (col < P) {
+        // A pinned lane only carries its own line: a parent that is not on it goes elsewhere.
+        if (j >= 0) joins.add(j);
+        else fresh.add(alloc(ps[0]));
+      } else if (j < 0) lanes[col] = ps[0];
       else if (j < col) joins.add(j);
       else {
         lanes[col] = ps[0];
@@ -120,6 +220,7 @@ export function layout(commits: LayoutInput[], st: LayoutState = newLayoutState(
     }
     for (let k = 1; k < ps.length; k++) {
       if (ps.indexOf(ps[k]) < k) continue;
+      if (toPinned(ps[k])) continue;
       const j = lanes.indexOf(ps[k]);
       if (j >= 0) {
         if (j !== col) joins.add(j);

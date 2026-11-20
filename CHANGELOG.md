@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.0 (2026-11-20)
+
+- **Pinned branches keep their own straight column.** `main`, `master` and `develop` now each get a fixed column on the left of the graph with a fixed colour, and their history is drawn as one straight line instead of moving from column to column as other branches start and end. Git-flow repositories read at a glance: `main` on the far left, `develop` next to it, features and releases to the right. Pin any other branch, or a pattern like `release/*`, with the new setting `mergeline.pinnedBranches` (earlier entries get the leftmost columns, at most 4), or right-click a branch → **Pin to its own column on the left** / **Unpin**. A local branch and its remote branch (`main`, `origin/main`) share a column. Set the setting to `[]` for the previous layout.
+- A pinned line is the branch's first-parent history (each commit's first parent, as `git log --first-parent` follows it). Where a pinned branch started from another pinned branch, its line joins that column there. The "Uncommitted changes" row stays straight above a pinned checked-out branch.
+
 ## 0.13.0 (2026-11-20)
 
 - **Bisect from the graph.** Right-click a commit → **Start bisect: this commit is bad** (or **good**), then mark a commit from the other side, and git checks out the commit halfway between. A bar above the graph shows the commit under test and how many are left (“4 commits left, about 3 steps”), with **Good**, **Bad**, **Skip** and **Reset**. The graph selects each new commit to test and puts **bad**, **good** and **skip** badges on the commits you have judged. While a bisect runs, the commit menu offers **Bisect: mark as bad / good**, **Bisect: skip this commit** and **Bisect: stop and go back (reset)**, and the history-editing items are hidden.

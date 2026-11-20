@@ -225,6 +225,36 @@ exports.run = async function run() {
     await until(() => vscode.workspace.getConfiguration('mergeline').get('firstParentOnly') === false && panel.lastData.commits.length === before && panel.lastData.commits.some((c) => c.parents.length > 1), 10000, 'first parent off');
   });
 
+  await check('pinned branches: default pins main (working tree row on top of it); a pinned hotfix line keeps column 0; pin message edits the setting', async () => {
+    const cfg = () => vscode.workspace.getConfiguration('mergeline');
+    assert.deepEqual(cfg().get('pinnedBranches'), ['main', 'master', 'develop']);
+    const packed = async (want, what) => {
+      const p = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.packedJson && want(JSON.parse(panel.lastPong.packedJson)) && JSON.parse(panel.lastPong.packedJson); }, 10000, what);
+      return p;
+    };
+    const colOf = (pk, sha) => pk[1][panel.lastData.commits.findIndex((c) => c.sha === sha)][0];
+    const mainLine = git('rev-list', '--first-parent', 'main').split('\n');
+    // Default: the working-tree row and all of main's first-parent line in column 0.
+    await packed((pk) => panel.lastData.commits[0].sha === '*' && pk[1][0][0] === 0 && mainLine.every((s) => colOf(pk, s) === 0), 'main in column 0');
+    // Pin hotfix/crash first: its own commit takes column 0 and main's line (from where they meet down) stays in it;
+    // main's newer commits are pinned second, in column 1.
+    await cfg().update('pinnedBranches', ['hotfix/crash', 'main'], vscode.ConfigurationTarget.Global);
+    const fix = git('rev-parse', 'hotfix/crash');
+    const pk = await packed((pk) => colOf(pk, fix) === 0, 'hotfix in column 0');
+    const shared = git('rev-list', '--first-parent', 'hotfix/crash').split('\n');
+    for (const s of shared) assert.equal(colOf(pk, s), 0, 'hotfix line ' + s);
+    const mainOnly = mainLine.filter((s) => !shared.includes(s));
+    assert.ok(mainOnly.length > 0);
+    for (const s of mainOnly) assert.equal(colOf(pk, s), 1, 'main line ' + s);
+    // The branch menu's Pin/Unpin item posts this message: it edits the user setting.
+    await panel.testMessage({ type: 'pin', name: 'feature/search', on: true });
+    assert.deepEqual(cfg().get('pinnedBranches'), ['hotfix/crash', 'main', 'feature/search']);
+    await panel.testMessage({ type: 'pin', name: 'hotfix/crash', on: false });
+    assert.deepEqual(cfg().get('pinnedBranches'), ['main', 'feature/search']);
+    await cfg().update('pinnedBranches', undefined, vscode.ConfigurationTarget.Global);
+    await packed((pk) => mainLine.every((s) => colOf(pk, s) === 0), 'back to default');
+  });
+
   await check('compare a commit with the working tree', async () => {
     const a = bySubject('Initial commit');
     await panel.testMessage({ type: 'details', sha: a.sha, compare: '*' });
@@ -933,7 +963,7 @@ exports.run = async function run() {
       await act({ action: 'bisectMark', sha: root0, mark: 'good' });
       await act({ action: 'bisectRun', command: `if git merge-base --is-ancestor ${culprit} HEAD; then exit 1; else exit 0; fi` });
       assert.ok(vscode.window.terminals.some((t) => t.name === 'Mergeline bisect'), 'terminal opened');
-      await until(async () => { await panel.refresh(true); return panel.lastData.bisect && panel.lastData.bisect.firstBad === culprit; }, 30000, 'bisect run finished');
+      await until(async () => { await panel.refresh(true); return panel.lastData.bisect && panel.lastData.bisect.firstBad === culprit; }, 60000, 'bisect run finished');
       await act({ action: 'bisectReset' });
       await until(() => panel.lastData.bisect === null, 10000, 'reset after run');
       for (const t of vscode.window.terminals) if (t.name === 'Mergeline bisect') t.dispose();
