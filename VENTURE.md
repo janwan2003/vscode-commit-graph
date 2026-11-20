@@ -843,3 +843,6 @@ on the graph). The graph itself stays free.
   a subagent (git 2.53.0 runs; its checker: 48 HTML files parse, 3,180 internal links, 0 broken; sitemap 46 = 46 public pages). Package 102.5 KB,
   `code --install-extension` into a temp dir lists `plainbyte.mergeline@0.20.0`. Not verified: Contained in on a real large repo such as git.git
   (only the synthetic 5,000-tag repo); the "⋯" menu with real mouse clicks (synthetic click events in the webview); VSCodium/Cursor.
+  After push: CI main (run 44788927860) and tag v0.20.0 (44788930378) success, unit 73/73 and e2e 55 ok in the CI log (latest stable VS Code);
+  Pages run 44788927005 deployed; live index (`mergeline-0.20.0.vsix`, v0.20), both guides, both screenshots, sidebar guide and sitemap (46 URLs)
+  return 200; sitemap resubmitted (204); release asset byte-identical (sha256 fea9b4c2…). Inbox: 0.20.0 line.
