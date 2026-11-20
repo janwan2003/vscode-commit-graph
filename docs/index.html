@@ -36,7 +36,7 @@
 <main id="content">
   <div class="wrap">
     <section class="hero">
-      <span class="tagline">Free and open source (MIT) &middot; v0.5</span>
+      <span class="tagline">Free and open source (MIT) &middot; v0.6</span>
       <h1>Your whole repository as one graph, with the git actions where you need them</h1>
       <p class="lead">Mergeline draws every branch, merge, tag and stash of your repository as an interactive commit graph inside VS Code, VSCodium, Cursor and Windsurf. Right-click a commit or a branch to check it out, merge it, rebase onto it, cherry-pick it, revert it or reset to it. Click a commit to see what changed and open any file in the editor&rsquo;s own diff view. There is no account, no paid tier and no telemetry.</p>
       <div class="cta">
@@ -58,10 +58,11 @@
         <div class="card"><h3>A real graph</h3><p>Coloured lanes for every branch, merge lines, and badges for local branches, remote branches, tags and <code>HEAD</code>. Stashes appear as their own nodes <span class="plus">not built in</span>, and a row at the top shows uncommitted changes <span class="plus">not built in</span>.</p></div>
         <div class="card"><h3>A readable table <span class="plus">not built in</span></h3><p>Columns for graph, description, date, author and short hash, under a header that stays put while you scroll. Drag a column edge to resize it and right-click the header to hide columns; the layout is remembered. Dates can be relative, ISO or in your locale&rsquo;s format.</p></div>
         <div class="card"><h3>Built for big repositories</h3><p>Only the rows on screen are drawn. Mergeline loads the first 500 commits (configurable) and fetches more as you scroll, so it stays responsive on repositories with 100,000 commits.</p></div>
-        <div class="card"><h3>Commit details <span class="plus">not built in</span></h3><p>The full message, author and committer, parents, and every changed file with lines added and removed. Click a file to open it in the editor&rsquo;s own diff view; right-click it to open it as it was at that commit, compare it with your working copy or show its history. Links and <code>#123</code> issue numbers in messages are clickable, with an <strong>Open on GitHub</strong> link (GitLab and Bitbucket too).</p></div>
+        <div class="card"><h3>Commit details <span class="plus">not built in</span></h3><p>The full message, author and committer, parents, and every changed file with lines added and removed, in a folder tree or as a flat list. Click a file to open it in the editor&rsquo;s own diff view; right-click it to open it as it was at that commit, compare it with your working copy or show its history. Links and <code>#123</code> issue numbers in messages are clickable, with an <strong>Open on GitHub</strong> link (GitLab and Bitbucket too).</p></div>
         <div class="card"><h3>File history</h3><p>Right-click any file in the Explorer, an editor tab or the editor and choose <strong>Show File History in Mergeline</strong>. The graph shows only the commits that touched it, still connected, with the file highlighted in each commit&rsquo;s details. Renamed and moved files are followed back through their old names.</p></div>
         <div class="card"><h3>Commit order: date or topology</h3><p>Sort by commit date, author date or topology from the toolbar or the <code>mergeline.commitOrder</code> setting. Topology order keeps each branch&rsquo;s commits together, which means fewer crossing lines on busy repositories.</p></div>
         <div class="card"><h3>Compare any two commits <span class="plus">not built in</span></h3><p><kbd>Ctrl</kbd>-click (<kbd>Cmd</kbd>-click on macOS) a second commit to list every file that differs between the two, and open each diff. Or right-click a commit for <strong>Compare with working tree</strong>, or a branch to compare it with the current one, or to see only what it changed since it split off (what a merge would bring in).</p></div>
+        <div class="card"><h3>Edit history from the graph <span class="plus">not built in</span></h3><p>Right-click a commit on your branch to <strong>edit its message</strong>, <strong>squash it into its parent</strong> or <strong>drop it</strong>, or Ctrl/Cmd-click a second commit to squash the range into one. No editor or terminal opens, uncommitted changes are stashed and restored, pushed commits get a warning first, and every change has an <strong>Undo</strong>. <a href="screenshot-edit.png">See it</a>.</p></div>
         <div class="card"><h3>Drag and drop branches</h3><p>Drag a branch badge onto another branch or any commit, then pick: merge it there, rebase it onto it, move the branch to that commit, or compare the two. Nothing runs until you choose from the menu, and rebases and moves ask first. <a href="screenshot-drag.png">See it</a>.</p></div>
         <div class="card"><h3>Worktrees</h3><p>Every other worktree of the repository shows as a badge on the commit it has checked out. Check a branch out into a new worktree, open a worktree in a new window or remove it, all from the graph. More in the <a href="git-worktree-vscode.html">git worktree guide</a>.</p></div>
         <div class="card"><h3>Find <span class="plus">not built in</span></h3><p>Search subjects, authors, hashes and branch or tag names, and step through matches with next and previous.</p></div>
@@ -90,11 +91,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>mergeline-0.5.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>mergeline-0.6.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, VSCodium, Cursor or Windsurf open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and choose the file. From a terminal you can instead run one of:
-<pre>code --install-extension mergeline-0.5.0.vsix
-codium --install-extension mergeline-0.5.0.vsix
-cursor --install-extension mergeline-0.5.0.vsix</pre></li>
+<pre>code --install-extension mergeline-0.6.0.vsix
+codium --install-extension mergeline-0.6.0.vsix
+cursor --install-extension mergeline-0.6.0.vsix</pre></li>
         <li><strong>Open a folder that is a git repository</strong> and trust it when the editor asks (Mergeline runs git commands, so it is disabled in Restricted Mode). Then open the graph in any of three ways: the <strong>Mergeline</strong> button in the Source Control view&rsquo;s title bar, the Mergeline button in the status bar, or the command <strong>Mergeline: Show Commit Graph</strong>.</li>
       </ol>
       <p class="small">Requires VS Code 1.85 or newer (or an editor built on it) and git installed on your machine. Mergeline also works in remote windows such as Remote SSH and WSL; git has to be installed on the remote side.</p>
@@ -108,12 +109,14 @@ cursor --install-extension mergeline-0.5.0.vsix</pre></li>
         <div class="card"><h3><a href="git-file-history-vscode.html">Git file history in VS Code</a></h3><p>Who changed a file and when: a file-history graph, <code>git log -- path</code>, <code>--follow</code>, blame and the pickaxe.</p></div>
         <div class="card"><h3><a href="compare-branches-commits-vscode.html">Compare branches and commits</a></h3><p><code>git diff</code> with two dots or three, file and commit lists, one file across branches, and comparing in the editor.</p></div>
         <div class="card"><h3><a href="git-rebase-vs-merge.html">Rebase or merge?</a></h3><p>What each does to your history, when to pick which, and how to recover from either.</p></div>
-        <div class="card"><h3><a href="squash-commits-vscode.html">Squash commits</a>
-      <a href="git-worktree-vscode.html">Git worktrees</a></h3><p>Interactive rebase, <code>reset --soft</code>, <code>merge --squash</code>, fixup commits, and undoing a squash.</p></div>
+        <div class="card"><h3><a href="squash-commits-vscode.html">Squash commits</a></h3><p>Interactive rebase, <code>reset --soft</code>, <code>merge --squash</code>, fixup commits, and undoing a squash.</p></div>
+        <div class="card"><h3><a href="edit-commit-message-vscode.html">Edit a commit message</a></h3><p>Amend the last commit, reword an older one, push the change safely, and undo it.</p></div>
+        <div class="card"><h3><a href="drop-commit-vscode.html">Delete (drop) a commit</a></h3><p>Drop or revert, <code>rebase -i</code> with <code>drop</code>, <code>reset</code> for the latest commits, and conflicts.</p></div>
         <div class="card"><h3><a href="git-worktree-vscode.html">Git worktrees in VS Code</a></h3><p>Work on two branches at once: create, open, list and remove worktrees, and fix &ldquo;already checked out&rdquo;.</p></div>
         <div class="card"><h3><a href="undo-git-reset-cherry-pick-revert.html">Undo in git: reset, revert, cherry-pick, reflog</a></h3><p>Soft, mixed and hard resets, safe reverts, copying commits, and getting lost work back.</p></div>
         <div class="card"><h3><a href="git-stash-guide.html">The git stash guide</a></h3><p>Push, list, apply, pop, drop, and turn a stash into a branch.</p></div>
         <div class="card"><h3><a href="git-graph-alternative.html">A maintained alternative to Git Graph</a></h3><p>The facts, the licence question, and how to switch.</p></div>
+        <div class="card"><h3><a href="git-graph-context-menu-not-working.html">Git Graph right-click menu not working?</a></h3><p>The 2025 VS Code issue, a checklist of things to try, and how to report it.</p></div>
         <div class="card"><h3><a href="git-graph-cursor-vscodium.html">A git graph in Cursor and VSCodium</a></h3><p>Why VS Code forks use Open VSX, how to install a <code>.vsix</code>, and what to check in a graph extension.</p></div>
       </div>
     </section>
@@ -134,7 +137,7 @@ cursor --install-extension mergeline-0.5.0.vsix</pre></li>
       </details>
       <details>
         <summary>Does it work in VSCodium, Cursor and Windsurf?</summary>
-        <p>It is built for them: they run VS Code extensions and install the same <code>.vsix</code>, Mergeline uses only standard VS Code APIs, and its right-click menus are drawn by Mergeline itself, so they do not depend on editor-specific menu APIs. Our end-to-end tests pass in VS Code 1.147 and VSCodium 1.143; Cursor and Windsurf are not tested yet. If something misbehaves in a fork, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a>. See <a href="git-graph-cursor-vscodium.html">Git graph in Cursor and VSCodium</a>.</p>
+        <p>It is built for them: they run VS Code extensions and install the same <code>.vsix</code>, Mergeline uses only standard VS Code APIs, and its right-click menus are drawn by Mergeline itself inside its panel. (That also means an editor bug in webview menus, like VS Code&rsquo;s in early 2025, could affect it; we would ship a fix.) Our end-to-end tests pass in VS Code 1.147 and VSCodium 1.143; Cursor and Windsurf are not tested yet. If something misbehaves in a fork, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a>. See <a href="git-graph-cursor-vscodium.html">Git graph in Cursor and VSCodium</a>.</p>
       </details>
       <details>
         <summary>Can it break my repository?</summary>
@@ -167,10 +170,13 @@ cursor --install-extension mergeline-0.5.0.vsix</pre></li>
       <a href="compare-branches-commits-vscode.html">Compare branches</a>
       <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
       <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
       <a href="git-worktree-vscode.html">Git worktrees</a>
       <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
       <a href="git-stash-guide.html">Git stash</a>
       <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
       <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
     </nav>
   </div>

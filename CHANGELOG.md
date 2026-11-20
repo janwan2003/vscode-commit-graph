@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 (2026-11-20)
+
+- **Edit history from the graph.** Right-click a commit on the checked-out branch: **Edit commit message…** (change the subject line; the rest of the message is kept), **Squash into parent** (the two become one commit with the parent's message) or **Drop commit…** (later commits are replayed without it). Ctrl/Cmd-click a second commit on the branch, then right-click either one, or use the link in the details pane, to **Squash N commits into one** with a new subject; the old subjects are listed in its body. Mergeline writes the rebase plan itself, so no editor or terminal opens, and `--autostash` keeps your uncommitted changes. It refuses when a merge commit is in the way, warns before rewriting commits that are already on a remote branch, and every change offers **Undo** (`git reset --keep` to where the branch was). If a later commit conflicts, the notification offers Open Source Control or Abort rebase.
+- **Changed files as a tree.** The details pane can show changed files in folders (the default) or as a flat list of paths; the choice is kept. Click a folder to collapse it. A folder that only holds one folder is shown as one row (`src/core/`).
+
 ## 0.5.0 (2026-11-20)
 
 - **Drag and drop branches.** Drag a branch badge (local or remote) onto another branch or onto any commit, and choose what to do: merge it into that branch (Mergeline checks the target out first if it is not current), rebase it onto that branch or commit (`git rebase <onto> <branch>`), move the branch there (`git branch -f`, or a reset when it is the current branch), compare the two, or see the changes since they split. The target row is highlighted while you drag, and nothing runs until you pick an item; rebases and moves ask first.

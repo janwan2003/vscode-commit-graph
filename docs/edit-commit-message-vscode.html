@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edit a commit message in VS Code, even old ones | Mergeline</title>
+<meta name="description" content="Change a git commit message in VS Code: amend the last commit, reword an older one with git rebase -i, force-push safely, and undo it.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/edit-commit-message-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="How to edit a commit message in VS Code (including older commits)">
+<meta property="og:description" content="git commit --amend, reword in an interactive rebase, what happens to the hashes, pushed commits, and how to undo.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/edit-commit-message-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>How to edit a commit message in VS Code (including older commits)</h1>
+    <p>A typo, a missing ticket number, a subject that just says &ldquo;WIP&rdquo;: commit messages can be fixed, ideally before anyone else has the commit. The last commit takes one command; an older one takes an interactive rebase. This guide covers both, what rewording does to your history, pushed commits, and how to undo it.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#last">The last commit: <code>--amend</code></a></li>
+        <li><a href="#older">An older commit: <code>reword</code></a></li>
+        <li><a href="#hashes">What changes</a></li>
+        <li><a href="#pushed">Commits you already pushed</a></li>
+        <li><a href="#undo">Undo it</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Replace the message of my last commit</td><td><code>git commit --amend -m "New message"</code></td></tr>
+          <tr><td>Change only the message, leaving staged files out</td><td><code>git commit --amend --only</code></td></tr>
+          <tr><td>Change an older commit&rsquo;s message</td><td><code>git rebase -i &lt;commit&gt;^</code>, then <code>pick</code> &rarr; <code>reword</code></td></tr>
+          <tr><td>Publish the rewritten branch</td><td><code>git push --force-with-lease</code></td></tr>
+          <tr><td>Undo an amend</td><td><code>git reset --soft HEAD@{1}</code></td></tr>
+          <tr><td>Undo a reword rebase I just finished</td><td><code>git reset --keep ORIG_HEAD</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="last">The last commit: <code>git commit --amend</code></h2>
+    <p>Amending replaces the most recent commit with a new one. Give the new message on the command line, or leave out <code>-m</code> to get the old message in your editor:</p>
+<pre><span class="k">git commit --amend -m</span> "Fix date parsing in log view"
+<span class="k">git commit --amend</span>              <span class="c"># edit the current message in the editor</span></pre>
+    <p>Watch out for one thing: <code>--amend</code> also adds whatever you have <em>staged</em> to the commit. If you only want to change the message, add <code>--only</code>, which leaves staged changes staged:</p>
+<pre><span class="k">git commit --amend --only -m</span> "Fix date parsing in log view"</pre>
+    <p><strong>In VS Code:</strong> type the new message in the Source Control message box, then open the <strong>&hellip;</strong> (More Actions) menu at the top of the Source Control view and choose <strong>Commit &rarr; Commit (Amend)</strong>. The same command is in the Command Palette as <strong>Git: Commit (Amend)</strong>. Like the terminal command, it includes what is staged, so commit or <a href="git-stash-guide.html">stash</a> unrelated work first. To have git open messages in a VS Code tab rather than Vim, run <code>git config --global core.editor "code --wait"</code>.</p>
+
+    <h2 id="older">An older commit: <code>git rebase -i</code> and <code>reword</code></h2>
+    <p>For an older commit, an interactive rebase replays the commits from that point on and lets you mark the one to reword. Pass it the <em>parent</em> of the commit you want, which is what the <code>^</code> means:</p>
+<pre><span class="k">git log --oneline -4</span>
+<span class="o">8319fa2 Add export button
+415016b Handle empty rows
+9738777 fix stuff
+385981c Add CSV export</span>
+<span class="k">git rebase -i</span> 9738777^</pre>
+    <p>Git opens a todo list, oldest commit first. Change <code>pick</code> to <code>reword</code> (or just <code>r</code>) on the line you want, then save and close:</p>
+<pre><span class="k">reword</span> 9738777 # fix stuff
+pick 415016b # Handle empty rows
+pick 8319fa2 # Add export button</pre>
+    <p>Git then opens the message of that commit. Edit it, save and close, and the rebase replays the rest. You can mark several lines <code>reword</code> at once; git stops for each. If the commit is the very first one in the repository, it has no parent, so use <code>git rebase -i --root</code> instead.</p>
+    <p>If you have uncommitted changes, add <code>--autostash</code> so git stashes and restores them. To stop halfway, <code>git rebase --abort</code> restores everything. The <a href="squash-commits-vscode.html#editor">squash guide</a> shows how to edit the todo list in a VS Code tab.</p>
+
+    <h2 id="hashes">What changes when you edit a message</h2>
+    <p>A commit&rsquo;s hash is computed from everything in it, message included, and from its parent&rsquo;s hash. So changing a message creates a <strong>new commit with a new hash</strong>, and every commit after it gets a new hash too, because its parent changed. The files and the diffs stay exactly the same. In the example above:</p>
+<pre><span class="o">before                        after
+8319fa2 Add export button     9842822 Add export button
+415016b Handle empty rows     cecdf0c Handle empty rows
+9738777 fix stuff             a118b82 Fix date parsing in log view
+385981c Add CSV export        385981c Add CSV export</span></pre>
+    <p>The old commits are not deleted straight away; they are just no longer on your branch. That is why the change can be undone, and also why anything that points at the old hashes (another branch, a tag, a link in an issue) keeps pointing at the old version.</p>
+
+    <h2 id="pushed">Commits you already pushed</h2>
+    <p>If the commit is already on the remote, your rewritten branch and the remote one have different histories, and a normal <code>git push</code> is rejected. Overwrite the remote branch with the safe form of force-push, which refuses if someone else has pushed to it since you last fetched:</p>
+<pre><span class="k">git push --force-with-lease</span></pre>
+    <div class="note warn"><p><strong>Do not reword commits on a shared branch</strong> such as <code>main</code>. Anyone who already pulled them still has the old hashes, and their next pull will try to merge the two histories. Rewording your own feature branch before a review is normal; on a shared branch, leave the message alone.</p></div>
+
+    <h2 id="undo">Undo it</h2>
+    <p>After an <strong>amend</strong>, the previous version of the commit is one step back in the reflog (git&rsquo;s local record of where <code>HEAD</code> has been). A soft reset brings it back without touching your files:</p>
+<pre><span class="k">git reset --soft HEAD@{1}</span></pre>
+    <p>After a <strong>rebase</strong>, git saves the old branch position in <code>ORIG_HEAD</code>. Go back to it with:</p>
+<pre><span class="k">git reset --keep ORIG_HEAD</span></pre>
+    <p><code>--keep</code> keeps your uncommitted changes, and refuses to run if one of them is in a file the reset would have to change. Note that <code>ORIG_HEAD</code> is overwritten by the next reset, merge or rebase, and <code>git commit --amend</code> does not set it at all. If it has moved on, find the old position in the reflog: the entry just below <code>rebase (start)</code> is your branch before the rebase.</p>
+<pre><span class="k">git reflog</span>
+<span class="o">9842822 HEAD@{0}: rebase (finish): returning to refs/heads/main
+...
+a118b82 HEAD@{3}: rebase (reword): Fix date parsing in log view
+...
+385981c HEAD@{5}: rebase (start): checkout 9738777^
+8319fa2 HEAD@{6}: commit: Add export button</span>
+<span class="k">git reset --keep</span> 8319fa2</pre>
+    <p>The <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a> explains the reflog in more detail.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>From Mergeline 0.6 you can reword any commit on your current branch from the graph, without counting commits or editing a todo list.</p>
+      <ol class="steps">
+        <li><strong>Right-click the commit</strong> and choose <strong>Edit commit message&hellip;</strong>. The item appears only for commits reachable from <code>HEAD</code>, that is, on the branch you have checked out.</li>
+        <li><strong>Type the new subject line</strong> in the input box, which starts with the current one. The rest of the message (the body) is kept as it is.</li>
+        <li><strong>Mergeline rewrites the branch</strong> by running a non-interactive <code>git rebase -i</code> with <code>--autostash</code>, so uncommitted changes are stashed and restored for you. If the commit is already on a remote-tracking branch, it warns you first: you will need to force-push afterwards. It refuses if there is a merge commit between the commit and <code>HEAD</code>; use an interactive rebase in a terminal for those.</li>
+        <li><strong>Changed your mind?</strong> The notification that appears when it finishes has an <strong>Undo</strong> button, which runs <code>git reset --keep</code> to the previous <code>HEAD</code>.</li>
+        <li><strong>If a later commit conflicts</strong> while being replayed, the rebase stops and the notification offers <strong>Open Source Control</strong> to resolve it, or <strong>Abort rebase</strong>, which runs <code>git rebase --abort</code>.</li>
+      </ol>
+      <p>The same menu has <strong>Squash into parent</strong> and <strong>Drop commit&hellip;</strong>; see <a href="squash-commits-vscode.html">squashing commits</a> and <a href="drop-commit-vscode.html">dropping a commit</a>.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html" aria-current="page">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

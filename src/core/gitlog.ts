@@ -41,12 +41,12 @@ export class GitError extends Error {
   }
 }
 
-export function git(cwd: string, args: string[], opts: { maxBuffer?: number; input?: string } = {}): Promise<string> {
+export function git(cwd: string, args: string[], opts: { maxBuffer?: number; input?: string; env?: Record<string, string> } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       'git',
       args,
-      { cwd, maxBuffer: opts.maxBuffer ?? 256 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' } },
+      { cwd, maxBuffer: opts.maxBuffer ?? 256 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...opts.env } },
       (err, stdout, stderr) => {
         if (err) {
           const msg = (stderr || err.message).trim();

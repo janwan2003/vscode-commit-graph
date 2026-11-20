@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git Graph right-click menu not working? Fixes | Mergeline</title>
+<meta name="description" content="Git Graph's right-click menu missing in VS Code or VSCodium? What happened in 2025, step-by-step checks to find the cause, and a maintained alternative.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-graph-context-menu-not-working.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="Git Graph right-click menu not working in VS Code? Causes and fixes">
+<meta property="og:description" content="The known 2025 issue, a checklist of things to try, how to report it usefully, and a maintained alternative.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-graph-context-menu-not-working.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Git Graph right-click menu not working in VS Code? Causes and fixes</h1>
+    <p>You right-click a commit or a branch in the Git Graph extension and nothing useful happens: no menu at all, or only the editor&rsquo;s plain <em>Cut / Copy / Paste</em> menu instead of checkout, merge, cherry-pick and the rest. This page explains the known case from 2025, gives a checklist for finding the cause on your machine, and, if you would rather move on, describes a maintained alternative.</p>
+    <p class="small">Mergeline is an independent project. It is not affiliated with or endorsed by Git Graph or its author. &ldquo;Git Graph&rdquo; here refers to the extension by mhutchie.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#known">The known 2025 issue</a></li>
+        <li><a href="#vscodium">In VSCodium</a></li>
+        <li><a href="#checklist">Checklist: things to try</a></li>
+        <li><a href="#report">If nothing helps</a></li>
+        <li><a href="#mergeline">A maintained alternative</a></li>
+      </ul>
+    </div>
+
+    <h2 id="known">The known 2025 issue: a VS Code regression</h2>
+    <p>In February 2025 many people saw the menu disappear at the same time, right after a VS Code update. The Git Graph issue <a href="https://github.com/mhutchie/vscode-git-graph/issues/870">#870, &ldquo;Context right-click menu disappeared with last vscode update&rdquo;</a>, collected 357 thumbs-up. The cause turned out to be on VS Code&rsquo;s side: commenters linked VS Code issue <a href="https://github.com/microsoft/vscode/issues/239862">#239862, &ldquo;Native context menu hijacks custom one in webview editor&rdquo;</a>, which VS Code fixed in its January 2025 Recovery 2 release (1.97.2). Users in #870 confirmed the menu came back after updating, and the issue was closed on 18 February 2025.</p>
+    <p>So if you are on an older VS Code, <strong>updating is the first thing to try</strong>. If you are on a current version and the menu is still missing, the cause is something else, and the checklist below will help narrow it down.</p>
+    <p class="small">Issue details checked on 20 November 2026.</p>
+
+    <h2 id="vscodium">In VSCodium</h2>
+    <p>A separate report, <a href="https://github.com/mhutchie/vscode-git-graph/issues/863">#863, &ldquo;Context menu not available in VSCodium&rdquo;</a>, was opened in January 2025. In it, a commenter reported still seeing only Cut/Copy/Paste in VSCodium 1.97.2 after VS Code itself was fixed, and the issue was reopened in April 2025. It was still open on 20 November 2026. If you use VSCodium, update it first, then work through the same checklist. For more on extensions in VS Code forks, see <a href="git-graph-cursor-vscodium.html">git graph in Cursor and VSCodium</a>.</p>
+
+    <h2 id="checklist">Checklist: things to try</h2>
+    <p>Work through these in order. Each step either fixes the problem or rules out a cause.</p>
+
+    <h3>1. Update the editor</h3>
+    <p>Check your version with <strong>Help &rarr; About</strong>, then use <strong>Help &rarr; Check for Updates</strong> (on Linux, update through the package manager you installed it with). Menus inside extensions are drawn in a webview, so they depend on the editor&rsquo;s webview and Electron versions, as the 2025 regression showed.</p>
+
+    <h3>2. Reload the window</h3>
+    <p>Run <strong>Developer: Reload Window</strong> from the Command Palette (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>). This restarts every extension and webview without closing your files, and clears up a surprising number of one-off glitches, especially after an extension or editor update.</p>
+
+    <h3>3. Check the workspace is trusted</h3>
+    <p>If the window shows a <em>Restricted Mode</em> banner, VS Code is limiting what extensions can do in this folder. It disables extensions that do not declare support for untrusted workspaces, and that includes its own built-in Git features. Git Graph 1.30.0 was released before Workspace Trust existed and its manifest declares no such support. Run <strong>Workspaces: Manage Workspace Trust</strong> and trust the folder if you trust its contents.</p>
+
+    <h3>4. Rule out other extensions</h3>
+    <p>Another extension or a setting can interfere with menus or webviews. The quickest test is a clean profile: <strong>Profiles: New Profile&hellip;</strong>, create an empty one, install only Git Graph in it, and open the same folder. If the menu works there, something in your main profile is the cause. To find which extension, run <strong>Help: Start Extension Bisect</strong> in your main profile: it disables half of your extensions at a time and asks whether the problem is still there, until it narrows it down to one.</p>
+
+    <h3>5. Check that git is found</h3>
+    <p>Open the integrated terminal and run:</p>
+<pre><span class="k">git --version</span></pre>
+    <p>If that fails, install git or add it to your <code>PATH</code>, then restart the editor. Git Graph also honours VS Code&rsquo;s <code>git.path</code> setting, so if you set that, make sure it points at a working git executable. A git problem usually breaks the whole graph rather than only the menu, but it is a quick thing to rule out.</p>
+
+    <h3>6. Look for errors in the developer tools</h3>
+    <p>Run <strong>Developer: Toggle Developer Tools</strong> and open the <em>Console</em> tab. Clear it, right-click in the graph, and see whether any red errors appear. <strong>Developer: Open Webview Developer Tools</strong> shows the console of the webview itself, which is where an extension&rsquo;s own menu code runs. You may not be able to fix what you find, but the exact error text is the most useful thing you can put in a bug report.</p>
+
+    <h2 id="report">If nothing helps</h2>
+    <p>Search the <a href="https://github.com/mhutchie/vscode-git-graph/issues">Git Graph issue tracker</a> for your symptom before opening a new issue, and add a thumbs-up rather than a &ldquo;same here&rdquo; comment. If you do open one, include the output of <strong>Help &rarr; About</strong>, your operating system, the Git Graph version, and any console errors from step 6.</p>
+    <p>Be aware that the latest Git Graph release is 1.30.0, from 5 April 2021, so a fix on the extension&rsquo;s side would need a new official release. Its licence does not permit publishing derivative works, so no one else can legally publish a patched, maintained fork. (That is a plain-language summary, not legal advice. The <a href="git-graph-alternative.html">Git Graph alternative page</a> explains it in more detail.)</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>A maintained alternative: Mergeline</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code, VSCodium, Cursor and Windsurf, and it is actively developed. It has the same kind of right-click actions:</p>
+      <ul>
+        <li><strong>Commits:</strong> create a branch or tag, check out, cherry-pick, revert, merge, rebase onto it, interactive rebase in a terminal, reset (soft, mixed or hard), compare with the working tree, copy the hash or subject.</li>
+        <li><strong>Branches:</strong> check out, merge, rebase, compare, push, pull, rename, delete (locally or on the remote).</li>
+        <li><strong>Tags and stashes:</strong> push or delete tags; apply, pop, drop or branch from a stash.</li>
+        <li><strong>New in 0.6:</strong> on commits of your current branch, <a href="edit-commit-message-vscode.html">Edit commit message&hellip;</a>, Squash into parent and <a href="drop-commit-vscode.html">Drop commit&hellip;</a>, each with a one-click Undo.</li>
+      </ul>
+      <p>Its menus are drawn inside its own webview too, so an editor regression like the 2025 one could affect it as well. The difference is that it is actively maintained: if something breaks in a new editor version, a fix can ship in the next release, and because it is MIT-licensed, anyone may fork and publish it.</p>
+      <ol class="steps">
+        <li><strong>Install</strong> the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-commit-graph/releases/latest">latest release</a> with <strong>Extensions: Install from VSIX&hellip;</strong>. It can sit alongside Git Graph: its commands and settings all start with <code>mergeline</code>.</li>
+        <li><strong>Open the graph</strong> with the Mergeline button in the Source Control title bar, or run <strong>Mergeline: Show Commit Graph</strong>.</li>
+        <li><strong>Right-click</strong> a commit, branch badge, tag or stash. If a menu ever fails to appear, please <a href="https://github.com/janwan2003/vscode-commit-graph/issues">open an issue</a> with your editor version.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html" aria-current="page">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

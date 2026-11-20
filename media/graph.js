@@ -113,7 +113,7 @@
       case 'reveal': if (indexBySha.has(m.sha)) { pendingReveal = null; select(m.sha, true); } else pendingReveal = m.sha; break;
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent) }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [] }); break;
     }
   });
 
@@ -451,7 +451,8 @@
       head = `<div class="d-title">Changes on ${esc(la)} since it split from ${esc(lb)}</div>
         <div class="d-meta">${m.mergeBase ? `<span>Merge base <code class="link" data-goto="${esc(m.mergeBase)}">${esc(short(m.mergeBase))}</code></span>` : ''}<span>What merging ${esc(la)} into ${esc(lb)} would bring in (git diff ${esc(lb)}...${esc(la)})</span></div>`;
     } else if (m.compare) {
-      head = `<div class="d-title">Comparing ${esc(m.from === UNC ? 'working tree' : short(m.from))} → ${esc(m.to ? short(m.to) : 'working tree')}</div>`;
+      const rng = squashRange();
+      head = `<div class="d-title">Comparing ${esc(m.from === UNC ? 'working tree' : short(m.from))} → ${esc(m.to ? short(m.to) : 'working tree')}</div>${rng ? `<div class="d-meta"><span><span class="link" data-squash="1" title="Squash ${short(rng.from)}…${short(rng.to)} on the current branch into one commit">Squash these ${rng.n} commits into one…</span></span></div>` : ''}`;
     } else if (m.info) {
       const i = m.info;
       const body = i.message.split('\n').slice(1).join('\n').trim();
@@ -467,24 +468,82 @@
     const add = m.files.reduce((n, f) => n + (f.additions || 0), 0);
     const del = m.files.reduce((n, f) => n + (f.deletions || 0), 0);
     const focus = data.filter && data.filter.path ? (data.names && data.names.length ? data.names : [data.filter.path]) : null;
-    const files = m.files.map((f, k) => `<li class="file${focus && (focus.includes(f.path) || focus.includes(f.oldPath)) ? ' focus' : ''}" data-k="${k}" title="${esc(STATUS[f.status] || f.status)}: open diff">
-        <span class="st st-${esc(f.status)}">${esc(f.status)}</span>
-        <span class="fp">${f.oldPath ? esc(f.oldPath) + ' → ' : ''}${esc(f.path)}</span>
-        <span class="ad">${f.additions == null ? (f.status === 'U' ? '' : 'bin') : `<i class="plus">+${f.additions}</i> <i class="minus">−${f.deletions}</i>`}</span></li>`).join('');
+    filesFocus = focus;
+    const nested = m.files.some((f) => f.path.includes('/'));
     detailsEl.innerHTML = `<button class="d-close" title="Close (Esc)" aria-label="Close details">×</button>${head}
-      <div class="d-files-h">${m.files.length} file${m.files.length === 1 ? '' : 's'} changed <i class="plus">+${add}</i> <i class="minus">−${del}</i>${m.compare ? '' : ' <span class="hint">Ctrl/Cmd-click another commit to compare</span>'}</div>
-      <ul class="d-files">${files}</ul>`;
+      <div class="d-files-h">${m.files.length} file${m.files.length === 1 ? '' : 's'} changed <i class="plus">+${add}</i> <i class="minus">−${del}</i>${m.compare ? '' : ' <span class="hint">Ctrl/Cmd-click another commit to compare</span>'}${nested ? `<span class="fv" role="group" aria-label="File view"><button data-fv="tree" title="Show files in folders">Tree</button><button data-fv="list" title="Show full paths">List</button></span>` : ''}</div>
+      <ul class="d-files"></ul>`;
+    renderFiles();
     detailsEl.hidden = false;
     split.hidden = false;
     scrollTo(indexBySha.get(m.sha));
   }
 
+  // Changed files as a flat list of paths, or as a folder tree (lay.files, kept across sessions).
+  let filesFocus = null;
+  const collapsedDirs = new Set();
+  function fileRow(f, k, name, pad) {
+    const focus = filesFocus && (filesFocus.includes(f.path) || filesFocus.includes(f.oldPath));
+    const tip = `${STATUS[f.status] || f.status}: ${f.oldPath ? f.oldPath + ' → ' : ''}${f.path}. Click to open the diff`;
+    return `<li class="file${focus ? ' focus' : ''}" data-k="${k}" title="${esc(tip)}"${pad ? ` style="padding-left:${pad}px"` : ''}>
+        <span class="st st-${esc(f.status)}">${esc(f.status)}</span>
+        <span class="fp">${name}</span>
+        <span class="ad">${f.additions == null ? (f.status === 'U' ? '' : 'bin') : `<i class="plus">+${f.additions}</i> <i class="minus">−${f.deletions}</i>`}</span></li>`;
+  }
+  function renderFiles() {
+    const ul = detailsEl.querySelector('.d-files');
+    if (!ul || !details) return;
+    const files = details.files;
+    const tree = (lay.files || 'tree') === 'tree' && files.some((f) => f.path.includes('/'));
+    detailsEl.querySelectorAll('[data-fv]').forEach((b) => b.classList.toggle('on', b.dataset.fv === (tree ? 'tree' : 'list')));
+    if (!tree) {
+      ul.innerHTML = files.map((f, k) => fileRow(f, k, (f.oldPath ? esc(f.oldPath) + ' → ' : '') + esc(f.path))).join('');
+      return;
+    }
+    const root = { dirs: new Map(), files: [] };
+    files.forEach((f, k) => {
+      const parts = f.path.split('/');
+      let n = root;
+      for (const p of parts.slice(0, -1)) {
+        if (!n.dirs.has(p)) n.dirs.set(p, { dirs: new Map(), files: [] });
+        n = n.dirs.get(p);
+      }
+      n.files.push(k);
+    });
+    const count = (n) => n.files.length + [...n.dirs.values()].reduce((a, d) => a + count(d), 0);
+    const out = [];
+    const walk = (n, prefix, depth) => {
+      for (const name of [...n.dirs.keys()].sort((a, b) => a.localeCompare(b))) {
+        let d = n.dirs.get(name), label = name;
+        // A folder that only holds one folder is shown as one row: src/core/
+        while (d.files.length === 0 && d.dirs.size === 1) { const [k2, d2] = [...d.dirs.entries()][0]; label += '/' + k2; d = d2; }
+        const full = prefix + label;
+        const shut = collapsedDirs.has(full);
+        out.push(`<li class="dir" data-dir="${esc(full)}" style="padding-left:${depth * 14 + 4}px" title="${esc(full)}/"><span class="tw" aria-hidden="true">${shut ? '▸' : '▾'}</span><span class="fp">${esc(label)}/</span><span class="ad">${count(d)}</span></li>`);
+        if (!shut) walk(d, full + '/', depth + 1);
+      }
+      for (const k of n.files.sort((a, b) => files[a].path.localeCompare(files[b].path))) {
+        const f = files[k];
+        const base = f.path.slice(f.path.lastIndexOf('/') + 1);
+        const old = f.oldPath ? (f.oldPath.slice(0, f.oldPath.lastIndexOf('/') + 1) === prefix ? f.oldPath.slice(prefix.length) : f.oldPath) : '';
+        out.push(fileRow(f, k, (old ? `<span class="old">${esc(old)} → </span>` : '') + esc(base), depth * 14 + 4));
+      }
+    };
+    walk(root, '', 0);
+    ul.innerHTML = out.join('');
+  }
+
   detailsEl.addEventListener('click', (e) => {
     if (e.target.closest('.d-close')) return closeDetails();
+    const fv = e.target.closest('[data-fv]');
+    if (fv) { lay.files = fv.dataset.fv; saveLayout(); renderFiles(); return; }
+    const dir = e.target.closest('.dir');
+    if (dir) { const p = dir.dataset.dir; if (collapsedDirs.has(p)) collapsedDirs.delete(p); else collapsedDirs.add(p); renderFiles(); return; }
     const g = e.target.closest('[data-goto]');
     if (g) { if (indexBySha.has(g.dataset.goto)) select(g.dataset.goto, true); return; }
     const cp = e.target.closest('[data-copy]');
     if (cp) return action({ action: 'copyHash', sha: cp.dataset.copy });
+    if (e.target.closest('[data-squash]')) { const rng = squashRange(); if (rng) action({ action: 'squashRange', sha: rng.from, target: rng.to }); return; }
     const u = e.target.closest('[data-url]');
     if (u) return vscode.postMessage({ type: 'openUrl', url: u.dataset.url });
     const f = e.target.closest('.file');
@@ -644,6 +703,7 @@
       ['Interactive rebase from here (terminal)', { ...base, action: 'interactiveRebase' }],
       ['Reset ' + cur + ' to here…', { ...base, action: 'reset' }, isHead ? 'disabled' : ''],
       null,
+      ...editItems(c, base),
       ['Compare with working tree', () => compare(c.sha, UNC)],
       ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
       ...(data.web ? [['Open on ' + data.web.name, () => vscode.postMessage({ type: 'openUrl', url: data.web.commit + c.sha })]] : []),
@@ -651,6 +711,47 @@
       ['Copy hash', { ...base, action: 'copyHash' }],
       ['Copy subject', { ...base, action: 'copySubject' }],
     ];
+  }
+
+  // ---------- edit history (reword, drop, squash) ----------
+  /** Commits on HEAD's first-parent line up to the first merge: the ones a linear rebase can rewrite. */
+  let editable = null, editableFor = null;
+  function editableSet() {
+    if (editableFor === data) return editable;
+    editableFor = data;
+    editable = new Set();
+    let sha = data.head;
+    while (sha && indexBySha.has(sha)) {
+      const c = data.commits[indexBySha.get(sha)];
+      if (c.kind !== 'commit' && c.kind) break;
+      if (c.parents.length > 1) break;
+      editable.add(sha);
+      sha = c.parents[0];
+    }
+    return editable;
+  }
+  /** Older and newer end of the Ctrl/Cmd-click selection when both are editable, else null. */
+  function squashRange() {
+    if (!selected || !compareSha || selected === compareSha) return null;
+    const set = editableSet();
+    if (!set.has(selected) || !set.has(compareSha)) return null;
+    const a = indexBySha.get(selected), b = indexBySha.get(compareSha);
+    return a > b ? { from: selected, to: compareSha, n: a - b + 1 } : { from: compareSha, to: selected, n: b - a + 1 };
+  }
+  function editItems(c, base) {
+    const set = editableSet();
+    if (!set.has(c.sha)) return [];
+    const cur = data.branch ? `“${data.branch}”` : 'HEAD';
+    const rng = squashRange();
+    const items = [];
+    if (rng && (c.sha === rng.from || c.sha === rng.to)) items.push([`Squash ${rng.n} commits into one…`, { action: 'squashRange', sha: rng.from, target: rng.to, current: data.branch }]);
+    items.push(
+      ['Edit commit message…', { ...base, action: 'reword' }],
+      ['Squash into parent', { ...base, action: 'fixupCommit' }, c.parents.length ? '' : 'disabled'],
+      ['Drop commit…', { ...base, action: 'dropCommit' }, 'danger'],
+      null,
+    );
+    return items;
   }
 
   /** Show the changes between commit `a` and `b` (UNC = working tree) in the details pane. */

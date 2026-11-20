@@ -90,6 +90,15 @@ svg .n-stash { fill: var(--vscode-editor-background); stroke-width: 1.5; }
 .d-files-h { margin: 8px 0 4px; font-weight: 600; font-size: 12px; }
 .d-files-h .hint { font-weight: 400; color: var(--vscode-descriptionForeground); margin-left: 10px; }
 .d-files { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.d-files-h { display: flex; align-items: baseline; gap: 4px; }
+.fv { margin-left: auto; display: inline-flex; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 3px; overflow: hidden; }
+.fv button { background: none; color: var(--vscode-descriptionForeground); border: 0; padding: 1px 8px; font: inherit; font-weight: 400; font-size: 11.5px; cursor: pointer; }
+.fv button.on { background: var(--vscode-button-secondaryBackground, rgba(128,128,128,.25)); color: var(--vscode-button-secondaryForeground, inherit); }
+.dir { display: flex; gap: 6px; align-items: center; padding: 2px 4px; cursor: pointer; border-radius: 2px; color: var(--vscode-foreground); }
+.dir:hover { background: var(--vscode-list-hoverBackground); }
+.dir .tw { width: 14px; text-align: center; color: var(--vscode-descriptionForeground); font-size: 10px; }
+.dir .fp { font-weight: 600; }
+.file .old { color: var(--vscode-descriptionForeground); }
 .file { display: flex; gap: 8px; align-items: center; padding: 2px 4px; cursor: pointer; border-radius: 2px; }
 .file:hover { background: var(--vscode-list-hoverBackground); }
 .fp { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

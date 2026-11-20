@@ -105,11 +105,11 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.5.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 5).
+**Mergeline 0.6.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 6).
 
-- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.5.0
-  (`mergeline-0.5.0.vsix`, 46 KB): https://github.com/janwan2003/vscode-commit-graph/releases
+- Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.6.0
+  (`mergeline-0.6.0.vsix`, 51 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
   11 SEO guides (git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
@@ -144,6 +144,13 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   "Create worktree here (detached)…", badge menu open in new window / copy path / remove (re-asks before `--force`) / prune.
   Branch menus: "Changes since it split from <current>" (merge-base three-dot diff, `mergeBase()`). Also fixed `scripts/make-fixture.mjs`, which
   ran on import, so `node scripts/e2e.mjs <binary>` crashed (found by the VSCodium run).
+  **0.6.0 added:** edit history on the checked-out branch (`src/core/rewrite.ts`): Edit commit message (subject; body kept),
+  Squash into parent (fixup), Drop commit, and Squash N commits into one (Ctrl/Cmd-click range; new subject + old subjects as body).
+  It writes the rebase todo itself (`GIT_SEQUENCE_EDITOR="cp '<git-dir>/MERGELINE_TODO'"`, message via an `exec git commit --amend -F`
+  line), uses `--autostash`, refuses merges in the range and commits not on HEAD, warns when a remote-tracking branch has the
+  commit, offers Undo (`git reset --keep <old HEAD>`) and, on conflict, Open Source Control / Abort rebase. The webview shows
+  the items only on HEAD's first-parent line up to the first merge. Also: changed files as a folder tree (default) or flat list
+  (`lay.files` in the saved layout), collapsible folders, single-child folders joined (`src/core/`).
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:

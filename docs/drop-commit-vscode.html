@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete (drop) a commit in git and VS Code | Mergeline</title>
+<meta name="description" content="Remove a commit from a git branch: drop it with git rebase -i, reset away the latest ones, revert pushed ones, handle conflicts, and undo.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/drop-commit-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="How to delete (drop) a commit in VS Code">
+<meta property="og:description" content="Drop or revert, git rebase -i with drop, git reset for the latest commits, conflicts, and getting a dropped commit back.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/drop-commit-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>How to delete (drop) a commit in VS Code</h1>
+    <p>Sometimes a commit should simply not be there: debug logging you committed by accident, an experiment that went nowhere, a change that belongs on another branch. Git can remove it from your branch and replay the commits that came after it. Whether you <em>should</em> depends on one question: has anyone else got this commit yet? This guide covers dropping a commit, the safer alternative for shared history, what to do when the removal conflicts, and how to get the commit back.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#drop-or-revert">Drop or revert?</a></li>
+        <li><a href="#rebase">Drop any commit: <code>git rebase -i</code></a></li>
+        <li><a href="#reset">Drop the latest commits: <code>git reset</code></a></li>
+        <li><a href="#conflicts">When later commits depend on it</a></li>
+        <li><a href="#undo">Get a dropped commit back</a></li>
+        <li><a href="#mergeline">Do it in Mergeline</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Remove one commit from the middle of my branch</td><td><code>git rebase -i &lt;commit&gt;^</code>, then <code>pick</code> &rarr; <code>drop</code></td></tr>
+          <tr><td>The same, without an editor</td><td><code>git rebase --onto &lt;commit&gt;^ &lt;commit&gt;</code></td></tr>
+          <tr><td>Remove my last commit and its changes</td><td><code>git reset --keep HEAD~1</code></td></tr>
+          <tr><td>Remove my last commit but keep its changes</td><td><code>git reset --soft HEAD~1</code></td></tr>
+          <tr><td>Undo a commit that is already pushed or shared</td><td><code>git revert &lt;commit&gt;</code></td></tr>
+          <tr><td>Give up on a rebase that conflicts</td><td><code>git rebase --abort</code></td></tr>
+          <tr><td>Get the commit back afterwards</td><td><code>git reset --keep ORIG_HEAD</code>, or find it in <code>git reflog</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="drop-or-revert">Drop or revert?</h2>
+    <p><strong>Dropping</strong> rewrites history: the commit disappears from the branch and every later commit is recreated with a new hash. That is fine on a branch only you use. <strong>Reverting</strong> leaves history alone and adds a new commit that does the opposite of the old one:</p>
+<pre><span class="k">git revert</span> 72c5f10</pre>
+    <p>Use revert for anything already pushed to a shared branch such as <code>main</code>. If you drop a commit there and force-push, everyone who pulled it still has it, and it will come back the next time they merge. The <a href="undo-git-reset-cherry-pick-revert.html#revert">undo guide</a> covers revert in detail, including reverting merges.</p>
+
+    <h2 id="rebase">Drop any commit with <code>git rebase -i</code></h2>
+    <p>An interactive rebase replays your commits from a starting point and lets you decide what happens to each. Start from the <em>parent</em> of the commit you want to remove (that is what <code>^</code> means):</p>
+<pre><span class="k">git log --oneline -4</span>
+<span class="o">f16153e Add export button
+44ee6f8 Handle empty rows
+848a197 Add debug logging
+0993a57 Add CSV export</span>
+<span class="k">git rebase -i</span> 848a197^</pre>
+    <p>In the todo list that opens (oldest commit first), change <code>pick</code> to <code>drop</code> on the commit to remove, or delete its line. Save and close:</p>
+<pre><span class="k">drop</span> 848a197 # Add debug logging
+pick 44ee6f8 # Handle empty rows
+pick f16153e # Add export button</pre>
+    <p>Git rebuilds the branch without that commit. To skip the editor, <code>git rebase --onto 848a197^ 848a197</code> does the same thing in one line: it takes everything after <code>848a197</code> and replays it onto that commit&rsquo;s parent. If the commit is the first one in the repository, use <code>git rebase -i --root</code>.</p>
+    <p>Rebase will not start with uncommitted changes; add <code>--autostash</code> to stash and restore them automatically. To edit the todo list in a VS Code tab, see <a href="squash-commits-vscode.html#editor">the squash guide</a>.</p>
+
+    <h2 id="reset">Drop the latest commits with <code>git reset</code></h2>
+    <p>If the commits to remove are the newest ones on the branch, nothing needs replaying. Move the branch back instead:</p>
+<pre><span class="k">git reset --keep HEAD~1</span>    <span class="c"># remove the last commit and its changes</span>
+<span class="k">git reset --keep HEAD~3</span>    <span class="c"># remove the last three</span>
+<span class="k">git reset --soft HEAD~1</span>    <span class="c"># remove the commit, keep its changes staged</span></pre>
+    <p><code>--keep</code> throws away the commits&rsquo; changes but keeps your uncommitted edits, and refuses if it would have to overwrite one of them. <code>--hard</code> does the same without that check, so it can silently discard uncommitted work. <code>--soft</code> is &ldquo;uncommit&rdquo; rather than delete: the changes stay, ready to commit again differently. The <a href="undo-git-reset-cherry-pick-revert.html#reset">undo guide</a> compares the modes.</p>
+
+    <h2 id="conflicts">When later commits depend on the dropped one</h2>
+    <p>Dropping a commit means replaying the later ones without it. If a later commit edits lines that the dropped commit added, git cannot apply it cleanly and stops:</p>
+<pre><span class="o">CONFLICT (content): Merge conflict in src/export.ts
+error: could not apply 44ee6f8... Handle empty rows</span></pre>
+    <p>You have three ways out:</p>
+    <ul>
+      <li><strong>Resolve it.</strong> Open the conflicted files (VS Code lists them under <em>Merge Changes</em> in Source Control), decide what the code should be now that the dropped commit is gone, then <code>git add</code> the files and run <code>git rebase --continue</code>.</li>
+      <li><strong>Skip that commit too</strong> with <code>git rebase --skip</code>. This drops the conflicting commit as well, so only use it if you meant to.</li>
+      <li><strong>Give up</strong> with <code>git rebase --abort</code>. The branch goes back exactly as it was before you started, dropped commit included.</li>
+    </ul>
+    <p>A conflict like this is often a sign that the commit is not really independent. Reverting it instead, as a new commit at the top of the branch, may be simpler.</p>
+
+    <h2 id="undo">Get a dropped commit back</h2>
+    <p>Dropping a commit does not delete it straight away; it is just no longer on any branch. Right after a rebase or reset, git keeps the old position in <code>ORIG_HEAD</code>:</p>
+<pre><span class="k">git reset --keep ORIG_HEAD</span></pre>
+    <p><code>ORIG_HEAD</code> is overwritten by the next reset, rebase or merge. After that, look in the reflog, git&rsquo;s local record of where <code>HEAD</code> has been. The entry just below <code>rebase (start)</code> is your branch before the rebase:</p>
+<pre><span class="k">git reflog</span>
+<span class="o">9a7766e HEAD@{0}: rebase (finish): returning to refs/heads/main
+...
+0993a57 HEAD@{3}: rebase (start): checkout 848a197^
+f16153e HEAD@{4}: commit: Add export button</span>
+<span class="k">git reset --keep</span> f16153e        <span class="c"># put the whole branch back</span>
+<span class="k">git cherry-pick</span> 848a197         <span class="c"># or just re-apply the dropped commit</span></pre>
+    <p>The reflog is local to your clone and entries expire (by default after 30 days for commits no branch points to), so do not leave it too long. The <a href="undo-git-reset-cherry-pick-revert.html#reflog">undo guide</a> has more on the reflog.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Do it in Mergeline</h2>
+      <p>From Mergeline 0.6 you can drop a commit on your current branch straight from the graph.</p>
+      <ol class="steps">
+        <li><strong>Right-click the commit</strong> and choose <strong>Drop commit&hellip;</strong>. The item appears only for commits reachable from <code>HEAD</code>, that is, on the branch you have checked out. The commit is removed and the later commits are replayed on top of its parent.</li>
+        <li><strong>Mergeline checks first.</strong> It runs a non-interactive <code>git rebase -i</code> with <code>--autostash</code>, so uncommitted changes are stashed and restored. It warns you if the commit is already on a remote-tracking branch, because you will need to force-push (and on a shared branch, revert is usually the better choice). It refuses if there is a merge commit between the commit and <code>HEAD</code>; use an interactive rebase in a terminal for those.</li>
+        <li><strong>Undo in one click.</strong> When it finishes, the notification offers <strong>Undo</strong>, which runs <code>git reset --keep</code> to the previous <code>HEAD</code>.</li>
+        <li><strong>If a later commit conflicts,</strong> the rebase stops and the notification offers <strong>Open Source Control</strong>, where you resolve the conflict (then <code>git rebase --continue</code> finishes the job), or <strong>Abort rebase</strong>, which runs <code>git rebase --abort</code>.</li>
+        <li><strong>Want revert instead?</strong> Right-click the commit and choose <strong>Revert</strong>; it works on any commit, pushed or not.</li>
+      </ol>
+      <p>The same menu has <strong>Edit commit message&hellip;</strong> and <strong>Squash into parent</strong>; see <a href="edit-commit-message-vscode.html">editing a commit message</a> and <a href="squash-commits-vscode.html">squashing commits</a>.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html" aria-current="page">Drop a commit</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { git, GitError } from '../core/gitlog';
+import { planRewrite, runRewrite, rewordMessage, squashMessage, RewriteError, RewriteOp, RewritePlan } from '../core/rewrite';
 import { GitApiRepo } from './repos';
 
 export interface ActionMsg {
@@ -17,6 +18,7 @@ export interface ActionMsg {
   current?: string | null; // current branch
   target?: string; // drag and drop: the branch (or commit) dropped on
   path?: string; // worktree path
+  message?: string; // tests: skip the input box
 }
 
 export interface ActionCtx {
@@ -171,6 +173,18 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       if (!pick) return false;
       if (pick.mode === '--hard' && !(await confirm(`Hard reset ${m.current ?? 'HEAD'} to ${short(sha)}?`, 'Uncommitted changes are lost. Commits after this one stay reachable only through the reflog.', 'Reset --hard'))) return false;
       return run(ctx, ['reset', pick.mode, sha], `Reset to ${short(sha)}`);
+    }
+    // ---- edit history on the current branch ----
+    case 'reword':
+    case 'dropCommit':
+    case 'fixupCommit':
+    case 'squashRange':
+      return rewrite(ctx, m);
+    case 'undoRewrite': {
+      // Put the branch back where it was before a rewrite, keeping uncommitted changes.
+      const now = (await git(ctx.root, ['rev-parse', 'HEAD'])).trim();
+      if (m.target && now !== m.target && !(await confirm('The branch moved since that change.', `Undo would reset it to ${short(sha)} and drop what happened since (still in the reflog).`, 'Undo anyway'))) return false;
+      return run(ctx, ['reset', '--keep', sha], 'Undo');
     }
     // ---- branches ----
     case 'checkoutBranch': {
@@ -357,6 +371,73 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       return run(ctx, ['fetch', '--all', '--prune'], 'Fetch');
   }
   return false;
+}
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+/** Reword, drop, fold into parent or squash a range of commits on the current branch. */
+async function rewrite(ctx: ActionCtx, m: ActionMsg): Promise<boolean> {
+  const sha = m.sha ?? '';
+  const label = m.subject ? `${short(sha)} "${m.subject.slice(0, 60)}"` : short(sha);
+  const branch = m.current ?? 'HEAD';
+  const op: RewriteOp =
+    m.action === 'reword' ? { kind: 'reword', sha, subject: '' }
+    : m.action === 'dropCommit' ? { kind: 'drop', sha }
+    : m.action === 'fixupCommit' ? { kind: 'fixup', sha }
+    : { kind: 'squash', from: sha, to: m.target ?? '', message: '' };
+  let plan: RewritePlan;
+  try {
+    plan = await planRewrite(ctx.root, op);
+  } catch (e) {
+    if (e instanceof RewriteError) vscode.window.showWarningMessage(`Mergeline: ${e.message}`);
+    else await reportError(e, 'Edit history');
+    return false;
+  }
+  const n = plan.rewritten;
+  const pushedNote = plan.pushed.length
+    ? `\n\nAlready on ${plan.pushed.slice(0, 3).join(', ')}${plan.pushed.length > 3 ? '…' : ''}. After this you will need to force-push (git push --force-with-lease), which rewrites history for anyone else using that branch.`
+    : '';
+  const common = `This rewrites ${plural(n, 'commit')} on ${branch} (they get new hashes). Uncommitted changes are stashed and restored. You can undo it afterwards.${pushedNote}`;
+  let message: string | undefined;
+  let title: string, done: string;
+  if (op.kind === 'reword') {
+    const subject = m.message ?? (await vscode.window.showInputBox({ prompt: `New subject line for ${short(sha)} (the rest of the message is kept)`, value: m.subject ?? '', validateInput: (v) => (v.trim() ? undefined : 'Enter a subject') }));
+    if (!subject || subject === m.subject) return false;
+    op.subject = subject;
+    if ((plan.first !== plan.head || plan.pushed.length) && !(await confirm(`Change the message of ${short(sha)}?`, common, 'Edit message'))) return false;
+    message = await rewordMessage(ctx.root, sha, subject);
+    [title, done] = [`Edit message of ${short(sha)}`, `Edited the message of ${short(sha)}`];
+  } else if (op.kind === 'drop') {
+    if (!(await confirm(`Drop ${label}?`, `Its changes are removed from ${branch}, and later commits are replayed without it. ${common}`, 'Drop commit'))) return false;
+    [title, done] = [`Drop ${short(sha)}`, `Dropped ${short(sha)}`];
+  } else if (op.kind === 'fixup') {
+    if (!(await confirm(`Squash ${label} into its parent?`, `The two commits become one with the parent's message. ${common}`, 'Squash'))) return false;
+    [title, done] = [`Squash ${short(sha)}`, `Squashed ${short(sha)} into its parent`];
+  } else {
+    const range = plan.commits.slice(plan.commits.indexOf(plan.first), plan.commits.indexOf(plan.last) + 1);
+    const first = (await git(ctx.root, ['show', '-s', '--format=%s', range[0]])).trim();
+    const subject = m.message ?? (await vscode.window.showInputBox({ prompt: `Subject for the squashed commit (${plural(range.length, 'commit')}; the old subjects are listed in its body)`, value: first, validateInput: (v) => (v.trim() ? undefined : 'Enter a subject') }));
+    if (!subject) return false;
+    if (!(await confirm(`Squash ${plural(range.length, 'commit')} into one?`, `${short(range[0])}…${short(range[range.length - 1])} become a single commit "${subject.slice(0, 60)}". ${common}`, 'Squash'))) return false;
+    message = await squashMessage(ctx.root, subject, range);
+    op.message = message;
+    [title, done] = [`Squash ${range.length} commits`, `Squashed ${range.length} commits`];
+  }
+  try {
+    const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: ${title}` }, () => runRewrite(ctx.root, op, plan, message));
+    vscode.window.showInformationMessage(`${done} (${plural(n, 'commit')} rewritten).`, 'Undo').then((pick) => {
+      if (pick) runAction(ctx, { action: 'undoRewrite', sha: r.before, target: r.after });
+    });
+  } catch (e) {
+    const msg = e instanceof GitError ? e.message : String((e as Error)?.message ?? e);
+    if (/CONFLICT|could not apply|Resolve all conflicts/i.test(msg)) {
+      vscode.window.showWarningMessage(`${title}: a later commit conflicts. Resolve the conflicts in Source Control and continue the rebase, or abort it.`, 'Open Source Control', 'Abort rebase').then((pick) => {
+        if (pick === 'Open Source Control') vscode.commands.executeCommand('workbench.view.scm');
+        else if (pick === 'Abort rebase') run(ctx, ['rebase', '--abort'], 'Abort rebase');
+      });
+    } else await reportError(e, title);
+  }
+  return true;
 }
 
 async function pickParent(parents: string[]): Promise<string | undefined> {

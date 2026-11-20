@@ -298,6 +298,56 @@ exports.run = async function run() {
       await panel.refresh(true);
     });
 
+    await check('edit history: menu only on the linear part of HEAD; reword (+undo), squash into parent, squash a range, drop; refuses a merge', async () => {
+      const wf = (f, t) => fs.writeFileSync(root + '/' + f, t);
+      for (const s of ['E1', 'E2', 'E3']) { wf(s + '.txt', s + '\n'); git('add', s + '.txt'); git('commit', '-q', '-m', 'Edit ' + s); }
+      await panel.refresh(true);
+      const sha = (s) => panel.lastData.commits.find((c) => c.subject === s).sha;
+      const editMenu = async (s) => {
+        await panel.testPost({ type: 'reveal', sha: s });
+        return (await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.selected === s && panel.lastPong; }, 10000, 'pong')).editMenu;
+      };
+      assert.deepEqual(await editMenu(sha('Edit E2')), ['Edit commit message…', 'Squash into parent', 'Drop commit…']);
+      const merge = panel.lastData.commits.find((c) => c.parents.length > 1 && c.kind === 'commit');
+      assert.deepEqual(await editMenu(merge.sha), [], 'no edit items on a merge');
+      // Reword an older commit; uncommitted changes survive (autostash).
+      const before = git('rev-parse', 'HEAD');
+      const readme0 = fs.readFileSync(root + '/README.md', 'utf8');
+      wf('README.md', 'dirty\n'); wf('edit-untracked.txt', 'u\n');
+      await act({ action: 'reword', sha: sha('Edit E2'), subject: 'Edit E2', message: 'Edit E2, reworded' });
+      assert.deepEqual(git('log', '-3', '--format=%s').split('\n'), ['Edit E3', 'Edit E2, reworded', 'Edit E1']);
+      assert.equal(fs.readFileSync(root + '/README.md', 'utf8'), 'dirty\n', 'dirty file kept');
+      assert.ok(fs.existsSync(root + '/edit-untracked.txt'), 'untracked file kept');
+      const after = git('rev-parse', 'HEAD');
+      await act({ action: 'undoRewrite', sha: before, target: after });
+      assert.equal(git('rev-parse', 'HEAD'), before, 'undo restores the old HEAD');
+      await panel.refresh(true);
+      // Squash E3 into E2 (keeps E2's message).
+      await act({ action: 'fixupCommit', sha: sha('Edit E3'), subject: 'Edit E3' });
+      assert.deepEqual(git('log', '-2', '--format=%s').split('\n'), ['Edit E2', 'Edit E1']);
+      assert.equal(git('show', '--format=', '--name-only', 'HEAD'), 'E2.txt\nE3.txt');
+      await panel.refresh(true);
+      // Ctrl-click selection E1 + E2 → the squash item appears; squash them.
+      await panel.testPost({ type: 'reveal', sha: sha('Edit E1') });
+      await sleep(200);
+      const e1 = sha('Edit E1'), e2 = sha('Edit E2');
+      await act({ action: 'squashRange', sha: e1, target: e2, message: 'Edit E squashed' });
+      assert.equal(git('log', '-1', '--format=%B'), 'Edit E squashed\n\n* Edit E1\n* Edit E2');
+      assert.equal(git('show', '--format=', '--name-only', 'HEAD'), 'E1.txt\nE2.txt\nE3.txt');
+      await panel.refresh(true);
+      // Drop it again.
+      const parent = git('rev-parse', 'HEAD~1');
+      await act({ action: 'dropCommit', sha: sha('Edit E squashed'), subject: 'Edit E squashed' });
+      assert.equal(git('rev-parse', 'HEAD'), parent);
+      assert.ok(!fs.existsSync(root + '/E1.txt'));
+      // Refused: a merge commit (HEAD unchanged, no rebase started).
+      await act({ action: 'dropCommit', sha: merge.sha });
+      assert.equal(git('rev-parse', 'HEAD'), parent);
+      assert.equal(git('status', '--porcelain', '--untracked-files=no'), 'M README.md');
+      wf('README.md', readme0); fs.rmSync(root + '/edit-untracked.txt');
+      await panel.refresh(true);
+    });
+
     await check('worktrees: add one for a branch, its badge shows in the graph, remove it', async () => {
       const wt = root + '-wt';
       const prevInput = w.showInputBox;

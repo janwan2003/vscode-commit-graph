@@ -40,6 +40,8 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
       }
       setTimeout(() => { document.querySelector('#find').value = 'search'; document.querySelector('#find').dispatchEvent(new Event('input')); }, 60);
       if (${MENU}) setTimeout(() => { const b = document.querySelector('.badge.branch:not(.current)'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 12 })); }, 120);
+      // EDITMENU=1: right-click the commit below HEAD to show the edit-history items.
+      if (${process.env.EDITMENU === '1'}) setTimeout(() => { const i = P.data.commits.findIndex((c) => c.sha === P.data.head) + 2; const r = document.querySelector('.row[data-i="' + i + '"]').getBoundingClientRect(); document.querySelector('.row[data-i="' + i + '"] .c-desc, .row[data-i="' + i + '"]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 330, clientY: r.top + 10 })); }, 120);
       // DROP=1: drag feature/dark-mode onto the current branch and leave the drop menu open.
       if (${process.env.DROP === '1'}) setTimeout(() => {
         const ev = (el, type, x, y) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }));
