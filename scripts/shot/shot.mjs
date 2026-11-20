@@ -40,6 +40,13 @@ window.acquireVsCodeApi = () => ({ getState: () => null, setState() {}, postMess
       const onto = (P.data.refs.find((r) => r.type === 'head' && r.name !== P.data.branch) || {}).sha || c[6].sha;
       P.data.op = { kind: 'rebase', branch: P.data.branch, onto, step: 2, total: 5, stopped: c[3].sha, stoppedSubject: c[3].subject, conflicts: ['src/app.ts', 'README.md', 'src/search/index.ts', 'package.json', 'docs/guide.md'] };
     }
+    // BISECT=1: a git bisect in progress: bad at the newest commit, good further down, one skipped, one under test (detached HEAD).
+    if (${process.env.BISECT === '1'}) {
+      const c = P.data.commits.filter((x) => x.kind === 'commit');
+      P.data.bisect = { terms: ['bad', 'good'], start: P.data.branch, bad: c[0].sha, good: [c[11].sha], skip: [c[7].sha], testing: c[5].sha, testingSubject: c[5].subject, left: 4, steps: 3, firstBad: null, firstBadSubject: null, onlySkipped: null };
+      P.data.head = c[5].sha; P.data.branch = null;
+      P.details = null;
+    }
     window.postMessage(P.data, '*');
     setTimeout(() => {
       if (P.details) {
@@ -90,4 +97,4 @@ console.log('screenshot:', out, '|', title);
 rmSync(tmp, { recursive: true, force: true });
 if (INTERACT) { if (!title.startsWith('INTERACT ') || title.includes('"error"')) { console.error('interaction check failed'); process.exit(1); } process.exit(0); }
 const m = /rows=(\d+) badges=(\d+) files=(\d+) paths=(\d+)/.exec(title);
-if (!m || +m[1] < 15 || (!process.env.PAYLOAD && (+m[2] < 5 || +m[3] < 1)) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }
+if (!m || +m[1] < 15 || (!process.env.PAYLOAD && (+m[2] < 5 || (+m[3] < 1 && process.env.BISECT !== '1'))) || +m[4] < 20) { console.error('webview smoke check failed'); process.exit(1); }

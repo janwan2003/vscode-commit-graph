@@ -153,7 +153,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 
 /* Operation in progress (rebase, merge, cherry-pick, revert, am) */
 #opbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 5px 10px; border-bottom: 1px solid var(--vscode-panel-border, #8883); background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 14%, transparent); font-size: 12px; }
-#opbar[hidden] { display: none; }
+#opbar[hidden], #bisectbar[hidden] { display: none; }
 #opbar .op-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
 #opbar code { font-family: var(--vscode-editor-font-family); }
 #opbar .op-sha { cursor: pointer; text-decoration: underline dotted; }
@@ -228,3 +228,17 @@ button:disabled { opacity: .5; cursor: default; }
 .sig.warn { color: var(--vscode-editorWarning-foreground, #d29922); }
 .sig.bad { color: var(--vscode-errorForeground, #f85149); font-weight: 600; }
 .sig code { color: var(--vscode-descriptionForeground); font-size: 11px; }
+
+/* git bisect bar and marks */
+#bisectbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 5px 10px; border-bottom: 1px solid var(--vscode-panel-border, #8883); background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 12%, transparent); font-size: 12px; }
+#bisectbar .op-icon { color: var(--vscode-textLink-foreground, #3794ff); font-size: 14px; }
+#bisectbar code { font-family: var(--vscode-editor-font-family); }
+#bisectbar .op-sha { cursor: pointer; text-decoration: underline dotted; }
+#bisectbar .op-ok { color: var(--vscode-descriptionForeground); }
+#bisectbar .grow { flex: 1; }
+#bisectbar button:not(.secondary) { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #0078d4); }
+#bisectbar button:not(.secondary):hover { background: var(--vscode-button-hoverBackground, #026ec1); }
+.badge.bisect { border-radius: 3px; font-weight: 600; }
+.badge.bisect.bad { border-color: var(--vscode-errorForeground, #f14c4c); color: var(--vscode-errorForeground, #f14c4c); background: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 14%, transparent); }
+.badge.bisect.good { border-color: var(--vscode-testing-iconPassed, #73c991); color: var(--vscode-testing-iconPassed, #73c991); background: color-mix(in srgb, var(--vscode-testing-iconPassed, #73c991) 14%, transparent); }
+.badge.bisect.skip { border-color: var(--vscode-descriptionForeground, #999); color: var(--vscode-descriptionForeground, #999); border-style: dashed; }

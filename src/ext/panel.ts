@@ -9,6 +9,7 @@ import { Repos, RepoInfo } from './repos';
 import { runAction, ActionMsg } from './actions';
 import { gitUri } from './content';
 import { readOperation, OpState } from '../core/progress';
+import { readBisect, BisectState } from '../core/bisect';
 import { webRepo, commitUrl, issueUrl, branchUrl, pullRequestUrl, Forge, issueLinkRules } from '../core/remote';
 import { avatarMap } from '../core/misc';
 import { git } from '../core/gitlog';
@@ -41,7 +42,7 @@ export class GraphPanel implements vscode.Disposable {
   lastHistory: any;
   /** Last URL handed to the browser (tests read it; under test nothing is opened). */
   lastUrl: string | undefined;
-  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[]; op: OpState | null } | undefined;
+  lastData: { repo: string; commits: Commit[]; state: RepoState; width: number; uncommitted: number; names: string[]; web: unknown; worktrees: Worktree[]; op: OpState | null; bisect: BisectState | null } | undefined;
 
   static show(ctx: vscode.ExtensionContext, repos: Repos, root?: string): GraphPanel {
     if (GraphPanel.current) {
@@ -243,7 +244,7 @@ export class GraphPanel implements vscode.Disposable {
     const opts = this.logOptions(order);
     let names: string[] = [];
     let raw = 0;
-    const [commits0, state, stashes, unc, wts, op] = await Promise.all([
+    const [commits0, state, stashes, unc, wts, op, bisect] = await Promise.all([
       fileMode
         ? readFileHistory(root, { ...opts, max: this.max + 1 }, this.filter.path!).then((h) => {
             names = h.names;
@@ -256,6 +257,7 @@ export class GraphPanel implements vscode.Disposable {
       showUnc ? readStatusCount(root) : Promise.resolve(0),
       readWorktrees(root),
       readOperation(root).catch((): OpState | null => null),
+      readBisect(root).catch((): BisectState | null => null),
     ]);
     // Other working trees of this repository (git worktree), shown as badges on the commit each has checked out.
     const real = (p: string) => {
@@ -274,7 +276,7 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, worktrees, op, names, web]);
+    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, worktrees, op, bisect, names, web]);
     const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
@@ -295,7 +297,7 @@ export class GraphPanel implements vscode.Disposable {
     const lay = layout(commits, st);
     this.layState = st;
     this.lastSent = { kind: 'data', rows: commits.length };
-    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees, op };
+    this.lastData = { repo: root, commits, state, width: lay.width, uncommitted: unc, names, web, worktrees, op, bisect };
     this.post({
       type: 'data',
       repo: root,
@@ -314,6 +316,7 @@ export class GraphPanel implements vscode.Disposable {
       web,
       worktrees,
       op,
+      bisect,
       branches: state.refs.filter((r) => r.type === 'head' || r.type === 'remote').map((r) => r.name),
       avatars: this.avatars(commits),
     });

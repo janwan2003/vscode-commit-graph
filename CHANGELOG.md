@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0 (2026-11-20)
+
+- **Bisect from the graph.** Right-click a commit → **Start bisect: this commit is bad** (or **good**), then mark a commit from the other side, and git checks out the commit halfway between. A bar above the graph shows the commit under test and how many are left (“4 commits left, about 3 steps”), with **Good**, **Bad**, **Skip** and **Reset**. The graph selects each new commit to test and puts **bad**, **good** and **skip** badges on the commits you have judged. While a bisect runs, the commit menu offers **Bisect: mark as bad / good**, **Bisect: skip this commit** and **Bisect: stop and go back (reset)**, and the history-editing items are hidden.
+- **Run a test command.** In the bar, **Run a test command…** asks for a command (for example `npm test`) and runs `git bisect run` with it in a VS Code terminal named “Mergeline bisect”: exit code 0 means good, 1 to 127 bad, 125 skip. The command goes through `sh -c`, so `&&`, pipes and redirections work. The graph follows each step, and the bar names the first bad commit at the end.
+- Bisects started in a terminal show up in the bar too, with custom terms (`git bisect start --term-old=fast --term-new=slow`) used as the button labels. When only skipped commits are left, the bar says how many commits the first bad one could be.
+
 ## 0.12.0 (2026-11-20)
 
 - **Ahead/behind on branch badges.** A local branch that tracks a remote branch shows **↑N** for commits you have not pushed and **↓N** for commits you have not pulled yet (as of your last fetch). Hover for the details. A **✕** means its upstream branch was deleted on the remote.

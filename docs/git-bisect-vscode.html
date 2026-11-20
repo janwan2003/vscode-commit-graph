@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git bisect tutorial: find which commit introduced a bug, in the terminal and VS Code | Mergeline</title>
+<meta name="description" content="Find which commit introduced a bug with git bisect: good, bad, skip and reset, git bisect run exit codes, custom terms, and bisecting in VS Code.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-commit-graph/git-bisect-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Mergeline">
+<meta property="og:title" content="git bisect tutorial: find which commit introduced a bug">
+<meta property="og:description" content="A binary search over history: the manual good/bad flow, automating it with git bisect run and its exit codes, old/new terms, log and replay, and bisecting from a graph in VS Code.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-commit-graph/git-bisect-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect class="bg" width="24" height="24" rx="5"/><path class="ln" d="M8 6v12M8 14c0-4 8-3 8-7"/><circle class="dot" cx="8" cy="6" r="2"/><circle class="dot" cx="8" cy="18" r="2"/><circle class="dot" cx="16" cy="7" r="2"/></svg>Mergeline</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="./#install">Install</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>git bisect: find the commit that introduced a bug</h1>
+    <p>Something worked last month and is broken now, with hundreds of commits in between. <code>git bisect</code> finds the first broken commit. You name one commit that works and one that does not; git checks out commits in between, you test each, and the range shrinks until one commit is left. This guide covers the manual flow, <code>git bisect run</code>, custom terms, what VS Code has built in, and bisecting from the Mergeline graph.</p>
+
+    <div class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#quick">Quick answers</a></li>
+        <li><a href="#what">What git bisect does</a></li>
+        <li><a href="#manual">Bisect by hand</a></li>
+        <li><a href="#run">Automate it: <code>git bisect run</code></a></li>
+        <li><a href="#terms">Custom terms: old and new</a></li>
+        <li><a href="#log">Log, replay and visualize</a></li>
+        <li><a href="#vscode">Bisect in VS Code</a></li>
+        <li><a href="#mergeline">Bisect from the Mergeline graph</a></li>
+        <li><a href="#tips">Tips</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <h2 id="quick">Quick answers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">I want to&hellip;</th><th scope="col">Run</th></tr></thead>
+        <tbody>
+          <tr><td>Start a bisect</td><td><code>git bisect start &lt;bad&gt; &lt;good&gt;</code></td></tr>
+          <tr><td>Mark the commit I just tested</td><td><code>git bisect good</code>, <code>git bisect bad</code> or <code>git bisect skip</code></td></tr>
+          <tr><td>Let a script do the testing</td><td><code>git bisect run &lt;cmd&gt;</code></td></tr>
+          <tr><td>Test only merges on <code>main</code></td><td><code>git bisect start --first-parent &lt;bad&gt; &lt;good&gt;</code></td></tr>
+          <tr><td>Stop and go back to my branch</td><td><code>git bisect reset</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">We ran every command on this page with git 2.53 in throwaway repositories and quote the output we saw. The main test repository has twelve commits, &ldquo;Change 1&rdquo; to &ldquo;Change 12&rdquo;, with a bug planted in Change 8.</p>
+
+    <h2 id="what">What git bisect does</h2>
+    <p>It runs a <strong>binary search</strong> over your history: test the commit in the middle of the range, throw away the half that cannot contain the culprit, repeat. A <strong>good</strong> commit is one without the bug; a <strong>bad</strong> commit has it. Each test halves the range, so N commits take about log<sub>2</sub>(N) tests. In a repository with 1,000 commits, the first step said <code>Bisecting: 499 revisions left to test after this (roughly 9 steps)</code>, and <code>git bisect run</code> found the planted bug after 10 tests.</p>
+
+    <h2 id="manual">Bisect by hand</h2>
+<pre><span class="k">git bisect start</span>
+<span class="o">status: waiting for both good and bad commits</span>
+<span class="k">git bisect bad</span>                <span class="c"># HEAD (Change 12) has the bug</span>
+<span class="o">status: waiting for good commit(s), bad commit known</span>
+<span class="k">git bisect good</span> f404d41       <span class="c"># Change 1 did not</span>
+<span class="o">Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[6cec3e4e22d273a51fe955094e6f266c3873819b] Change 6</span>
+<span class="k">git bisect good</span>               <span class="c"># tested: works</span>
+<span class="o">Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[4c41fe017a27b54efe928f59654431bab8f11780] Change 9</span>
+<span class="k">git bisect bad</span>                <span class="c"># tested: broken</span>
+<span class="o">Bisecting: 0 revisions left to test after this (roughly 1 step)
+[a1b1bed6fb31ea35bb4e6b06f695a9a6c3c9d1de] Change 8</span>
+<span class="k">git bisect bad</span>
+<span class="o">Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[9d737a816fd4e5ef54bddb0d20db33a385998ff6] Change 7</span>
+<span class="k">git bisect good</span>
+<span class="o">a1b1bed6fb31ea35bb4e6b06f695a9a6c3c9d1de is the first bad commit</span>
+<span class="k">git bisect reset</span>
+<span class="o">Previous HEAD position was 9d737a8 Change 7
+Switched to branch 'main'</span></pre>
+    <p>After each mark, git checks out the next commit as a <strong>detached HEAD</strong>: HEAD points at a commit, not a branch. Build it, test it, mark it. If a commit cannot be tested, for example because it does not compile, run <code>git bisect skip</code> and git picks a nearby one. <code>git bisect reset</code> returns you to the branch you started on.</p>
+
+    <h2 id="run">Automate it: <code>git bisect run</code></h2>
+    <p>If a command can tell good from bad, git does the marking. It runs the command on each commit and reads its <strong>exit code</strong>, the number a program returns when it ends:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Exit code</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>good</td></tr>
+          <tr><td>1 to 127, except 125</td><td>bad</td></tr>
+          <tr><td>125</td><td>skip: this commit cannot be tested</td></tr>
+          <tr><td>128 to 255</td><td>abort the bisect</td></tr>
+        </tbody>
+      </table>
+    </div>
+<pre><span class="k">git bisect start</span> main f404d41
+<span class="o">Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[6cec3e4e22d273a51fe955094e6f266c3873819b] Change 6</span>
+<span class="k">git bisect run</span> sh test.sh
+<span class="o">running 'sh' 'test.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[4c41fe017a27b54efe928f59654431bab8f11780] Change 9
+&hellip;
+a1b1bed6fb31ea35bb4e6b06f695a9a6c3c9d1de is the first bad commit
+&hellip;
+bisect found first bad commit</span></pre>
+    <p>A command that exited 128 stopped the run with <code>error: bisect run failed: exit code 128 from 'sh' '-c' 'exit 128' is &lt; 0 or &gt;= 128</code>. Codes 126 and 127 are what a shell returns when a command cannot be run or is not found. When we got those, git re-ran the command on the good commit, and since it failed there too, it stopped with <code>error: bogus exit code 127 for good revision</code>. To skip commits that do not build, end the build step with <code>|| exit 125</code>, as git&rsquo;s manual suggests: <code>git bisect run sh -c "make || exit 125; ./check.sh"</code>.</p>
+
+    <h2 id="terms">Custom terms: old and new</h2>
+    <p>&ldquo;Good&rdquo; and &ldquo;bad&rdquo; read oddly when you are hunting a slowdown or the commit that <em>fixed</em> something. <code>git bisect old</code> and <code>git bisect new</code> work in any session. Or name the states yourself:</p>
+<pre><span class="k">git bisect start --term-old=fast --term-new=slow</span>
+<span class="k">git bisect slow</span>
+<span class="k">git bisect fast</span> f404d41
+<span class="k">git bisect terms</span>
+<span class="o">Your current terms are fast for the old state
+and slow for the new state.</span></pre>
+    <p>The result then reads <code>a1b1bed6fb31ea35bb4e6b06f695a9a6c3c9d1de is the first slow commit</code>. In that session <code>git bisect good</code> is refused: <code>error: Invalid command: you're currently in a slow/fast bisect</code>.</p>
+
+    <h2 id="log">Log, replay and visualize</h2>
+    <p><code>git bisect log</code> prints every mark so far as commands. If you marked a commit wrongly, save it with <code>git bisect log &gt; bisect.log</code>, delete the wrong line, run <code>git bisect reset</code>, then <code>git bisect replay bisect.log</code>. Replaying our log ended with the same <code>is the first bad commit</code> line. <code>git bisect visualize</code> (or <code>view</code>) shows the commits still in question in gitk, or with <code>git log</code> when there is no graphical session; it accepts <code>git log</code> options such as <code>--oneline</code>.</p>
+
+    <h2 id="vscode">Bisect in VS Code</h2>
+    <p>VS Code&rsquo;s built-in Git has no bisect commands. We searched the Git extension bundled with VS Code 1.147 for &ldquo;bisect&rdquo; and found nothing. So you bisect in the integrated terminal (<kbd>Ctrl</kbd>+<kbd>`</kbd>) with the commands above.</p>
+
+    <section class="in-app" id="mergeline">
+      <h2>Bisect from the Mergeline graph</h2>
+      <p>Mergeline is a free, MIT-licensed git graph for VS Code. From version 0.13 you can run a bisect from the graph.</p>
+      <ol class="steps">
+        <li><strong>Start.</strong> Right-click a commit and choose <strong>Start bisect: this commit is bad</strong> or <strong>Start bisect: this commit is good</strong>. A bar above the graph shows &ldquo;Bisecting: mark a good commit&rdquo; (or bad) until both ends are set.</li>
+        <li><strong>Test and mark.</strong> The commit under test is the detached HEAD row. The bar reads &ldquo;Bisecting: testing &lt;sha&gt; &ldquo;subject&rdquo; &mdash; N commits left, about K steps&rdquo;, with <strong>Good</strong>, <strong>Bad</strong>, <strong>Skip</strong>, <strong>Run a test command&hellip;</strong> and <strong>Reset</strong>. The commit menu has <strong>Bisect: mark as bad</strong>, <strong>Bisect: mark as good</strong>, <strong>Bisect: skip this commit</strong> and <strong>Bisect: stop and go back (reset)</strong>. Marked commits carry small badges: &ldquo;bad&rdquo;, &ldquo;good&rdquo; and &ldquo;skip&rdquo;.</li>
+        <li><strong>Or automate.</strong> <strong>Run a test command&hellip;</strong> asks for a command and runs <code>git bisect run sh -c '&lt;command&gt;'</code> in a VS Code terminal named &ldquo;Mergeline bisect&rdquo;. Going through <code>sh -c</code> means <code>&amp;&amp;</code>, pipes and redirections in your command work (git quotes the arguments of <code>git bisect run</code>, so a command like <code>npm run build &amp;&amp; npm test</code> passed as one string would otherwise fail with &ldquo;not found&rdquo;). The graph follows along.</li>
+        <li><strong>Finish.</strong> The bar shows &ldquo;First bad commit: &lt;sha&gt; &ldquo;subject&rdquo;&rdquo; with <strong>Show</strong> and <strong>Reset</strong>.</li>
+      </ol>
+      <p><img src="screenshot-bisect.png" alt="Mergeline bisect bar above the graph: testing 5675ce3c, 4 commits left, about 3 steps, with Good, Bad, Skip, Run a test command and Reset buttons; bad, good and skip badges on commits" width="1280" height="800" loading="lazy" style="max-width:100%;height:auto"></p>
+      <p>A bisect you started in a terminal shows up in the bar too. With custom terms, the buttons use your names, such as old and new.</p>
+      <p>Mergeline is not on the VS Code Marketplace yet. Download the <code>.vsix</code> from GitHub and run <strong>Extensions: Install from VSIX&hellip;</strong> (<a href="./#install">full steps</a>).</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/janwan2003/vscode-commit-graph/releases">Download from GitHub releases</a>
+        <a class="btn secondary" href="./">About Mergeline</a>
+      </div>
+    </section>
+
+    <h2 id="tips">Tips</h2>
+    <ul>
+      <li><strong>Start with a clean working tree</strong>, or stash first (see the <a href="git-stash-guide.html">stash guide</a>). Bisect checks out other commits. With an edited file that differs between commits, our start failed with <code>error: Your local changes to the following files would be overwritten by checkout:</code>.</li>
+      <li><strong>Skip commits that do not build</strong> rather than guessing: a wrong mark sends the search into the wrong half.</li>
+      <li><strong>Test only merges on <code>main</code></strong> with <code>git bisect start --first-parent</code> (git 2.29 and later). The <strong>first parent</strong> of a merge is the branch it was merged into. With four merged pull requests of three commits each, plain bisect said <code>7 revisions left to test after this (roughly 3 steps)</code>; with <code>--first-parent</code>, <code>1 revision left to test after this (roughly 1 step)</code>. More in <a href="git-log-first-parent.html">git log --first-parent</a>.</li>
+    </ul>
+
+    <h2 id="faq">FAQ</h2>
+    <details>
+      <summary>Can I find the commit that fixed a bug?</summary>
+      <p>Yes. Use terms that fit: <code>git bisect start --term-old=broken --term-new=fixed</code>, then mark commits <code>broken</code> or <code>fixed</code>.</p>
+    </details>
+    <details>
+      <summary>What if the first bad commit is a merge?</summary>
+      <p>Bisect inside it: <code>git bisect start &lt;merge&gt;^2 &lt;merge&gt;^1</code> searches the commits the merge brought in.</p>
+    </details>
+    <p>Related: <a href="git-log-first-parent.html">git log --first-parent</a>, <a href="find-commit-that-changed-file.html">find commits by path</a> and <a href="undo-git-reset-cherry-pick-revert.html">undo in git</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>About:</strong> Mergeline is a free, open-source git graph extension by Plainbyte.</p>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-commit-graph">GitHub</a>
+    </nav>
+    <nav class="guides" aria-label="Guides">
+      <a href="visualize-git-branches-vscode.html">Branch graph in VS Code</a>
+      <a href="git-log-graph.html">git log --graph</a>
+      <a href="git-log-first-parent.html">git log --first-parent</a>
+      <a href="git-file-history-vscode.html">File history</a>
+      <a href="find-commit-that-changed-file.html">Find commits by path</a>
+      <a href="compare-branches-commits-vscode.html">Compare branches</a>
+      <a href="git-rebase-vs-merge.html">Rebase vs merge</a>
+      <a href="squash-commits-vscode.html">Squash commits</a>
+      <a href="fixup-commit-autosquash-vscode.html">Fixup and autosquash</a>
+      <a href="edit-commit-message-vscode.html">Edit a commit message</a>
+      <a href="drop-commit-vscode.html">Drop a commit</a>
+      <a href="resolve-merge-conflicts-vscode.html">Merge conflicts</a>
+      <a href="rebase-conflict-continue-abort-vscode.html">Rebase conflicts</a>
+      <a href="reorder-commits-vscode.html">Reorder commits</a>
+      <a href="interactive-rebase-vscode.html">Interactive rebase</a>
+      <a href="cherry-pick-commit-vscode.html">Cherry-pick a commit</a>
+      <a href="create-pull-request-vscode.html">Create a pull request</a>
+      <a href="code-review-commits-vscode.html">Review file by file</a>
+      <a href="verify-signed-commits-vscode.html">Verify signed commits</a>
+      <a href="manage-git-remotes-vscode.html">Manage remotes</a>
+      <a href="branch-ahead-behind-origin.html">Ahead/behind origin</a>
+      <a href="update-branch-without-checkout.html">Update without checkout</a>
+      <a href="link-jira-issues-git-commits-vscode.html">Jira issue links</a>
+      <a href="git-archive-zip-commit-vscode.html">Save as zip (git archive)</a>
+      <a href="filter-git-graph-by-branch.html">Filter by branch</a>
+      <a href="git-worktree-vscode.html">Git worktrees</a>
+      <a href="undo-git-reset-cherry-pick-revert.html">Undo in git</a>
+      <a href="git-stash-guide.html">Git stash</a>
+      <a href="git-graph-alternative.html">Git Graph alternative</a>
+      <a href="git-graph-context-menu-not-working.html">Git Graph menu not working</a>
+      <a href="git-graph-cursor-vscodium.html">Cursor &amp; VSCodium</a>
+      <a href="git-bisect-vscode.html" aria-current="page">Git bisect</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

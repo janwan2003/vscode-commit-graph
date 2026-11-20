@@ -878,6 +878,70 @@ exports.run = async function run() {
       for (const f of [key, key + '.pub', allowed]) fs.rmSync(f, { force: true });
     }
   });
+  await check('bisect: start from the menu, the bar and badges follow, Good/Bad find the commit, a test command in a terminal finds it too, reset', async () => {
+    const pong = async (pred, what) => until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && pred(panel.lastPong) && panel.lastPong; }, 15000, what);
+    const stashed = git('status', '--porcelain') !== '';
+    if (stashed) git('stash', 'push', '-q', '-u', '-m', 'e2e-bisect');
+    try {
+      await panel.refresh(true);
+      assert.equal(panel.lastData.bisect, null);
+      const head = git('rev-parse', 'HEAD');
+      const root0 = git('rev-list', '--max-parents=0', 'HEAD').split('\n')[0];
+      // The commit that "introduced the bug": the oldest first-parent commit after the root's child.
+      const fp = git('rev-list', '--first-parent', '--reverse', 'HEAD').split('\n');
+      const culprit = fp[Math.floor(fp.length / 2)];
+      const isBad = () => { try { execFileSync('git', ['merge-base', '--is-ancestor', culprit, 'HEAD'], { cwd: root }); return true; } catch { return false; } };
+      await panel.testPost({ type: 'reveal', sha: head });
+      let p = await pong((x) => x.selected === head && x.commitMenu.length, 'commit menu');
+      assert.ok(p.commitMenu.includes('Start bisect: this commit is bad'), p.commitMenu.join(' | '));
+      assert.ok(p.commitMenu.includes('Start bisect: this commit is good'));
+      await act({ action: 'bisectStart', sha: head, mark: 'bad' });
+      await until(() => panel.lastData.bisect && panel.lastData.bisect.bad === head, 10000, 'bisect started');
+      p = await pong((x) => /mark a good commit/.test(x.bisectbar), 'waiting bar');
+      // During a bisect: the bisect items replace Start, and history editing is hidden.
+      p = await pong((x) => x.commitMenu.includes('Bisect: mark as good'), 'bisect menu');
+      assert.ok(p.commitMenu.includes('Bisect: mark as bad (disabled)'), p.commitMenu.join(' | '));
+      assert.ok(p.commitMenu.includes('Bisect: stop and go back (reset)'));
+      assert.ok(!p.commitMenu.some((t) => /Edit commit message|Drop commit/.test(t)), p.commitMenu.join(' | '));
+      await act({ action: 'bisectMark', sha: root0, mark: 'good' });
+      await until(() => panel.lastData.bisect && panel.lastData.bisect.left > 0, 10000, 'testing');
+      const b = panel.lastData.bisect;
+      assert.equal(b.testing, git('rev-parse', 'HEAD'));
+      p = await pong((x) => /Bisecting: testing/.test(x.bisectbar) && x.selected === b.testing, 'testing bar and selection follows HEAD');
+      assert.match(p.bisectbar, new RegExp(`${b.left} commits? left, about ${b.steps} steps?`));
+      assert.ok(/Good.*Bad.*Skip.*Run a test command….*Reset/.test(p.bisectbar), p.bisectbar);
+      assert.ok(p.bisectBadges.some((x) => x.startsWith('bad ')) && p.bisectBadges.some((x) => x.startsWith('good ')), p.bisectBadges.join(','));
+      // First answer through a real click on the bar's button, the rest through the same action.
+      const before = git('rev-parse', 'HEAD');
+      const first = isBad() ? 'bad' : 'good';
+      await panel.testPost({ type: 'click', selector: `#bisectbar button[data-mark="${first}"]` });
+      await until(() => git('rev-parse', 'HEAD') !== before || (panel.lastData.bisect && panel.lastData.bisect.firstBad), 10000, 'click marked HEAD');
+      for (let i = 0; i < 12; i++) {
+        await panel.refresh(true);
+        if (panel.lastData.bisect.firstBad) break;
+        await act({ action: 'bisectMark', mark: isBad() ? 'bad' : 'good' });
+      }
+      assert.equal(panel.lastData.bisect.firstBad, culprit);
+      p = await pong((x) => /First bad commit/.test(x.bisectbar), 'done bar');
+      assert.ok(p.bisectbar.includes(culprit.slice(0, 8)), p.bisectbar);
+      await act({ action: 'bisectReset' });
+      await until(() => panel.lastData.bisect === null, 10000, 'reset');
+      assert.equal(git('rev-parse', '--abbrev-ref', 'HEAD'), 'main');
+      p = await pong((x) => x.bisectbar === '' && !x.bisectBadges.length, 'bar gone');
+      // git bisect run from the bar's command, in a VS Code terminal; the graph follows along.
+      await act({ action: 'bisectStart', sha: head, mark: 'bad' });
+      await act({ action: 'bisectMark', sha: root0, mark: 'good' });
+      await act({ action: 'bisectRun', command: `if git merge-base --is-ancestor ${culprit} HEAD; then exit 1; else exit 0; fi` });
+      assert.ok(vscode.window.terminals.some((t) => t.name === 'Mergeline bisect'), 'terminal opened');
+      await until(async () => { await panel.refresh(true); return panel.lastData.bisect && panel.lastData.bisect.firstBad === culprit; }, 30000, 'bisect run finished');
+      await act({ action: 'bisectReset' });
+      await until(() => panel.lastData.bisect === null, 10000, 'reset after run');
+      for (const t of vscode.window.terminals) if (t.name === 'Mergeline bisect') t.dispose();
+    } finally {
+      try { git('bisect', 'reset'); } catch {}
+      if (stashed) git('stash', 'pop', '-q');
+    }
+  });
   Object.assign(w, { showInputBox: orig.input, showQuickPick: orig.pick, showWarningMessage: orig.warn });
 
   fs.writeFileSync(process.env.MERGELINE_E2E_REPORT, results.join('\n') + '\n');

@@ -9,6 +9,7 @@ import { GitApiRepo } from './repos';
 import { readRemotes, remoteNameProblem, remoteUsage, Remote } from '../core/remotes';
 import { webRepo } from '../core/remote';
 import { archiveFormat } from '../core/misc';
+import { readBisect, markArgs, bisectRunLine, BisectMark } from '../core/bisect';
 
 export interface ActionMsg {
   action: string;
@@ -31,6 +32,8 @@ export interface ActionMsg {
   url?: string; // manageRemotes add/setUrl
   fetch?: boolean; // manageRemotes add: fetch after adding
   upstream?: string; // updateBranch: shown in messages
+  mark?: BisectMark; // bisectStart / bisectMark
+  command?: string; // bisectRun: the test command (skips the input box)
 }
 
 export interface ActionCtx {
@@ -228,6 +231,47 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
       const now = (await git(ctx.root, ['rev-parse', 'HEAD'])).trim();
       if (m.target && now !== m.target && !(await confirm('The branch moved since that change.', `Undo would reset it to ${short(sha)} and drop what happened since (still in the reflog).`, 'Undo anyway'))) return false;
       return run(ctx, ['reset', '--keep', sha], 'Undo');
+    }
+    // ---- bisect ----
+    case 'bisectStart': {
+      const mark = m.mark === 'good' ? 'good' : 'bad';
+      if (await readBisect(ctx.root)) {
+        vscode.window.showWarningMessage('A bisect is already running. Mark commits from the bar or the commit menu, or reset it first.');
+        return true;
+      }
+      if (!(await run(ctx, ['bisect', 'start'], 'Start bisect'))) return true;
+      return (await run(ctx, markArgs(['bad', 'good'], mark, sha), `Mark ${short(sha)} as ${mark}`)) || true;
+    }
+    case 'bisectMark': {
+      const st = await readBisect(ctx.root);
+      if (!st) {
+        vscode.window.showWarningMessage('No bisect is running.');
+        return true;
+      }
+      const mark: BisectMark = m.mark === 'good' || m.mark === 'skip' ? m.mark : 'bad';
+      return (await run(ctx, markArgs(st.terms, mark, sha || undefined), `Bisect: mark ${sha ? short(sha) : 'HEAD'} as ${mark === 'skip' ? 'skipped' : mark === 'bad' ? st.terms[0] : st.terms[1]}`)) || true;
+    }
+    case 'bisectReset': {
+      const st = await readBisect(ctx.root);
+      return (await run(ctx, ['bisect', 'reset'], `Stop bisect${st?.start ? ` and go back to ${st.start}` : ''}`)) || true;
+    }
+    case 'bisectRun': {
+      const st = await readBisect(ctx.root);
+      if (!st || !st.bad || !st.good.length) {
+        vscode.window.showWarningMessage('Mark one good and one bad commit first, then run a test command.');
+        return false;
+      }
+      const cmd =
+        m.command ??
+        (await vscode.window.showInputBox({
+          prompt: 'Command that tests the checked-out commit: exit 0 = good, 1-127 = bad, 125 = skip (runs git bisect run in a terminal)',
+          placeHolder: 'npm test',
+        }));
+      if (!cmd || !cmd.trim()) return false;
+      const t = vscode.window.createTerminal({ name: 'Mergeline bisect', cwd: ctx.root });
+      t.show();
+      t.sendText(bisectRunLine(cmd, process.platform === 'win32'));
+      return false;
     }
     // ---- branches ----
     case 'checkoutBranch': {

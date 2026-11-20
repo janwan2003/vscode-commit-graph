@@ -17,6 +17,8 @@
   let compareSha = null;
   let refsBySha = new Map();
   let wtBySha = new Map(); // other worktrees by the commit they have checked out
+  let bisectBy = new Map(); // sha → 'bad' | 'good' | 'skip' while a git bisect runs
+  let lastTesting = null; // bisect: the commit under test last time, to follow it when it changes
   let wtByBranch = new Map(); // other worktrees by the branch they have checked out
   let cmpInfo = null; // { base, a, b }: labels for a branch comparison in the details pane
   let dropIndex = -1; // row under a dragged branch
@@ -57,6 +59,7 @@
     <button id="refresh" title="Refresh">Refresh</button>
   </div>
   <div id="opbar" hidden role="status"></div>
+  <div id="bisectbar" hidden role="status"></div>
   <div id="pathbar" hidden></div>
   <div id="main">
     <div id="header" class="row hdr" title="Drag a column edge to resize it (double-click: reset). Right-click to show or hide columns."><div class="c-graph">Graph<span class="rz" data-col="graph"></span></div><div class="c-desc">Description</div><div class="c-date">Date<span class="rz" data-col="date"></span></div><div class="c-author">Author<span class="rz" data-col="author"></span></div><div class="c-hash">Commit<span class="rz" data-col="hash"></span></div></div>
@@ -197,7 +200,7 @@
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, bisectbar: $('#bisectbar').hidden ? '' : $('#bisectbar').textContent, bisectBadges: [...rowsEl.querySelectorAll('.badge.bisect')].map((b) => b.className.split(' ').pop() + ' ' + b.closest('.row').dataset.i), commitMenu: selected && indexBySha.has(selected) ? commitItems(data.commits[indexBySha.get(selected)]).filter((it) => it && typeof it[0] === 'string').map((it) => it[0] + (it[2] === 'disabled' ? ' (disabled)' : '')) : [], review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -230,6 +233,12 @@
       refsBySha.get(r.sha).push(r);
     }
     indexBySha = new Map(m.commits.map((c, i) => [c.sha, i]));
+    bisectBy = new Map();
+    if (m.bisect) {
+      for (const s of m.bisect.good) bisectBy.set(s, 'good');
+      for (const s of m.bisect.skip) bisectBy.set(s, 'skip');
+      if (m.bisect.bad) bisectBy.set(m.bisect.bad, 'bad');
+    }
     wtBySha = new Map();
     wtByBranch = new Map();
     for (const w of m.worktrees || []) {
@@ -245,6 +254,7 @@
     $('#firstparent').checked = !!m.firstParent;
     $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
     renderOpBar(m.op);
+    renderBisectBar(m.bisect);
     const pb = $('#pathbar');
     if (m.filter.path) {
       pb.innerHTML = `<span class="pb-icon" aria-hidden="true">⟲</span> History of <code title="${esc(m.filter.path)}">${esc(m.filter.path)}</code>${m.names && m.names.length > 1 ? `<span class="pb-n" title="${esc(m.names.slice(1).join('\n'))}">also as ${m.names.slice(1, 3).map((n) => `<code>${esc(n)}</code>`).join(', ')}${m.names.length > 3 ? ` +${m.names.length - 3}` : ''}</span>` : ''}<span class="pb-n pb-count">${countLabel(m)}</span><button id="clearpath" title="Show all commits again">Show all commits</button>`;
@@ -455,6 +465,8 @@
     }
     for (const r of remotes) if (!used.has(r.name)) out.push(`<span class="badge remote" data-ref="${esc(r.name)}" data-type="remote" data-remote="${esc(r.remote)}" title="Remote branch ${esc(r.name)}. Drag onto a branch to merge it there.">${esc(r.name)}</span>`);
     for (const w of wtBySha.get(c.sha) || []) out.push(`<span class="badge wt${w.prunable ? ' gone' : ''}" data-wt="${esc(w.path)}" title="Worktree at ${esc(w.path)}${w.branch ? ' on ' + esc(w.branch) : ' (detached)'}${w.prunable ? ': its folder is missing' : ''}${w.locked ? ', locked' : ''}">${esc(w.path.split(/[\\/]/).filter(Boolean).pop() || w.path)}</span>`);
+    const bm = bisectBy.get(c.sha);
+    if (bm) { const t = data.bisect.terms; const word = bm === 'bad' ? t[0] : bm === 'good' ? t[1] : 'skip'; out.push(`<span class="badge bisect ${bm}" title="git bisect: marked ${esc(word)}">${esc(word)}</span>`); }
     for (const r of refs.filter((r) => r.type === 'tag')) out.push(`<span class="badge tag" data-ref="${esc(r.name)}" data-type="tag" title="Tag ${esc(r.name)}">${esc(r.name)}</span>`);
     return out.join('');
   }
@@ -980,6 +992,7 @@
       ['Reset ' + cur + ' to here…', { ...base, action: 'reset' }, isHead ? 'disabled' : ''],
       null,
       ...editItems(c, base),
+      ...bisectItems(c, base),
       ['Review changes file by file', () => { pendingReview = c.sha; select(c.sha, true); }],
       ['Compare with working tree', () => compare(c.sha, UNC)],
       ['Create worktree here (detached)…', { ...base, action: 'addWorktree' }],
@@ -1034,7 +1047,7 @@
     return a > b ? { from: selected, to: compareSha, n: a - b + 1 } : { from: compareSha, to: selected, n: b - a + 1 };
   }
   function editItems(c, base) {
-    if (data.op) return []; // finish or abort what is in progress first (see the bar)
+    if (data.op || data.bisect) return []; // finish or abort what is in progress first (see the bar)
     const set = editableSet();
     if (!set.has(c.sha)) return [];
     const cur = data.branch ? `“${data.branch}”` : 'HEAD';
@@ -1060,6 +1073,70 @@
     items.push(null);
     return items;
   }
+
+  // ---------- git bisect: menu items, the bar, following the commit under test ----------
+  function bisectItems(c, base) {
+    const b = data.bisect;
+    if (data.op) return [];
+    if (!b) return [
+      ['Start bisect: this commit is bad', { ...base, action: 'bisectStart', mark: 'bad' }],
+      ['Start bisect: this commit is good', { ...base, action: 'bisectStart', mark: 'good' }],
+      null,
+    ];
+    const [bad, good] = b.terms;
+    const m = bisectBy.get(c.sha);
+    return [
+      [`Bisect: mark as ${bad}`, { ...base, action: 'bisectMark', mark: 'bad' }, m === 'bad' ? 'disabled' : ''],
+      [`Bisect: mark as ${good}`, { ...base, action: 'bisectMark', mark: 'good' }, m === 'good' ? 'disabled' : ''],
+      ['Bisect: skip this commit', { ...base, action: 'bisectMark', mark: 'skip' }, m === 'skip' ? 'disabled' : ''],
+      ['Bisect: stop and go back (reset)', { action: 'bisectReset' }],
+      null,
+    ];
+  }
+  function renderBisectBar(b) {
+    const bar = $('#bisectbar');
+    if (!b) { bar.hidden = true; bar.innerHTML = ''; lastTesting = null; return; }
+    const sh = (s) => (s ? s.slice(0, 8) : '');
+    const shaHtml = (s, subj) => `<code class="op-sha" data-sha="${esc(s)}" title="Show this commit">${sh(s)}</code>${subj ? ` “${esc(subj.slice(0, 80))}”` : ''}`;
+    const [bad, good] = b.terms;
+    const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+    const from = b.start ? ` <span class="op-ok">(started from ${esc(b.start.length === 40 ? sh(b.start) : b.start)})</span>` : '';
+    const reset = `<button data-bis="bisectReset" class="secondary" title="git bisect reset: stop and check out ${esc(b.start || 'where you started')} again">Reset</button>`;
+    let html;
+    if (b.firstBad) {
+      html = `<span class="op-what">First ${esc(bad)} commit: ${shaHtml(b.firstBad, b.firstBadSubject)}</span>${from}<span class="grow"></span>`
+        + `<button data-bis="show" data-sha="${esc(b.firstBad)}" title="Select it in the graph">Show</button>` + reset;
+    } else if (b.onlySkipped) {
+      html = `<span class="op-what">Only skipped commits are left: the first ${esc(bad)} commit is one of ${b.onlySkipped} commits</span>${from}<span class="grow"></span>`
+        + `<button data-bis="bisectMark" data-mark="good" title="Mark the checked-out commit ${esc(good)}">${esc(cap(good))}</button><button data-bis="bisectMark" data-mark="bad" title="Mark the checked-out commit ${esc(bad)}">${esc(cap(bad))}</button>` + reset;
+    } else if (!b.bad || !b.good.length) {
+      const need = !b.bad ? bad : good;
+      html = `<span class="op-what">Bisecting: mark a${/^[aeiou]/.test(need) ? 'n' : ''} ${esc(need)} commit</span> <span class="op-ok">(right-click a commit${b.testing && !b.bad ? `, or use the button for the checked-out one` : ''})</span>${from}<span class="grow"></span>`
+        + (!b.bad && b.testing ? `<button data-bis="bisectMark" data-mark="bad" class="secondary" title="Mark the checked-out commit ${esc(bad)}">Checked-out commit is ${esc(bad)}</button>` : '') + reset;
+    } else {
+      const left = `${b.left} commit${b.left === 1 ? '' : 's'} left, about ${b.steps} step${b.steps === 1 ? '' : 's'}`;
+      html = `<span class="op-what">Bisecting: testing ${b.testing ? shaHtml(b.testing, b.testingSubject) : 'HEAD'} — ${left}</span>${from}<span class="grow"></span>`
+        + `<button data-bis="bisectMark" data-mark="good" title="It works here: git bisect ${esc(good)}">${esc(cap(good))}</button>`
+        + `<button data-bis="bisectMark" data-mark="bad" title="The problem is here: git bisect ${esc(bad)}">${esc(cap(bad))}</button>`
+        + `<button data-bis="bisectMark" data-mark="skip" class="secondary" title="Can't test this one (e.g. it doesn't build): git bisect skip">Skip</button>`
+        + `<button data-bis="bisectRun" class="secondary" title="Let a command decide for every step: git bisect run (exit 0 = ${esc(good)}, 1-127 = ${esc(bad)}, 125 = skip)">Run a test command…</button>` + reset;
+    }
+    bar.innerHTML = `<span class="op-icon" aria-hidden="true">⌖</span>` + html;
+    bar.hidden = false;
+    // Follow the commit under test: select it when it changes (after Good/Bad/Skip, or a terminal run).
+    const target = b.firstBad || b.testing;
+    if (target && target !== lastTesting && indexBySha.has(target)) setTimeout(() => select(target, true), 0);
+    lastTesting = target;
+  }
+  $('#bisectbar').addEventListener('click', (e) => {
+    const c = e.target.closest('.op-sha');
+    if (c) { if (indexBySha.has(c.dataset.sha)) select(c.dataset.sha, true); return; }
+    const btn = e.target.closest('button[data-bis]');
+    if (!btn) return;
+    const what = btn.dataset.bis;
+    if (what === 'show') { if (indexBySha.has(btn.dataset.sha)) select(btn.dataset.sha, true); return; }
+    action({ action: what, mark: btn.dataset.mark });
+  });
 
   // ---------- operation in progress (rebase, merge, cherry-pick, revert, am) ----------
   function renderOpBar(op) {
