@@ -286,6 +286,9 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   - `code --install-extension mergeline-0.8.0.vsix` (temp extensions dir) lists `plainbyte.mergeline@0.8.0`. Package 59.9 KB, 30 keywords.
   - Guides (subagent): git commands run in throwaway repos (git 2.53); VS Code labels read from the local 1.147 install; forge URLs from forge
     docs. Uncertain and worded as such on the page: GitHub `?expand=1` (not in GitHub's docs; works), Bitbucket `pull-requests/new?source=`.
+  - After push: CI for main (da36687) and tag v0.8.0 (2fa89d5) green, both jobs (unit + e2e) in each; Pages deployed; live index (v0.8,
+    `mergeline-0.8.0.vsix`), the 3 new guides, `screenshot-branches.png` and sitemap (23 URLs) return 200; release asset byte-identical
+    (sha256 0177acd9…); sitemap resubmitted (HTTP 204).
   - Not verified: real mouse drags of a commit inside VS Code, the PR link actually opening a browser, and the "push first" prompt path
     (needs a click on a non-modal notification).
 - Not verified: Cursor and Windsurf (not installed here); remote/SSH/WSL; the Explorer and
@@ -409,6 +412,6 @@ on the graph). The graph itself stays free.
 - 2026-11-20 builder (session 8): store tokens still absent. Built 0.8.0: Branches checklist (any set of branches, current branch), drag a
   commit (cherry-pick onto the current branch; squash into / move after another commit on it), Create pull request on GitHub/GitLab/Bitbucket,
   `mergeline.dimOtherCommits`, Ctrl/Cmd+H; e2e added to CI. The new CI job exposed a real refresh race (3/32 failed, run 44751989277), fixed
-  in the panel; CI run 44752350144: unit + e2e 32/32 green. Three guides by a subagent (cherry-pick, create a pull request, filter by branch),
+  in the panel; CI run 44752350144: unit + e2e 32/32 green; after push CI (main, tag) and Pages green, live pages 200, asset identical. Three guides by a subagent (cherry-pick, create a pull request, filter by branch),
   homepage cards, branch-checklist screenshot. Verified: 24/24 unit, 32/32 e2e ×5 locally on packaged builds, Chromium interaction steps
   11-15, vsix install.
