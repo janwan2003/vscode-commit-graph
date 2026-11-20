@@ -105,16 +105,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Status
 
-**Mergeline 0.16.0 is built, released on GitHub and documented; it is not in the stores yet**
-(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 16).
+**Mergeline 0.17.0 is built, released on GitHub and documented; it is not in the stores yet**
+(store tokens `VSCE_PAT`/`OVSX_PAT` are still absent from the studio `.env`: key names read 2026-11-20, session 17).
 
 - Repo https://github.com/janwan2003/vscode-commit-graph (MIT). Releases v0.1.0 to v0.15.0
   (`mergeline-0.15.0.vsix`, 85 KB): https://github.com/janwan2003/vscode-commit-graph/releases
 - Site https://janwan2003.github.io/vscode-commit-graph/ has index, privacy, support,
-  36 SEO guides (session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
+  37 SEO guides (session 17: git graph branch colors; session 16: create and apply git patches; session 15: filter git log by author (+ hidden branches), git notes in VS Code; session 14: git flow graph with pinned main/develop columns; session 13: git bisect in VS Code; session 12: ahead/behind origin, update a branch without checkout, `git log --first-parent`, verify signed commits; session 11: find the commit that changed a file or folder, link Jira issues in commits, git archive as zip; session 10: fixup commits and autosquash, resolve merge conflicts; session 9: review a commit file by file, manage git remotes; session 8: cherry-pick, create a pull request, filter by branch; session 7: rebase/merge stopped with conflicts (continue, skip, abort), reorder commits, interactive rebase in VS Code; session 6: edit a commit message, drop a commit, Git Graph right-click menu not working; git worktrees in VS Code (session 5), Git Graph alternative, visualising branches in VS Code, rebase vs
   merge, undo with reset/revert/cherry-pick, stash guide, file history in VS Code, `git log --graph`,
   git graph in Cursor/VSCodium/Windsurf, compare branches/commits in VS Code, squash commits in VS Code),
-  404 and sitemap (39 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
+  404 and sitemap (40 URLs; corrected session 12: the earlier "30 guides" was a miscount, there were 27). Session 11: privacy page and index FAQ say avatars (opt-in) are the one network exception. Session 9: every meta description ≤155 chars, every guide links the releases page. Every page's footer links every guide (session 6).
 - **Search Console:** the Pages URL prefix is verified (Site Verification API, FILE method,
   `docs/google07cd0d9f3ba93576.html`), added as a property, and its sitemap submitted (2026-11-20, session 3).
   Read metrics with `GSC_REFRESH_TOKEN` (searchAnalytics.query on `https://janwan2003.github.io/vscode-commit-graph/`).
@@ -233,6 +233,16 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
   --3way` (mailbox only), `git apply --3way` with fallback to plain `git apply` on "does not match index", `git apply -R`. am needs a clean index
   (git 2.53: "Dirty index"), then offers changes-only; a stopped am shows in the existing in-progress bar. Also fixed: "Squash N commits" counted
   a stash row between the two selected commits.
+  **0.17.0 added** (Git Graph #254 "branch colours on all commits", 22 👍, open since 2020-02; and #809 custom colour per branch): **branch colours**
+  (`src/core/colors.ts`, no VS Code dep): setting `mergeline.branchColors` (object, branch name or `*` glob → palette name or #hex/rgb()/hsl();
+  `cssColor` refuses anything else, so no CSS gets into the webview's SVG attributes). Custom colours are indexes 10..35 (`CUSTOM_BASE`, max 26
+  distinct); packed lane strings encode them as 'a'..'z' (`colorChar` in graph.ts, `code()` in media/rows.js). `tipColors` maps the sha of every
+  local/remote branch whose name (remote prefix stripped) matches → colour, earliest rule wins; `LayoutState.tipColor` makes `alloc` use it for a
+  lane that starts there (tips and merge second parents), `LayoutState.pinColor` colours pinned lanes; the uncommitted row follows the current
+  branch. Badges get `--bc` (`refColors`). Branch menus: Set/Change branch colour…, Set colour of all <prefix>/… branches… → quick pick (palette with
+  emoji swatches, Custom colour… input with validation, Automatic = remove), written at the level that already sets the setting. Bad entries →
+  one warning naming them. **Row colours**: `mergeline.rowColors` none|stripe|tint (header right-click menu writes it): stripe = inset
+  box-shadow on the description cell, tint = 11% color-mix background placed before :hover/.sel/.cmp/.drop so those still win.
   Right-click actions on commits, branches, remote branches, tags, stashes, files and the
   working tree (full list in README.md). Design and clean-room note: DESIGN.md.
 - Verified 2026-11-20 (session 2), on the minified packaged 0.2.0 build:
@@ -477,6 +487,10 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 
 ## Metrics
 
+- 2026-11-20 (session 17): release downloads v0.1.0 to v0.15.0 2 each, v0.3.0 3, v0.16.0 1, v0.17.0 0 (read right after the v0.17.0 release); 0 stars,
+  0 forks, 0 issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by page
+  (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors, resubmitted 2026-11-20T17:00Z (HTTP 204, `sitemaps.list`).
+
 - 2026-11-20 (session 16): release downloads v0.1.0 to v0.14.0 2 each, v0.3.0 3, v0.15.0 1 (read before the v0.16.0 release); 0 stars, 0 forks,
   0 issues; traffic views 0, clones 0 (`gh api .../releases`, repo, `.../traffic/views`, `.../traffic/clones`). Search Console: no rows by page
   (2026-10-20 → 2026-11-20, `searchAnalytics.query`); sitemap still pending, never downloaded, 0 errors, last submitted 2026-11-20T16:26Z (`sitemaps.list`).
@@ -546,8 +560,9 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
 1. **Operator:** create the Marketplace publisher and Open VSX namespace `plainbyte`
    (inbox, 2026-11-20). Then publish the latest release with the commands in `store/LISTING.md`.
    This is the validation channel; nothing else counts until it is done.
-1a. Next Git Graph request by 👍 not covered: #254 branch colours (22 👍; a colour per pinned branch, or a `mergeline.branchColours` map of
-   glob → colour). #538 patches shipped in 0.16.0; follow-ups: untracked files in "Save changes as a patch" (`git add -N` on a temp index via
+1a. #254 branch colours shipped in 0.17.0. Next: re-run `gh api search/issues` on mhutchie/vscode-git-graph sorted by 👍 and take the top request
+   not covered yet. Branch-colour follow-ups: colour a merged branch's line from the merge subject ("Merge branch 'feature/x'") when its ref is
+   deleted (today only lines that start at a live ref get a colour); a colour swatch in the Branches checklist. #538 patches follow-ups: untracked files in "Save changes as a patch" (`git add -N` on a temp index via
    `GIT_INDEX_FILE`), `format-patch -o <folder>` (one file per commit) as a second save option, and drag-and-drop of a .patch file onto the graph.
    Author-filter follow-ups: a "me" quick button (`git config user.email`), `.mailmap` identities (`%aN <%aE>` + `--use-mailmap`), and cache the
    `rev-list --parents` map between Load more pages (each page re-walks all history today). Notes: show `notes.displayRef` refs too.
@@ -567,7 +582,8 @@ All Marketplace figures come from the public `extensionquery` API, queried live 
    `node scripts/e2e.mjs <codium>`; 610 MB extracted, so CI only).
 6. History search positions in file-history mode are approximate (they come from the multi-name log, not
    the filtered one); fine for small file histories, revisit if users report misses.
-7. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
+7. Directories: awesome-vscode's CONTRIBUTING.md requires a Marketplace link (read session 17), so submit there right after the store listing.
+8. Read Search Console weekly (`searchAnalytics.query`) from ~2026-12-18; after store launch, record installs
    and ratings in `## Metrics` and submit to awesome-vscode style lists (they need a Marketplace link).
 
 ## Monetization plan
@@ -710,3 +726,20 @@ on the graph). The graph itself stays free.
   After push: CI main (run 44776533372) and tag v0.16.0 (run 44776533429) both unit 59/59, e2e 49/49; Pages run 44776532472 deployed; live index
   (v0.16 tagline, `mergeline-0.16.0.vsix`), the guide, screenshot-patch.png and sitemap (39 URLs) return 200; release asset byte-identical (sha256
   89d86940…); sitemap resubmitted (HTTP 204). Inbox: 0.16.0 line appended.
+- 2026-11-20 builder (session 17): store tokens still absent (`.env` key names). Built 0.17.0 from Git Graph #254 (branch colours on all commits, 22 👍)
+  + #809: `mergeline.branchColors` (name/glob → theme palette name or validated #hex/rgb/hsl; lines, pinned columns and badges; branch-menu quick pick)
+  and `mergeline.rowColors` (stripe/tint, header menu). Guide `git-graph-branch-colors-vscode.html` (git 2.53 `log.graphColors`/`color.decorate.*` run
+  in a throwaway repo; VS Code 1.147 `scmGraph.*` theme colours and defaults read from its workbench bundle + nls; Git Graph `git-graph.graph.colours` and
+  GitLens `gitlens.graphLane1..10Color` from their published package.json; I dropped a "git's default list has 12 colours" claim I could not reproduce).
+  Verified: typecheck clean; unit 65/65 (6 new in `test/colors.test.ts`, incl. 200 random histories with Load more checking packed rows decode exactly;
+  reverting the rows.js decoder makes 3 fail); e2e 50/50 in VS Code 1.147 on the minified package (new check: setting colours a hex glob and a palette
+  name incl. a merge-parent line, real right-click on the main badge → Set branch colour… → stubbed pick → setting → pinned main line, working-tree row and
+  HEAD node green, Change → Automatic removes, a CSS-injection value is skipped with a warning, header right-click → Row colours: tint → computed row
+  background, stripe → computed inset box-shadow in the row colour); headless Chromium shots dark/stripe and light/tint (looked at both; saved as
+  `docs/screenshot-colors*.png`); guide page rendered and looked at; link check 42 pages, 2,159 relative links, 0 broken; sitemap 40 URLs;
+  vsix 95,097 bytes, sha256 97cc28cb…, installs as plainbyte.mergeline@0.17.0. Keyword "branch colors" in, "fixup commit" out (30).
+  Not verified: real mouse right-click inside VS Code (synthetic contextmenu events in its webview); a colour picked in the real quick pick UI (stubbed);
+  how a custom hex colour reads in high-contrast themes.
+  After push: CI tag v0.17.0 (run 44779014394) and main (run 44779009037) success, main log shows unit 65/65 and e2e 50/50 incl. "branch colours";
+  Pages run 44779008467 deployed; live index (v0.17 tagline, `mergeline-0.17.0.vsix`), the guide, both screenshots and sitemap (40 URLs) return 200;
+  release asset byte-identical (sha256 97cc28cb…). Directories: none submitted (awesome-vscode needs a Marketplace link). Inbox: 0.17.0 line appended.
