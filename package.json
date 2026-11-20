@@ -2,7 +2,7 @@
   "name": "mergeline",
   "displayName": "Mergeline — Git Graph, History & Branch Actions",
   "description": "Interactive git commit graph for VS Code, Cursor and VSCodium. Checkout, merge, rebase, cherry-pick, revert, reset, tag and stash right from the graph. Free, open source, no account, no telemetry.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -183,6 +183,11 @@
           ],
           "default": "relative",
           "description": "How commit dates are shown."
+        },
+        "mergeline.firstParentOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Follow only the first parent of merge commits (git log --first-parent): each branch shows its own line, and a merged branch's commits are hidden behind the merge. The toolbar's First parent checkbox changes this setting."
         },
         "mergeline.dimOtherCommits": {
           "type": "boolean",

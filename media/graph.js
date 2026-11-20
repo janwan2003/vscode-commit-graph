@@ -46,6 +46,7 @@
     <label class="tb">Repo <select id="repo" title="Repository"></select></label>
     <span class="tb">Branches <button id="branchbtn" class="secondary drop" title="Show only some branches" aria-haspopup="true" aria-expanded="false">All</button></span>
     <label class="tb chk" title="Show remote-tracking branches"><input type="checkbox" id="remotes"> Remote branches</label>
+    <label class="tb chk" title="Follow only the first parent of merges (git log --first-parent): each branch's own line, merged commits hidden behind their merge"><input type="checkbox" id="firstparent"> First parent</label>
     <label class="tb">Order <select id="order" title="Commit order. Topology keeps each branch's commits together."><option value="date">Date</option><option value="topo">Topology</option><option value="author-date">Author date</option></select></label>
     <span id="orderhint" class="hint" hidden>Busy graph: Topology order keeps each branch together</span>
     <span class="grow"></span>
@@ -86,6 +87,7 @@
   // ---------- toolbar ----------
   $('#repo').addEventListener('change', (e) => vscode.postMessage({ type: 'setRepo', repo: e.target.value }));
   $('#remotes').addEventListener('change', sendFilter);
+  $('#firstparent').addEventListener('change', (e) => vscode.postMessage({ type: 'firstParent', on: e.target.checked }));
   $('#order').addEventListener('change', (e) => vscode.postMessage({ type: 'order', order: e.target.value }));
   $('#pathbar').addEventListener('click', (e) => {
     if (e.target.closest('#clearpath')) vscode.postMessage({ type: 'filter', branches: selBranches, remotes: $('#remotes').checked, path: '' });
@@ -195,7 +197,7 @@
       case 'click': { const el = document.querySelector(m.selector); if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: !!m.ctrl })); break; }
       case 'empty': showMsg(m.message); break;
       case 'error': showMsg('Error: ' + m.message); break;
-      case 'ping': vscode.postMessage({ type: 'pong', loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
+      case 'ping': vscode.postMessage({ type: 'pong', firstParent: $('#firstparent').checked, trk: [...rowsEl.querySelectorAll('.trk')].map((t) => t.parentElement.dataset.ref + ' ' + t.textContent), loaded: data ? data.commits.length : 0, reachN: data ? headReach().size : 0, editableN: data ? editableSet().size : 0, packedJson: data ? JSON.stringify([data.start, data.packed, data.width, data.hasMore]) : '', moreText: moreEl.textContent, branchBtn: $('#branchbtn').textContent, dimmed: rowsEl.querySelectorAll('.row.dim').length, avatars: rowsEl.querySelectorAll('.av').length, tagBlocks: [...detailsEl.querySelectorAll('.d-tag')].map((t) => t.textContent), rows: rowsEl.children.length, selected, details: !detailsEl.hidden, count: $('#count').textContent, pathbar: $('#pathbar').hidden ? '' : $('#pathbar').textContent, cols: colWidths(), detailsH: detailsEl.hidden ? 0 : detailsEl.offsetHeight, detailsText: detailsEl.hidden ? '' : detailsEl.textContent, links: [...detailsEl.querySelectorAll('[data-url]')].map((a) => a.dataset.url), wtBadges: [...rowsEl.querySelectorAll('.badge.wt')].map((b) => b.textContent), fileRows: [...detailsEl.querySelectorAll('.d-files li')].map((li) => (li.classList.contains('dir') ? 'D ' : 'F ') + li.querySelector('.fp').textContent), editMenu: selected && indexBySha.has(selected) ? editItems(data.commits[indexBySha.get(selected)], {}).filter(Boolean).map((it) => it[0]) : [], opbar: $('#opbar').hidden ? '' : $('#opbar').textContent, review: detailsEl.hidden ? '' : (detailsEl.querySelector('.rvbar') || {}).textContent || '', reviewedRows: [...detailsEl.querySelectorAll('.file.reviewed .fp')].map((x) => x.textContent), dialog: $('#dlg').hidden ? null : { title: $('#dlg-t').textContent, subject: $('#dlg-s').value, body: $('#dlg-b').value } }); break;
     }
   });
 
@@ -240,6 +242,7 @@
     if (!bpop.hidden) fillBranchList();
     $('#remotes').checked = m.filter.remotes;
     if (m.order) $('#order').value = m.order;
+    $('#firstparent').checked = !!m.firstParent;
     $('#orderhint').hidden = !(m.order !== 'topo' && m.width > 20);
     renderOpBar(m.op);
     const pb = $('#pathbar');
@@ -448,12 +451,28 @@
       const cur = r.name === data.branch;
       const twins = remotes.filter((rr) => rr.name.slice(rr.remote.length + 1) === r.name);
       twins.forEach((t) => used.add(t.name));
-      out.push(`<span class="badge branch${cur ? ' current' : ''}" data-ref="${esc(r.name)}" data-type="head" title="${cur ? 'Current branch ' : 'Branch '}${esc(r.name)}${wtByBranch.has(r.name) ? ' (checked out in worktree ' + esc(wtByBranch.get(r.name).path) + ')' : ''}. Drag onto another branch or commit to merge, rebase or move it.">${cur ? '● ' : ''}${esc(r.name)}${twins.map((t) => `<span class="twin" data-ref="${esc(t.name)}" data-type="remote" data-remote="${esc(t.remote)}" title="${esc(t.name)}">${esc(t.remote)}</span>`).join('')}</span>`);
+      out.push(`<span class="badge branch${cur ? ' current' : ''}" data-ref="${esc(r.name)}" data-type="head" title="${cur ? 'Current branch ' : 'Branch '}${esc(r.name)}${wtByBranch.has(r.name) ? ' (checked out in worktree ' + esc(wtByBranch.get(r.name).path) + ')' : ''}. Drag onto another branch or commit to merge, rebase or move it.">${cur ? '● ' : ''}${esc(r.name)}${trackHtml(r)}${twins.map((t) => `<span class="twin" data-ref="${esc(t.name)}" data-type="remote" data-remote="${esc(t.remote)}" title="${esc(t.name)}">${esc(t.remote)}</span>`).join('')}</span>`);
     }
     for (const r of remotes) if (!used.has(r.name)) out.push(`<span class="badge remote" data-ref="${esc(r.name)}" data-type="remote" data-remote="${esc(r.remote)}" title="Remote branch ${esc(r.name)}. Drag onto a branch to merge it there.">${esc(r.name)}</span>`);
     for (const w of wtBySha.get(c.sha) || []) out.push(`<span class="badge wt${w.prunable ? ' gone' : ''}" data-wt="${esc(w.path)}" title="Worktree at ${esc(w.path)}${w.branch ? ' on ' + esc(w.branch) : ' (detached)'}${w.prunable ? ': its folder is missing' : ''}${w.locked ? ', locked' : ''}">${esc(w.path.split(/[\\/]/).filter(Boolean).pop() || w.path)}</span>`);
     for (const r of refs.filter((r) => r.type === 'tag')) out.push(`<span class="badge tag" data-ref="${esc(r.name)}" data-type="tag" title="Tag ${esc(r.name)}">${esc(r.name)}</span>`);
     return out.join('');
+  }
+
+  /** Ahead/behind marks on a local branch badge: ↑ commits to push, ↓ commits to pull (from the last fetch). */
+  function trackHtml(r) {
+    if (!r.upstream) return '';
+    if (r.gone) return `<span class="trk gone" title="Its upstream ${esc(r.upstream)} was deleted on the remote">✕</span>`;
+    if (!r.ahead && !r.behind) return '';
+    const t = [r.ahead ? `${r.ahead} commit${r.ahead === 1 ? '' : 's'} to push` : '', r.behind ? `${r.behind} to pull` : ''].filter(Boolean).join(', ');
+    return `<span class="trk" title="Compared with ${esc(r.upstream)} as of the last fetch: ${t}">${r.ahead ? '↑' + r.ahead : ''}${r.behind ? '↓' + r.behind : ''}</span>`;
+  }
+
+  const SIG = { good: ['ok', 'Good signature'], untrusted: ['ok', 'Good signature, key not trusted'], expired: ['warn', 'Good signature, but it has expired'], expiredKey: ['warn', 'Good signature from an expired key'], revoked: ['bad', 'Signed with a revoked key'], bad: ['bad', 'BAD signature'], unchecked: ['warn', 'Signed, but it could not be checked (missing key or gpg/ssh signer setup)'] };
+  function signatureHtml(sg) {
+    if (!sg) return '';
+    const [cls, text] = SIG[sg.status] || SIG.unchecked;
+    return `<span class="sig ${cls}" title="Verified by git with your own keyring (git log --show-signature)">${cls === 'ok' ? '✓' : cls === 'bad' ? '✕' : '?'} ${esc(text)}${sg.signer ? ' from ' + esc(sg.signer) : ''}${sg.key ? ` <code>${esc(sg.key)}</code>` : ''}</span>`;
   }
 
   /** Initials in a coloured circle, with the author's image on top when avatars are on and it loads. */
@@ -628,6 +647,7 @@
         <span>Parents ${i.parents.map((p) => `<code class="link" data-goto="${esc(p)}">${esc(short(p))}</code>`).join(' ') || 'none'}</span>
         <span>Author ${settings.showAvatars ? avatarHtml(i.author, i.email, m.avatar) : ''}<b>${esc(i.author)}</b> &lt;${esc(i.email)}&gt;, ${esc(new Date(i.authorDate * 1000).toLocaleString())}</span>
         ${i.committer !== i.author || i.commitDate !== i.authorDate ? `<span>Committer ${esc(i.committer)}, ${esc(new Date(i.commitDate * 1000).toLocaleString())}</span>` : ''}
+        ${signatureHtml(m.signature)}
         ${data.web ? `<span><span class="link" data-url="${esc(data.web.commit + i.sha)}" title="${esc(data.web.commit + i.sha)}">Open on ${esc(data.web.name)}</span></span>` : ''}</div>
         ${tagsHtml(m.tags)}
         ${body ? `<pre class="d-body">${linkify(body)}</pre>` : ''}`;
@@ -1151,6 +1171,7 @@
     if (type === 'remote') return [
       ['Check out as local branch…', { ...r, action: 'checkoutBranch' }],
       ['Merge into ' + curL + '…', { ...r, action: 'merge' }],
+      ['Fetch and merge into ' + curL + ' (pull)…', { ...r, action: 'pullInto' }, cur ? '' : 'disabled'],
       ['Rebase ' + curL + ' onto ' + name + '…', { ...r, action: 'rebase' }],
       ...(data.head && c.sha !== data.head ? [['Compare with ' + curL, () => compare(c.sha, data.head)], ['Changes since it split from ' + curL, () => compare(c.sha, data.head, true, name, cur || 'HEAD')]] : []),
       ['Check out in new worktree…', { ...r, action: 'addWorktree' }],
@@ -1164,6 +1185,7 @@
     ];
     const isCur = name === cur;
     const wt = wtByBranch.get(name);
+    const lref = (refsBySha.get(c.sha) || []).find((x) => x.type === 'head' && x.name === name);
     return [
       wt ? ['Open its worktree in new window', { action: 'openWorktree', path: wt.path }] : ['Check out', { ...r, action: 'checkoutBranch' }, isCur ? 'disabled' : ''],
       ['Merge into ' + curL + '…', { ...r, action: 'merge' }, isCur ? 'disabled' : ''],
@@ -1174,6 +1196,7 @@
       null,
       ['Push…', { ...r, action: 'pushBranch' }],
       ...(isCur ? [['Pull', { ...r, action: 'pull' }]] : []),
+      ...(!isCur && lref && lref.upstream && !lref.gone ? [['Update from ' + lref.upstream + ' (fast-forward)', { ...r, action: 'updateBranch', upstream: lref.upstream }]] : []),
       ...(data.web ? [['Create pull request on ' + data.web.name + '…', () => vscode.postMessage({ type: 'openPullRequest', ref: name, refType: 'head' })]] : []),
       ['Rename…', { ...r, action: 'renameBranch' }],
       ['Delete…', { ...r, action: 'deleteBranch' }, isCur ? 'disabled' : 'danger'],

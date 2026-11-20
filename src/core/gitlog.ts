@@ -19,6 +19,12 @@ export interface Ref {
   type: RefType;
   sha: string; // target commit (tags peeled)
   remote?: string;
+  /** Local branches only: the branch it tracks (origin/main), and how far apart they are. */
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  /** The upstream branch was deleted on the remote (`git branch -vv` shows "gone"). */
+  gone?: boolean;
 }
 
 export interface RepoState {
@@ -41,12 +47,12 @@ export class GitError extends Error {
   }
 }
 
-export function git(cwd: string, args: string[], opts: { maxBuffer?: number; input?: string; env?: Record<string, string> } = {}): Promise<string> {
+export function git(cwd: string, args: string[], opts: { maxBuffer?: number; input?: string; env?: Record<string, string>; timeout?: number } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       'git',
       args,
-      { cwd, maxBuffer: opts.maxBuffer ?? 256 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...opts.env } },
+      { cwd, maxBuffer: opts.maxBuffer ?? 256 * 1024 * 1024, timeout: opts.timeout ?? 0, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...opts.env } },
       (err, stdout, stderr) => {
         if (err) {
           const msg = (stderr || err.message).trim();
@@ -91,6 +97,8 @@ export interface LogOptions {
   order?: CommitOrder;
   /** Only commits that touch these paths (file history). Parents are rewritten to the nearest touching ancestor. */
   paths?: string[];
+  /** Follow only the first parent of merges (`--first-parent`): each branch's mainline, merges as one commit. */
+  firstParent?: boolean;
 }
 
 export type CommitOrder = 'date' | 'topo' | 'author-date';
@@ -102,6 +110,7 @@ function logArgs(o: LogOptions, extra: string[]): string[] {
   // With a pathspec, --parents turns on parent rewriting so %P names the nearest
   // ancestor that touched the path and the graph stays connected.
   if (o.paths && o.paths.length) args.push('--parents');
+  if (o.firstParent) args.push('--first-parent');
   if (o.branches && o.branches.length) args.push(...o.branches);
   else {
     args.push('--branches', '--tags');
@@ -116,9 +125,15 @@ function logArgs(o: LogOptions, extra: string[]): string[] {
 
 const EMPTY_REPO = /unknown revision|bad revision|bad default revision|does not have any commits/;
 
+/** Keep only first parents (first-parent view: a merge's other parents are not walked, so not drawn). */
+export function firstParents(commits: Commit[]): Commit[] {
+  return commits.map((c) => (c.parents.length > 1 ? { ...c, parents: c.parents.slice(0, 1) } : c));
+}
+
 export async function readLog(cwd: string, o: LogOptions): Promise<Commit[]> {
   try {
-    return parseLog(await git(cwd, logArgs(o, [`--max-count=${o.max}`, `--format=${LOG_FORMAT}`])));
+    const commits = parseLog(await git(cwd, logArgs(o, [`--max-count=${o.max}`, `--format=${LOG_FORMAT}`])));
+    return o.firstParent ? firstParents(commits) : commits;
   } catch (e) {
     // Empty repository: HEAD does not resolve.
     if (e instanceof GitError && EMPTY_REPO.test(e.message)) return [];
@@ -293,9 +308,22 @@ export function parseRefs(out: string): Ref[] {
   const refs: Ref[] = [];
   for (const line of out.split('\n')) {
     if (!line) continue;
-    const [obj, full, peeled] = line.split(US);
+    const [obj, full, peeled, upstream, track] = line.split(US);
     const sha = peeled || obj;
-    if (full.startsWith('refs/heads/')) refs.push({ name: full.slice(11), full, type: 'head', sha });
+    if (full.startsWith('refs/heads/')) {
+      const r: Ref = { name: full.slice(11), full, type: 'head', sha };
+      if (upstream) {
+        r.upstream = upstream;
+        // %(upstream:track,nobracket): "", "ahead 2", "behind 1", "ahead 2, behind 1" or "gone".
+        const t = track ?? '';
+        if (t === 'gone') r.gone = true;
+        else {
+          r.ahead = Number(/ahead (\d+)/.exec(t)?.[1] ?? 0);
+          r.behind = Number(/behind (\d+)/.exec(t)?.[1] ?? 0);
+        }
+      }
+      refs.push(r);
+    }
     else if (full.startsWith('refs/remotes/')) {
       const name = full.slice(13);
       if (name.endsWith('/HEAD')) continue;
@@ -306,7 +334,7 @@ export function parseRefs(out: string): Ref[] {
 }
 
 export async function readState(cwd: string): Promise<RepoState> {
-  const refsOut = await git(cwd, ['for-each-ref', `--format=%(objectname)${US}%(refname)${US}%(*objectname)`, 'refs/heads', 'refs/remotes', 'refs/tags']);
+  const refsOut = await git(cwd, ['for-each-ref', `--format=%(objectname)${US}%(refname)${US}%(*objectname)${US}%(upstream:short)${US}%(upstream:track,nobracket)`, 'refs/heads', 'refs/remotes', 'refs/tags']);
   let head: string | null = null;
   let branch: string | null = null;
   try {
@@ -468,6 +496,42 @@ export async function readCommitInfo(cwd: string, sha: string): Promise<CommitIn
     commitDate: Number(f[7]),
     message: f.slice(8).join(US).replace(/\s+$/, ''),
   };
+}
+
+export type SignatureStatus = 'good' | 'bad' | 'untrusted' | 'expired' | 'expiredKey' | 'revoked' | 'unchecked';
+
+export interface Signature {
+  status: SignatureStatus;
+  signer: string; // %GS: the signer's name/identity, may be empty
+  key: string; // %GK: key ID or SSH key fingerprint, may be empty
+}
+
+const SIG_CODES: Record<string, SignatureStatus> = { G: 'good', B: 'bad', U: 'untrusted', X: 'expired', Y: 'expiredKey', R: 'revoked', E: 'unchecked' };
+
+/** Parse `%G?%x1f%GS%x1f%GK`. Null when the commit is not signed (N) or the output is unexpected. */
+export function parseSignature(out: string): Signature | null {
+  const [code, signer = '', key = ''] = out.replace(/\s+$/, '').split(US);
+  const status = SIG_CODES[(code ?? '').trim()];
+  return status ? { status, signer: signer.trim(), key: key.trim() } : null;
+}
+
+/**
+ * GPG, SSH or X.509 signature of a commit, verified by git with the user's own keyring and
+ * gpg.ssh.allowedSignersFile. Unsigned commits return null without running gpg. A missing gpg,
+ * or a verify that fails to run, gives 'unchecked' or null; it never throws.
+ */
+export async function readSignature(cwd: string, sha: string): Promise<Signature | null> {
+  try {
+    const sig = parseSignature(await git(cwd, ['-c', 'log.showSignature=false', 'show', '-s', '--no-color', `--format=%G?${US}%GS${US}%GK`, sha, '--'], { timeout: 10000 }));
+    if (sig) return sig;
+    // git answers N for an SSH-signed commit when gpg.ssh.allowedSignersFile is not set up:
+    // the commit is signed, git just cannot say by whom. Look for the signature header itself.
+    const raw = await git(cwd, ['cat-file', 'commit', sha]);
+    const headers = raw.slice(0, raw.indexOf('\n\n') >>> 0);
+    return /^gpgsig(-sha256)? /m.test(headers) ? { status: 'unchecked', signer: '', key: '' } : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface Worktree {

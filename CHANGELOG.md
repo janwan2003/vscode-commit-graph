@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 (2026-11-20)
+
+- **Ahead/behind on branch badges.** A local branch that tracks a remote branch shows **↑N** for commits you have not pushed and **↓N** for commits you have not pulled yet (as of your last fetch). Hover for the details. A **✕** means its upstream branch was deleted on the remote.
+- **Update a branch without checking it out.** Right-click a branch that is not checked out → **Update from origin/… (fast-forward)** brings it up to date with the branch it tracks (`git fetch origin main:main`). If the branch has commits of its own, nothing changes and Mergeline tells you to check it out and pull instead.
+- **Pull a remote branch into yours.** Right-click a remote branch → **Fetch and merge into “main” (pull)…** fetches that branch first, so you merge what is on the server now rather than what you fetched last time. It offers the usual merge choices (fast-forward, `--no-ff`, `--squash`).
+- **First parent only.** A **First parent** checkbox in the toolbar (setting `mergeline.firstParentOnly`) follows only the first parent of merges, as `git log --first-parent` does. On a mainline full of merged pull requests you see one commit per merge, not every commit of every branch. Find in all history searches the same view.
+- **Signed commits.** The details pane shows a commit's signature: good (with the signer and key), good but untrusted, expired, revoked, bad, or "could not be checked" when your machine lacks the key or SSH allowed-signers file. Git does the checking with your own keys; unsigned commits show nothing.
+
 ## 0.11.0 (2026-11-20)
 
 - **Find commits by changed path.** Type `path:` and some text in Find (`path:src/auth`, `path:package.json`, `path:*.md`) and press Enter: Mergeline searches the whole history, not just the loaded commits, for commits that changed a file or folder whose path contains the text (case-insensitive), or matches the glob when it has `*`, `?` or `[`. Step through the matches as usual; an unloaded match is loaded when you reach it. It uses git's default history simplification, like `git log -- <path>`.

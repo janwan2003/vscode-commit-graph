@@ -221,3 +221,10 @@ button:disabled { opacity: .5; cursor: default; }
 .d-tag .badge { margin-right: 6px; }
 .d-tag .tmeta { color: var(--vscode-descriptionForeground); }
 .d-tag pre { margin: 3px 0 0; white-space: pre-wrap; font-family: inherit; }
+.badge .trk { font-size: 10px; margin-left: 4px; font-weight: 600; color: inherit; opacity: .8; font-variant-numeric: tabular-nums; }
+.badge .trk.gone { color: var(--vscode-errorForeground); }
+.sig { white-space: nowrap; }
+.sig.ok { color: var(--vscode-testing-iconPassed, #3fb950); }
+.sig.warn { color: var(--vscode-editorWarning-foreground, #d29922); }
+.sig.bad { color: var(--vscode-errorForeground, #f85149); font-weight: 600; }
+.sig code { color: var(--vscode-descriptionForeground); font-size: 11px; }

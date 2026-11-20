@@ -212,6 +212,19 @@ exports.run = async function run() {
     await until(() => vscode.workspace.getConfiguration('mergeline').get('commitOrder') === 'date', 5000, 'order reset');
   });
 
+  await check('first parent only: toolbar setting hides merged-in commits, merges keep one parent, off restores', async () => {
+    const before = panel.lastData.commits.length;
+    await panel.testMessage({ type: 'firstParent', on: true });
+    assert.equal(vscode.workspace.getConfiguration('mergeline').get('firstParentOnly'), true);
+    const d = await until(() => panel.lastData.commits.every((c) => c.parents.length <= 1) && panel.lastData, 10000, 'first-parent data');
+    const merge = d.commits.find((c) => c.subject === "Merge branch 'feature/search'");
+    assert.ok(merge && merge.parents.length === 1, 'merge shown with its first parent only');
+    const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.firstParent && panel.lastPong; }, 10000, 'checkbox ticked');
+    assert.ok(pong.firstParent);
+    await panel.testMessage({ type: 'firstParent', on: false });
+    await until(() => vscode.workspace.getConfiguration('mergeline').get('firstParentOnly') === false && panel.lastData.commits.length === before && panel.lastData.commits.some((c) => c.parents.length > 1), 10000, 'first parent off');
+  });
+
   await check('compare a commit with the working tree', async () => {
     const a = bySubject('Initial commit');
     await panel.testMessage({ type: 'details', sha: a.sha, compare: '*' });
@@ -707,6 +720,54 @@ exports.run = async function run() {
       await until(() => git('rev-parse', 'HEAD') === theirs, 10000, 'pull fast-forwarded');
       fs.rmSync(other, { recursive: true, force: true });
     });
+    await check('remote: ahead/behind on a branch badge, update a branch that is not checked out, fetch and merge a remote branch into the current one', async () => {
+      const other = root + '-other2';
+      execFileSync('git', ['clone', '-q', '-b', 'main', bare, other]);
+      const og = (...a) => execFileSync('git', a, { cwd: other, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'Grace', GIT_AUTHOR_EMAIL: 'g@example.com', GIT_COMMITTER_NAME: 'Grace', GIT_COMMITTER_EMAIL: 'g@example.com' } }).trim();
+      og('config', 'commit.gpgsign', 'false');
+      git('branch', 'trk', 'main');
+      git('push', '-q', '-u', 'origin', 'trk');
+      og('fetch', '-q', 'origin');
+      og('checkout', '-q', '-b', 'trk', 'origin/trk');
+      fs.writeFileSync(other + '/trk.txt', '1\n');
+      og('add', '-A'); og('commit', '-q', '-m', 'trk 1');
+      fs.writeFileSync(other + '/trk.txt', '2\n');
+      og('add', '-A'); og('commit', '-q', '-m', 'trk 2');
+      og('push', '-q', 'origin', 'trk');
+      const theirs = og('rev-parse', 'HEAD');
+      await act({ action: 'fetch' });
+      const ref = await until(() => panel.lastData.state.refs.find((r) => r.name === 'trk' && r.behind === 2), 10000, 'trk behind 2');
+      assert.deepEqual([ref.upstream, ref.ahead], ['origin/trk', 0]);
+      await panel.testPost({ type: 'reveal', sha: ref.sha });
+      const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && panel.lastPong.trk.includes('trk ↓2') && panel.lastPong; }, 10000, 'badge shows ↓2')
+        .catch(async (e) => { panel.lastPong = null; await panel.ping(); await sleep(300); throw new Error(e.message + ' trk=' + JSON.stringify(panel.lastPong && panel.lastPong.trk)); });
+      assert.ok(pong.trk.includes('trk ↓2'), pong.trk.join(' | '));
+      const head0 = git('rev-parse', 'HEAD');
+      await act({ action: 'updateBranch', ref: 'trk', refType: 'head', upstream: 'origin/trk' });
+      assert.equal(git('rev-parse', 'trk'), theirs, 'trk fast-forwarded');
+      assert.equal(git('rev-parse', 'HEAD'), head0, 'current branch untouched');
+      assert.equal(git('rev-parse', '--abbrev-ref', 'HEAD'), 'main');
+      await until(() => panel.lastData.state.refs.some((r) => r.name === 'trk' && r.behind === 0 && r.sha === theirs), 10000, 'badge cleared');
+      // A remote branch that was pushed after our last fetch: fetch it, then merge it (--no-ff via the pick stub).
+      og('checkout', '-q', '-b', 'side2', 'origin/main');
+      fs.writeFileSync(other + '/side2.txt', 's\n');
+      og('add', '-A'); og('commit', '-q', '-m', 'side2 work');
+      og('push', '-q', 'origin', 'side2');
+      git('fetch', '-q', 'origin', 'side2');
+      og('commit', '-q', '--allow-empty', '-m', 'side2 later');
+      og('push', '-q', 'origin', 'side2');
+      const tip = og('rev-parse', 'HEAD');
+      assert.notEqual(git('rev-parse', 'origin/side2'), tip, 'local remote-tracking ref is stale');
+      await act({ action: 'pullInto', ref: 'origin/side2', refType: 'remote', remote: 'origin', current: 'main' });
+      assert.equal(git('rev-parse', 'origin/side2'), tip, 'fetched first');
+      assert.equal(git('rev-parse', 'HEAD^2'), tip, 'merged the fetched tip');
+      assert.match(git('log', '-1', '--format=%s'), /side2/);
+      git('reset', '-q', '--hard', head0);
+      git('branch', '-q', '-D', 'trk');
+      git('push', '-q', 'origin', '--delete', 'trk', 'side2');
+      git('fetch', '-q', '--prune', 'origin');
+      fs.rmSync(other, { recursive: true, force: true });
+    });
     await check('remote: delete remote branch (modal confirm)', async () => {
       git('push', '-q', 'origin', 'feature/search');
       git('fetch', '-q', 'origin');
@@ -790,6 +851,33 @@ exports.run = async function run() {
       }
     });
   }
+  await check('details: an SSH-signed commit shows its signature status (unchecked, then good with allowed signers)', async () => {
+    const key = path.join(os.tmpdir(), 'mergeline-e2e-key-' + process.pid);
+    const allowed = key + '-allowed';
+    try {
+      execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'e2e', '-f', key]);
+      const email = git('log', '-1', '--format=%ce');
+      git('-c', 'gpg.format=ssh', '-c', 'user.signingkey=' + key + '.pub', 'commit', '-q', '--allow-empty', '-S', '-m', 'Signed commit');
+      const sha = git('rev-parse', 'HEAD');
+      await panel.refresh(true);
+      await panel.testMessage({ type: 'details', sha });
+      assert.equal(panel.lastDetails.signature && panel.lastDetails.signature.status, 'unchecked');
+      fs.writeFileSync(allowed, email + ' ' + fs.readFileSync(key + '.pub', 'utf8'));
+      git('config', 'gpg.ssh.allowedSignersFile', allowed);
+      await panel.testPost({ type: 'reveal', sha });
+      await panel.testMessage({ type: 'details', sha });
+      assert.equal(panel.lastDetails.signature.status, 'good');
+      const pong = await until(async () => { panel.lastPong = null; await panel.ping(); await sleep(150); return panel.lastPong && /Good signature from/.test(panel.lastPong.detailsText) && panel.lastPong; }, 10000, 'signature line');
+      assert.match(pong.detailsText, /✓ Good signature from \S+ SHA256:/);
+      // An unsigned commit has no signature line.
+      await panel.testMessage({ type: 'details', sha: git('rev-parse', 'HEAD~1') });
+      assert.equal(panel.lastDetails.signature, null);
+      git('reset', '-q', '--hard', 'HEAD~1');
+      git('config', '--unset', 'gpg.ssh.allowedSignersFile');
+    } finally {
+      for (const f of [key, key + '.pub', allowed]) fs.rmSync(f, { force: true });
+    }
+  });
   Object.assign(w, { showInputBox: orig.input, showQuickPick: orig.pick, showWarningMessage: orig.warn });
 
   fs.writeFileSync(process.env.MERGELINE_E2E_REPORT, results.join('\n') + '\n');

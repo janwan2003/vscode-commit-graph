@@ -30,6 +30,7 @@ export interface ActionMsg {
   op?: string; // manageRemotes: add | fetch | prune | setUrl | rename | remove | copy | open (skips the menus)
   url?: string; // manageRemotes add/setUrl
   fetch?: boolean; // manageRemotes add: fetch after adding
+  upstream?: string; // updateBranch: shown in messages
 }
 
 export interface ActionCtx {
@@ -277,6 +278,52 @@ export async function runAction(ctx: ActionCtx, m: ActionMsg): Promise<boolean> 
         }
       }
       return run(ctx, ['pull', '--no-edit'], 'Pull');
+    case 'updateBranch': {
+      // Fast-forward a local branch that is not checked out to the branch it tracks, without
+      // checking it out: git fetch <remote> <merge>:refs/heads/<branch>. git refuses a
+      // non-fast-forward update (the branch has its own commits) and a branch checked out in a worktree.
+      const b = m.ref!;
+      const cfg = async (k: string) => (await git(ctx.root, ['config', '--get', k]).catch(() => '')).trim();
+      const remote = await cfg(`branch.${b}.remote`);
+      const merge = await cfg(`branch.${b}.merge`);
+      if (!remote || !merge) {
+        vscode.window.showInformationMessage(`Mergeline: ${b} does not track a remote branch.`);
+        return false;
+      }
+      if (b === m.current) return runAction(ctx, { ...m, action: 'pull' });
+      try {
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: Update ${b}` }, () => git(ctx.root, ['fetch', remote, `${merge}:refs/heads/${b}`]));
+        return true;
+      } catch (e) {
+        const msg = e instanceof GitError ? e.message : String(e);
+        if (/non-fast-forward|rejected/i.test(msg)) {
+          vscode.window.showWarningMessage(`Mergeline: ${b} has commits that ${m.upstream ?? 'its upstream'} does not, so it cannot be fast-forwarded. Check it out and pull (merge or rebase) instead.`);
+          return true; // the fetch may still have updated the remote-tracking branch
+        }
+        await reportError(e, `Update ${b}`);
+        return false;
+      }
+    }
+    case 'pullInto': {
+      // Fetch one remote branch, then merge it into the current branch.
+      if (!m.current) {
+        vscode.window.showInformationMessage('Mergeline: check out a branch first; HEAD is detached.');
+        return false;
+      }
+      const remote = m.remote ?? m.ref!.split('/')[0];
+      const branch = m.ref!.slice(remote.length + 1);
+      const args = await mergeArgs(`${m.ref} (after fetching it)`);
+      if (!args) return false;
+      try {
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Mergeline: Fetch ${m.ref}` }, () => git(ctx.root, ['fetch', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`]));
+      } catch (e) {
+        await reportError(e, `Fetch ${m.ref}`);
+        return false;
+      }
+      args[args.length - 1] = `refs/remotes/${remote}/${branch}`;
+      await run(ctx, args, `Pull ${m.ref} into ${m.current}`);
+      return true;
+    }
     case 'deleteRemoteBranch': {
       const remote = m.remote ?? m.ref!.split('/')[0];
       const branch = m.ref!.slice(remote.length + 1);

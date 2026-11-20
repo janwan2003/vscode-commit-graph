@@ -1,10 +1,10 @@
 // Builds a demo repo, runs Mergeline's core on it and writes the webview payload
 // as JSON (for the screenshot harness and the webview smoke test).
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags } from '../../src/core/gitlog';
+import { readLog, readState, readStashes, insertStashes, readChanges, readCommitInfo, readStatusCount, readWorktrees, readTags, readSignature } from '../../src/core/gitlog';
 import { avatarMap } from '../../src/core/misc';
 import { layout } from '../../src/core/graph';
 
@@ -38,7 +38,12 @@ g('checkout', '-q', 'feature/search');
 c('src/search.ts', 'Search: highlight matched terms', 1);
 g('checkout', '-q', 'main');
 c('src/app.ts', 'Fix race on startup', 2);
-t += 3600; g('merge', '-q', '--no-ff', '-m', "Merge branch 'feature/search'", 'feature/search');
+// The merge is SSH-signed and the key is in the allowed signers file, so its details show a good signature.
+const key = d + '-key';
+execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'ada', '-f', key]);
+writeFileSync(d + '-allowed', 'ada@example.com ' + readFileSync(key + '.pub', 'utf8'));
+g('config', 'gpg.ssh.allowedSignersFile', d + '-allowed');
+t += 3600; g('-c', 'gpg.format=ssh', '-c', `user.signingkey=${key}.pub`, 'merge', '-q', '-S', '--no-ff', '-m', "Merge branch 'feature/search'", 'feature/search');
 g('tag', '-a', 'v1.0.0', '-m', 'Release 1.0.0\n\nFull-text search (PROJ-142) and offline sync (PROJ-157).');
 g('checkout', '-q', 'feature/dark-mode');
 c('src/theme.css', 'Dark theme: respect prefers-color-scheme', 4);
@@ -52,6 +57,12 @@ t += 3600; g('merge', '-q', '--no-ff', '-m', "Merge branch 'feature/dark-mode'",
 c('src/app.ts', 'Show sync status in the toolbar', 0);
 g('update-ref', 'refs/remotes/origin/main', 'HEAD~1');
 g('update-ref', 'refs/remotes/origin/release/1.1', 'release/1.1');
+// main tracks origin/main (2 commits ahead once "Sync" lands); dark-mode tracks a branch deleted on the remote.
+g('remote', 'add', 'origin', 'https://git.example.com/acme/app.git');
+g('config', 'branch.main.remote', 'origin');
+g('config', 'branch.main.merge', 'refs/heads/main');
+g('config', 'branch.feature/dark-mode.remote', 'origin');
+g('config', 'branch.feature/dark-mode.merge', 'refs/heads/feature/dark-mode');
 writeFileSync(join(d, 'src/app.ts'), 'wip\n');
 g('stash', 'push', '-q', '-m', 'WIP: toolbar spacing');
 c('src/sync.ts', 'Sync: debounce writes', 0);
@@ -69,9 +80,10 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   const sel = log.find((x) => x.subject === "Merge branch 'feature/search'")!;
   const info = await readCommitInfo(d, sel.sha);
   const files = await readChanges(d, info.parents[0], sel.sha);
+  const signature = await readSignature(d, sel.sha);
   const out = {
     data: { type: 'data', repo: d, commits, packed: lay.packed, start: lay.start, width: lay.width, refs: state.refs, head: state.head, branch: state.branch, hasMore: false, worktrees, filter: { branches: [], remotes: true }, branches: state.refs.filter((r) => r.type !== 'tag').map((r) => r.name), avatars: avatarMap(log.map((x) => x.email)) },
-    details: { type: 'details', sha: sel.sha, info, from: info.parents[0], to: sel.sha, files },
+    details: { type: 'details', sha: sel.sha, info, signature, from: info.parents[0], to: sel.sha, files },
     // TAGS=1 in shot.mjs: the commit tagged v1.0.0, with its tags.
     tagged: await (async () => {
       const sha = state.refs.find((r) => r.name === 'v1.0.0')!.sha;
@@ -87,4 +99,5 @@ g('worktree', 'add', '-q', d + '-release', 'release/1.1');
   writeFileSync(process.argv[2], JSON.stringify(out));
   rmSync(d + '-release', { recursive: true, force: true });
   rmSync(d, { recursive: true, force: true });
+  for (const f of [key, key + '.pub', d + '-allowed']) rmSync(f, { force: true });
 })();

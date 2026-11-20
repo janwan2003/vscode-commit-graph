@@ -2,7 +2,7 @@
 // webview's requests (details, diffs, actions).
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
+import { readLog, readFileHistory, searchLog, readState, readStashes, insertStashes, readStatusCount, readChanges, readCommitInfo, readWorktrees, readTags, readSignature, mergeBase, Commit, RepoState, CommitOrder, Worktree } from '../core/gitlog';
 import * as fs from 'node:fs';
 import { layout, LayoutState, newLayoutState } from '../core/graph';
 import { Repos, RepoInfo } from './repos';
@@ -274,7 +274,7 @@ export class GraphPanel implements vscode.Disposable {
     if (unc > 0 && state.head && commits.some((c) => c.sha === state.head)) {
       commits = [{ sha: UNCOMMITTED, parents: [state.head], author: '', email: '', date: Math.floor(Date.now() / 1000), subject: `Uncommitted changes (${unc})`, kind: 'uncommitted' }, ...commits];
     }
-    const base = JSON.stringify([root, state, unc, this.filter, order, worktrees, op, names, web]);
+    const base = JSON.stringify([root, state, unc, this.filter, order, opts.firstParent, worktrees, op, names, web]);
     const sig = JSON.stringify([base, this.max, commits.map((c) => c.sha)]);
     if (!force && sig === this.lastSig) return;
     this.lastSig = sig;
@@ -310,6 +310,7 @@ export class GraphPanel implements vscode.Disposable {
       filter: this.filter,
       names,
       order,
+      firstParent: opts.firstParent,
       web,
       worktrees,
       op,
@@ -347,7 +348,8 @@ export class GraphPanel implements vscode.Disposable {
   }
 
   private logOptions(order: CommitOrder) {
-    return { max: this.max, branches: this.filter.branches.length ? this.filter.branches : undefined, remotes: this.filter.remotes, order };
+    const firstParent = vscode.workspace.getConfiguration('mergeline').get<boolean>('firstParentOnly', false);
+    return { max: this.max, branches: this.filter.branches.length ? this.filter.branches : undefined, remotes: this.filter.remotes, order, firstParent };
   }
 
   /** Find box "All history": search every commit the graph could show, not just the loaded ones. */
@@ -409,6 +411,10 @@ export class GraphPanel implements vscode.Disposable {
       case 'order':
         // Saved as a user setting; the configuration listener refreshes the graph.
         if (['date', 'topo', 'author-date'].includes(m.order)) await vscode.workspace.getConfiguration('mergeline').update('commitOrder', m.order, vscode.ConfigurationTarget.Global);
+        break;
+      case 'firstParent':
+        // Saved as a user setting, like the order; the configuration listener refreshes the graph.
+        await vscode.workspace.getConfiguration('mergeline').update('firstParentOnly', !!m.on, vscode.ConfigurationTarget.Global);
         break;
       case 'details':
         await this.details(m.sha, m.compare, !!m.base);
@@ -491,10 +497,10 @@ export class GraphPanel implements vscode.Disposable {
         this.post({ type: 'details', sha, from: 'HEAD', to: null, files });
         return;
       }
-      const [info, tags] = await Promise.all([readCommitInfo(root, sha), readTags(root, sha).catch(() => [])]);
+      const [info, tags, signature] = await Promise.all([readCommitInfo(root, sha), readTags(root, sha).catch(() => []), readSignature(root, sha)]);
       const files = await readChanges(root, info.parents[0] ?? null, sha);
       const avatars = this.avatars([{ email: info.email }]);
-      this.post({ type: 'details', sha, info, tags, from: info.parents[0] ?? null, to: sha, files, avatar: avatars?.[info.email] });
+      this.post({ type: 'details', sha, info, tags, signature, from: info.parents[0] ?? null, to: sha, files, avatar: avatars?.[info.email] });
     } catch (e) {
       this.post({ type: 'details', sha, error: String((e as Error)?.message ?? e), files: [] });
     }
